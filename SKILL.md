@@ -56,6 +56,20 @@ description: >-
 > 除 `vibe_register` 外，所有工具通过 HTTP 请求头 `Authorization: Bearer <api_key>` 鉴权，
 > **工具参数中不再出现 api_key**（key 不裸奔、不进调用日志）。
 
+## 三个数据工具怎么配合（推荐工作流）
+
+三个工具服务于冷启动的三个不同环节，**从远到近**推进：
+
+| 环节 | 工具 | 回答的问题 | 输出 |
+|------|------|-----------|------|
+| **扫描机会** | `vibe_cases` | 最近谁做成了？（按收入门槛筛候选）| 新案例候选（含打法 pattern / 可信度 / 溯源链接）|
+| **验证市场** | `vibe_knowledge` | 这个品类做没做成？天花板多高？（按品类聚合）| 收入中位数 / 获客渠道 Top / 工具链 Top / 类似案例 |
+| **找到客户** | `vibe_reddit` | 谁正在抱怨/求方案？怎么触达？（搜 Reddit）| 帖子+评论（作者可见）+ 相关性标注 + 需求论证报告 |
+
+**推荐顺序**：`vibe_cases`（可选，看有没有先例）→ `vibe_knowledge`（验证品类可行）→ `vibe_reddit`（找到真实客户，直接触达）。
+
+**一个核心区别**：只有 `vibe_reddit` 产出**可以直接触达的人**（评论作者）；另两个产出**决策信息**（要不要做、怎么做）。预算有限时优先投 `vibe_reddit`。
+
 ## 用法示例
 
 ```
@@ -144,7 +158,7 @@ vibe_balance()
 | 中国大陆 | **微信支付**（人民币）| Starter ¥280.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Wallet Top-up ¥1~¥1000 |
 
 ### 步骤 3：生成支付入口
-- **Creem（海外）**：调 `GET https://mcp.vibedollar.net/creem/checkout?api_key=<key>&plan=starter|pro|welcome_credit|topup` → 302 跳转的 URL 就是支付链接 → 直接发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）
+- **Creem（海外）**：调 `POST https://mcp.vibedollar.net/creem/checkout`（body: `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}`）→ 返回 `{"ok": true, "url": "<支付链接>"}` → 把 `url` 发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）。**不要把 api_key 放进 URL**（GET 直链已下线：api_key 进 URL 会落入隧道/访问日志与浏览器历史）
 - **微信（国内）**：调 `POST https://mcp.vibedollar.net/pay/native`（body: `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}`）→ 返回 `code_url` → **把 code_url 生成二维码**（或提示用户用微信扫一扫）→ 发给用户扫码（充值 `tier: "topup"` 时 body 需加 `"amount_cents": <人民币×100>`，如 ¥36 → 3600）
 
 ### 步骤 4：用户扫码付款 → 确认开通
