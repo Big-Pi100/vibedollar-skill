@@ -23,7 +23,6 @@ Give it your product description, and vibedollar returns **potential-customer le
 | `vibe_balance` | — | Tier + quota remaining | Free | Header |
 | `vibe_knowledge` | `product_type, limit` | Similar cases / channels / toolchains (470+) | In-tier | Header |
 | `vibe_reddit` | `product, keywords, max_results` | **Find customers**: posts + comments with authors, why-it-matches annotations, and a demand-validation report | In-tier / $0.05 per lead after your monthly quota | Header |
-| `vibe_cases` | `min_revenue, max_results` | Discover new vibecoding case candidates | In-tier | Header |
 
 All tools except `vibe_register` authenticate via HTTP header `Authorization: Bearer <api_key>` — no key in tool params, no key in call logs.
 
@@ -38,7 +37,7 @@ All tools except `vibe_register` authenticate via HTTP header `Authorization: Be
 - **1 lead = 1 post or 1 comment** (authors are your potential customers — click through to reach them). Usage is clamped to your remaining quota — no overselling.
 - **No credit on signup**: register for an API key, then subscribe to Starter/Pro, or top up your wallet with any amount (¥1–¥1000 via WeChat / $1–$200 via Creem, any number of times; plus a **$1 Welcome Credit** for new accounts, once per account) for over-quota Reddit calls at **$0.05 per lead after your monthly quota**.
 - **Free accounts have zero quota** (no subscription = no free allowance): every data call is billed from wallet credit ($0.05 per Reddit lead, $0.05 per knowledge/cases call); with no credit you get `Insufficient credit — please top up`.
-- **`vibe_knowledge` / `vibe_cases`** are auxiliary tools (market validation / opportunity scanning), included in the subscription.
+- **`vibe_knowledge`** is the market validation tool (knowledge base + live search fallback), included in the subscription.
 - **Starter/Pro upgrade**: Creem (overseas) or WeChat scan (mcp.vibedollar.net, tier applied automatically after payment); **annual 8折** (coming later); **no trial**.
 
 ## Configuration
