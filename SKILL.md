@@ -51,7 +51,6 @@ description: >-
 | `vibe_balance` | `（无）` | 查余额/tier/配额余量（key 走 Header） | 免费 | Header |
 | `vibe_knowledge` | `product_type, min_revenue, limit` | 查知识库类似案例/渠道/工具链（480+案例）：输入品类（marketplace/saas/ai_tool…）或收入门槛（min_revenue），知识库优先命中；未命中自动全网搜索补充 | 订阅档内可用 / 超出后 $0.05/次 | Header |
 | `vibe_reddit` | `product, keywords, max_results` | **找到潜在客户**：输入**产品描述**（推荐）或直接给关键词，返回相关帖子+评论（title/url/subreddit/score/comments/body，评论含作者 + **相关性标注**：为什么像潜在客户）+ **需求论证报告**（论证确实有潜在客户真实存在） | 含在档位额度内 / 超出额度后按 $0.05/条线索扣费 | Header |
-| `vibe_discover` | `keywords, subreddit, max_results` | **发现需求**：搜 Reddit 抱怨帖并提炼**用户需求**（每条帖子的 need/pain + 信号强弱 strong/medium/weak）——适合还没做产品、想先看"什么被抱怨/被需要"的场景。输入关键词（可限 subreddit），返回需求列表 | 与 vibe_reddit 同额度（1 帖=1 线索）/ 超出后 $0.05/条 | Header |
 
 > 除 `vibe_register` 外，所有工具通过 HTTP 请求头 `Authorization: Bearer <api_key>` 鉴权，
 > **工具参数中不再出现 api_key**（key 不裸奔、不进调用日志）。
