@@ -2,7 +2,7 @@
 name: vibedollar
 description: >-
   vibedollar 帮独立开发者找到第一批客户——基于你的产品描述，返回 Reddit 上正在抱怨/求方案的
-  潜在客户线索（帖子+评论+相关性标注+需求论证报告），配 470+ 真实独立开发案例库做市场验证。
+  潜在客户线索（帖子+评论+相关性标注+需求论证报告），支持单次检索与订阅持续监控。
   远程托管免部署，零 LLM 依赖（BYOK）。付费解锁：Starter $39/mo 或 Pro $79/mo；也可自由充值钱包额度（微信 ¥1~¥1000 / Creem $1~$200，任意次数）。
 ---
 
@@ -13,8 +13,6 @@ description: >-
 产品做出来了，但那些正在解决你问题的帖子和评论，你用常规搜索找不到。
 输入你的产品描述，vibedollar 返回一批**潜在客户线索**：相关帖子与评论，每条都带作者和"为什么相关"的标注——点进去就能直接触达。
 
-配套 **470+ 真实独立开发案例库**：搜到需求立刻看谁做成过、收入多少、什么打法。
-
 **本服务只提供数据，不做分析** —— 所有分析由你自己的 LLM 完成（BYOK，用户自带模型，零 LLM 依赖）。
 
 ## 什么时候用它
@@ -23,7 +21,7 @@ description: >-
 |------|------|
 | 冷启动获客 | `vibe_reddit` → 一批正在抱怨/求方案的潜在客户，点进帖子直接触达 |
 | 验证产品点子 | 先搜需求再写代码：有 N 条强需求信号 → 值得做 |
-| 市场调研 / 竞品机会 | `vibe_knowledge` 查类似案例的收入、渠道、打法 |
+| 持续获客 | `vibe_subscribe` → 系统持续跟踪，线索自动积累，随时 `vibe_leads` 领取 |
 | 给投资人/团队证明 | `vibe_reddit` 的 report 就是现成的"需求真实性论证" |
 
 ## 快速开始
@@ -49,24 +47,52 @@ description: >-
 | `vibe_register` | `email` | 注册第 1 步: 发送 6 位邮箱验证码 | 免费 | 无需 |
 | `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
 | `vibe_balance` | `（无）` | 查余额/tier/配额余量（key 走 Header） | 免费 | Header |
-| `vibe_knowledge` | `product_type, min_revenue, limit` | 查知识库类似案例/渠道/工具链（480+案例）：输入品类（marketplace/saas/ai_tool…）或收入门槛（min_revenue），知识库优先命中；未命中自动全网搜索补充 | 订阅档内可用 / 超出后 $0.05/次 | Header |
 | `vibe_reddit` | `product, keywords, max_results` | **找到潜在客户**：输入**产品描述**（推荐）或直接给关键词，返回相关帖子+评论（title/url/subreddit/score/comments/body，评论含作者 + **相关性标注**：为什么像潜在客户）+ **需求论证报告**（论证确实有潜在客户真实存在） | 含在档位额度内 / 超出额度后按 $0.05/条线索扣费 | Header |
+| `vibe_subscribe` | `product` | **订阅持续监控**：输入产品描述，系统持续跟踪，线索自动积累（关键词/来源由系统管理，无需你操心） | 领取线索时扣档位额度 | Header |
+| `vibe_leads` | `subscription_id, limit` | **领取订阅线索**：秒回已积累的潜在客户线索（不触发实时搜索）；领取后计入月配额 | 扣档位额度 | Header |
+| `vibe_list_subs` | `（无）` | 查看我的订阅列表及每条待领取线索数 | 免费 | Header |
+| `vibe_unsubscribe` | `subscription_id` | 取消订阅（已积累的线索保留） | 免费 | Header |
+| `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量 | 免费 | Header |
+| `vibe_get_delivered` | `lead_id` | 单条已交付线索详情（回访用） | 免费 | Header |
+| `vibe_delivered` | `limit, offset` | 已交付线索列表（回访历史客户） | 免费 | Header |
 
 > 除 `vibe_register` 外，所有工具通过 HTTP 请求头 `Authorization: Bearer <api_key>` 鉴权，
 > **工具参数中不再出现 api_key**（key 不裸奔、不进调用日志）。
 
-## 两个数据工具怎么配合（推荐工作流）
+## 两种获客方式怎么选（推荐工作流）
 
-两个工具服务于冷启动的两个不同环节，**从远到近**推进：
+两种方式服务于不同的获客节奏，**即查即得 vs 长期跟踪**：
 
-| 环节 | 工具 | 回答的问题 | 输出 |
-|------|------|-----------|------|
-| **验证市场** | `vibe_knowledge` | 这个品类做没做成？天花板多高？谁做成了？（按品类聚合 / 按收入筛案例）| 收入中位数 / 获客渠道 Top / 工具链 Top / 类似案例 / 新案例候选 |
-| **找到客户** | `vibe_reddit` | 谁正在抱怨/求方案？怎么触达？（搜 Reddit）| 帖子+评论（作者可见）+ 相关性标注 + 需求论证报告 |
+| 方式 | 工具 | 适用 | 输出 |
+|------|------|------|------|
+| **即查即得** | `vibe_reddit` | 一次性调研 / 验证产品点子：马上看结果 | 帖子+评论（作者可见）+ 相关性标注 + 需求论证报告 |
+| **长期跟踪** | `vibe_subscribe` + `vibe_leads` | 产品定位已确定：持续获取新出现的潜在客户 | 线索自动积累，随时秒回领取 |
 
-**推荐顺序**：`vibe_knowledge`（验证品类可行 + 看先例）→ `vibe_reddit`（找到真实客户，直接触达）。
+**推荐顺序**：先 `vibe_reddit`（验证需求真实存在）→ 确认后 `vibe_subscribe`（持续跟踪，不漏新线索）。
 
-**一个核心区别**：只有 `vibe_reddit` 产出**可以直接触达的人**（评论作者）；`vibe_knowledge` 产出**决策信息**（要不要做、怎么做）。预算有限时优先投 `vibe_reddit`。
+**一个核心区别**：两种方式都产出**可以直接触达的人**（发帖/评论作者）；区别在节奏——`vibe_reddit` 立即给一批，订阅模式细水长流。预算有限时优先 `vibe_reddit` 验证需求。
+
+## 订阅模式（持续监控，不用反复调用）
+
+不想每次手动查询？订阅一个产品，系统会**持续跟踪**，线索自动积累，你随时查看即可：
+
+```
+vibe_subscribe(product="team wiki tool for small teams")   # 创建订阅（只需产品描述）
+    → {"ok": true, "subscription_id": 12, "message": "订阅创建成功, 后台正在跟踪..."}
+    ↓ 系统持续跟踪，线索积累（无需你操作）
+vibe_list_subs()                                          # 查看订阅状态 + 待领取数
+    → {"ok": true, "data": {"subscriptions": [{"id": 12, "product": "...", "new_leads": 7}]}}
+    ↓
+vibe_leads(subscription_id=12, limit=10)                  # 领取积累的线索（秒回）
+    → {"ok": true, "data": {"posts": [{"title": "...", "url": "...", "subreddit": "...", "score": 90}], "count": 7}}
+```
+
+**适用场景**：
+- 产品定位已确定，希望**持续获取**新出现的潜在客户，而不是想起来才查一次
+- 关键词/来源不用自己维护——订阅产品描述即可，系统管理搜索方向
+- 领取线索才消耗配额，订阅本身不额外收费
+
+**与 `vibe_reddit` 的关系**：两者互补、共用同一配额——`vibe_reddit` 即查即得（适合一次性调研），订阅适合长期跟踪。取消订阅用 `vibe_unsubscribe`（已积累线索保留）。
 
 ## 用法示例
 
@@ -79,14 +105,7 @@ vibe_verify(email="founder@example.com", code="123456")
 #   (api_key 同时通过邮件发送到邮箱, 请妥善保存)
 
 # 2. 配置好 Authorization: Bearer <key> 后直接调用，不再传 api_key
-# 市场验证: 查类似案例（聚合视图: 收入中位数/渠道Top/工具链Top/TOP3摘要）
-# 未订阅 = free 档 0 配额: 每次调用按 $0.05 从钱包扣; 无余额则返回 "Insufficient credit" 引导充值
-vibe_knowledge(product_type="saas", limit=5)
-# → {"ok": true, "data": {"view": "aggregate", "matched_count": 12, "median_revenue_mrr": 8500,
-#     "top_channels": [...], "top_tools": [...], "top_cases": [...]},
-#     "cost_usd": 0.05, "quota": {"used": 1, "limit": 0, "reset_in_days": 24}}
-
-# 3. 找到潜在客户: 搜 Reddit（订阅档内免费; 未订阅 free 档 0 线索 → 超量按 $0.05/条线索扣费 从钱包扣;
+# 找到潜在客户: 搜 Reddit（订阅档内免费; 未订阅 free 档 0 线索 → 超量按 $0.05/条线索扣费 从钱包扣;
 #    无余额则返回 "Insufficient credit" 引导充值/订阅）
 # 方式 A（推荐）: 输入产品描述
 vibe_reddit(product="team wiki tool for small teams", max_results=10)
@@ -103,14 +122,18 @@ vibe_reddit(keywords="team wiki collaboration", max_results=10)
 #                "verdict": {"level": "strong", "conclusion": "明确存在真实需求——..."}}},
 #     "cost_usd": 0.05, "quota": {"used": 1, "limit": 0, "reset_in_days": 24}}
 
-# 4. 知识库按收入门槛查案例（知识库优先，未命中自动搜索补充；升级订阅后全量明细）
-vibe_knowledge(min_revenue=10000, limit=5)
-# → {"ok": true, "data": {"view": "aggregate", "matched_count": N, "similar_cases": [...], "search_results": [...], "searched": false}}
+# 3. 订阅持续监控（可选，长期跟踪）
+vibe_subscribe(product="team wiki tool for small teams")
+# → {"ok": true, "subscription_id": 12, "message": "订阅创建成功, 后台正在跟踪..."}
+vibe_list_subs()
+# → {"ok": true, "data": {"subscriptions": [{"id": 12, "product": "...", "new_leads": 7}]}}
+vibe_leads(subscription_id=12, limit=10)
+# → {"ok": true, "data": {"posts": [{title, url, subreddit, score, reason}], "count": 7}}
 
-# 5. 查余额/tier/配额（key 从 Header 读取）
+# 4. 查余额/tier/配额（key 从 Header 读取）
 vibe_balance()
 # → {"ok": true, "api_key": "vibedollar_ab12...", "credit_usd": 0.0, "tier": "free",
-#     "quota": {"vibe_knowledge": {"used": 1, "limit": 0, "reset_in_days": 24}, ...}}
+#     "quota": {...}}
 ```
 
 ## Agent 使用提示
@@ -119,24 +142,22 @@ vibe_balance()
   未带 Header 会返回 `"Missing API key"`，未注册的 key 返回 `"Unknown API key"`。
 - **看 `quota` 块做自我管理**：每次调用响应带 `quota: {used, limit, reset_in_days}`，
   用尽前主动提示用户升级（Starter/Pro）或接受 reddit 超量按“超出额度后按 $0.05/条线索扣费”扣费。
-- **聚合视图（未订阅时）**：`vibe_knowledge` 返回统计值 + TOP3 案例摘要（不导出全量明细）；
-  升级 Starter/Pro 后获得全量明细（含渠道/工具链/全部案例字段）。
 - **检查 `remaining_credit`**：余额不足时 `vibe_reddit` 超量扣费返回 `"Insufficient credit"`。
 - **`vibe_reddit` 返回帖子 + 评论（带相关性标注）+ 需求论证报告**：每条帖子和评论都带作者，**每条评论标注为什么像潜在客户**——点进帖子即可触达，这些人就是你的潜在客户。body 截断 500 字符、每条评论截断 300 字符、每帖最多 5 条评论；**报告（report）论证"确实有 N 个潜在客户真实存在"**——信号统计 + 最强需求证据 + 结论（strong/medium/weak），帮你向自己/团队/投资人证明需求真实。
 - **输入产品描述即可（推荐）**：`vibe_reddit(product="你的产品一句话")` —— 无需自己找词，直接拿到潜在客户；也可直接给 `keywords`。
-- **典型工作流**：vibe_reddit（找到潜在客户：谁在抱怨/求方案 + 为什么相关）→ vibe_knowledge（看同行做成没、收入多少）→ 用你自己的 LLM 综合分析。
+- **订阅模式**：`vibe_subscribe(product)` 创建持续监控 → `vibe_list_subs()` 看状态 → `vibe_leads(subscription_id)` 秒回领取；`vibe_unsubscribe` 取消（线索保留）。
+- **典型工作流**：vibe_reddit（验证需求 + 找到第一批客户）→ 确认有效后 vibe_subscribe（持续跟踪不漏新线索）→ 用你自己的 LLM 综合分析。
 
 ## 定价
 
-| 档位 | 价格 | **帮你找到潜在客户**（vibe_reddit 帖子+评论） | 知识库 | 限速 |
-|------|------|----------------------------------------|--------|------|
-| **Starter** | **$39/mo** | **800 个/月**（帖子+评论+相关性标注+需求论证报告，点进即触达） | 全量明细（limit≤20+筛选） | 60 req/min |
-| **Pro** | **$79/mo** | **3000 个/月**（帖子+评论+相关性标注+需求论证报告，点进即触达） | 全量明细（limit≤50） | 120 req/min |
-| **Wallet Top-up** | **自由金额**（Creem $1~$200 / 微信 ¥1~¥1000，任意次数） | 不占订阅档位；钱包额度用于 vibe_reddit 超量扣费（超出额度后按 $0.05/条线索扣费） | 无 | 无 |
+| 档位 | 价格 | **帮你找到潜在客户**（vibe_reddit 帖子+评论 + 订阅线索） | 限速 |
+|------|------|----------------------------------------|------|
+| **Starter** | **$39/mo** | **800 个/月**（帖子+评论+相关性标注+需求论证报告，点进即触达；含订阅模式领取） | 60 req/min |
+| **Pro** | **$79/mo** | **3000 个/月**（帖子+评论+相关性标注+需求论证报告，点进即触达；含订阅模式领取） | 120 req/min |
+| **Wallet Top-up** | **自由金额**（Creem $1~$200 / 微信 ¥1~¥1000，任意次数） | 不占订阅档位；钱包额度用于 vibe_reddit 超量扣费（超出额度后按 $0.05/条线索扣费） | 无 |
 
-- **"个"= 潜在客户线索**：1 个帖子或 1 条评论 = 1 线索（发帖人/评论者都是潜在客户，点进帖子即可触达）；线索额度按实际返回的帖子数+评论数消耗，剩余不足时单次自动限制，不会超卖。
+- **"个"= 潜在客户线索**：1 个帖子或 1 条评论 = 1 线索（发帖人/评论者都是潜在客户，点进帖子即可触达）；线索额度按实际返回的帖子数+评论数消耗，剩余不足时单次自动限制，不会超卖。**订阅模式（`vibe_leads` 领取）与 `vibe_reddit` 共用同一月配额**，领取时才计费，订阅本身不额外收费。
 - **注册不送额度**：注册获取 API key 后，需选择 Starter/Pro 订阅，或自由充值钱包额度（微信 ¥1~¥1000 / Creem $1~$200，任意次数）用于 vibe_reddit 超量扣费（**超出额度后按 $0.05/条线索扣费**）；另有 **$1 Welcome Credit** 新客福利（每人限一次）。
-- **vibe_knowledge**：辅助工具（市场验证），订阅档内可用；超出后按 $0.05/次扣费。
 - **订阅升级（Starter/Pro）**：Creem（海外）或微信扫码支付开通（`mcp.vibedollar.net`，支付后自动置档）；**年付 8 折**（后续启用）；**无试用**。
 - **自由充值（Wallet Top-up）**：钱包支持自由金额充值（微信 ¥1~¥1000 / Creem $1~$200，任意次数），余额用于 vibe_reddit 超量扣费（超出额度后按 $0.05/条线索扣费）；另保留 $1 Welcome Credit 新客福利（每人限一次）。
 
@@ -156,7 +177,7 @@ vibe_balance()
 | 中国大陆 | **微信支付**（人民币）| Starter ¥280.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Wallet Top-up ¥1~¥1000 |
 
 ### 步骤 3：生成支付入口
-- **Creem（海外）**：调 `POST https://mcp.vibedollar.net/creem/checkout`（body: `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}`）→ 返回 `{"ok": true, "url": "<支付链接>"}` → 把 `url` 发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）。**不要把 api_key 放进 URL**（GET 直链已下线：api_key 进 URL 会落入隧道/访问日志与浏览器历史）
+- **Creem（海外）**：调 `POST https://mcp.vibedollar.net/creem/checkout`（body: `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}`）→ 返回 `{"ok": true, "url": "<支付链接>"}` → 把 `url` 发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）。**不要把 api_key 放进 URL**（GET 直链已下线：api_key 进 URL 会落入访问日志与浏览器历史）
 - **微信（国内）**：调 `POST https://mcp.vibedollar.net/pay/native`（body: `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}`）→ 返回 `code_url` → **把 code_url 生成二维码**（或提示用户用微信扫一扫）→ 发给用户扫码（充值 `tier: "topup"` 时 body 需加 `"amount_cents": <人民币×100>`，如 ¥36 → 3600）
 
 ### 步骤 4：用户扫码付款 → 确认开通

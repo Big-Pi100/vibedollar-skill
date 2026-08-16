@@ -2,7 +2,7 @@
 
 **vibedollar is an MCP skill that brings you the customers who are already complaining about, or asking for, exactly what you build.**
 
-Give it your product description, and vibedollar returns **potential-customer leads**: relevant Reddit posts and comments, each with the author and a *why-it-matches* annotation — click through and reach out. Backed by a **470+ real indie-cases library** so you can see who built it, what they make, and how.
+Give it your product description, and vibedollar returns **potential-customer leads**: relevant Reddit posts and comments, each with the author and a *why-it-matches* annotation — click through and reach out.
 
 **This service provides data only — no analysis.** All analysis is done by your own LLM (BYOK, bring your own key, zero LLM dependency).
 
@@ -21,23 +21,25 @@ Give it your product description, and vibedollar returns **potential-customer le
 | `vibe_register` | `email` | Send 6-digit verification code (step 1 of 2) | Free | — |
 | `vibe_verify` | `email, code` | Verify code → receive API key (step 2 of 2) | Free | — |
 | `vibe_balance` | — | Tier + quota remaining | Free | Header |
-| `vibe_knowledge` | `product_type, limit` | Similar cases / channels / toolchains (470+) | In-tier | Header |
 | `vibe_reddit` | `product, keywords, max_results` | **Find customers**: posts + comments with authors, why-it-matches annotations, and a demand-validation report | In-tier / $0.05 per lead after your monthly quota | Header |
+| `vibe_subscribe` | `product` | **Continuous monitoring**: subscribe a product — leads accumulate automatically over time (search scope managed by the system) | Quota on claim | Header |
+| `vibe_leads` | `subscription_id, limit` | **Claim subscription leads**: instant return of accumulated leads (no live search); counts against monthly quota | In-tier quota | Header |
+| `vibe_list_subs` | — | List my subscriptions with pending-lead counts | Free | Header |
+| `vibe_unsubscribe` | `subscription_id` | Cancel a subscription (accumulated leads are kept) | Free | Header |
 
 All tools except `vibe_register` authenticate via HTTP header `Authorization: Bearer <api_key>` — no key in tool params, no key in call logs.
 
 ## Pricing
 
-| Tier | Price | Customer leads (vibe_reddit posts+comments) | Knowledge base | Rate |
-|------|-------|---------------------------------------------|----------------|------|
-| **Starter** | **$39/mo** | **500/mo** (posts+comments+annotations+report) | Full detail (limit≤20) | 60 req/min |
-| **Pro** | **$79/mo** | **3000/mo** (posts+comments+annotations+report) | Full detail (limit≤50) | 120 req/min |
-| **Wallet Top-up** | **Any amount** ($1–$200 via Creem / ¥1–¥1000 via WeChat, any number of times) | No subscription needed; wallet credit for vibe_reddit over-quota calls ($0.05 per lead after your monthly quota) | — | — |
+| Tier | Price | Customer leads (vibe_reddit posts+comments + subscription claims) | Rate |
+|------|-------|---------------------------------------------|------|
+| **Starter** | **$39/mo** | **800/mo** (posts+comments+annotations+report; includes subscription leads) | 60 req/min |
+| **Pro** | **$79/mo** | **3000/mo** (posts+comments+annotations+report; includes subscription leads) | 120 req/min |
+| **Wallet Top-up** | **Any amount** ($1–$200 via Creem / ¥1–¥1000 via WeChat, any number of times) | No subscription needed; wallet credit for vibe_reddit over-quota calls ($0.05 per lead after your monthly quota) | — |
 
-- **1 lead = 1 post or 1 comment** (authors are your potential customers — click through to reach them). Usage is clamped to your remaining quota — no overselling.
+- **1 lead = 1 post or 1 comment** (authors are your potential customers — click through to reach them). Usage is clamped to your remaining quota — no overselling. **Subscription leads (claimed via `vibe_leads`) share the same monthly quota** as `vibe_reddit` — charged on claim, subscribing itself is free.
 - **No credit on signup**: register for an API key, then subscribe to Starter/Pro, or top up your wallet with any amount (¥1–¥1000 via WeChat / $1–$200 via Creem, any number of times; plus a **$1 Welcome Credit** for new accounts, once per account) for over-quota Reddit calls at **$0.05 per lead after your monthly quota**.
-- **Free accounts have zero quota** (no subscription = no free allowance): every data call is billed from wallet credit ($0.05 per Reddit lead, $0.05 per knowledge/cases call); with no credit you get `Insufficient credit — please top up`.
-- **`vibe_knowledge`** is the market validation tool (knowledge base + live search fallback), included in the subscription.
+- **Free accounts have zero quota** (no subscription = no free allowance): every data call is billed from wallet credit ($0.05 per Reddit lead); with no credit you get `Insufficient credit — please top up`.
 - **Starter/Pro upgrade**: Creem (overseas) or WeChat scan (mcp.vibedollar.net, tier applied automatically after payment); **annual 8折** (coming later); **no trial**.
 
 ## Configuration
