@@ -4,7 +4,7 @@
 
 Give it your product description, and vibedollar returns **potential-customer leads**: relevant Reddit posts and comments, each with the author and a *why-it-matches* annotation — click through and reach out.
 
-**This service provides data only — no analysis.** All analysis is done by your own LLM (BYOK, bring your own key, zero LLM dependency).
+**Relevance and demand analysis are included** — every lead explains why it matches, with a demand-validation report. No model configuration needed.
 
 ## Quick Start
 
@@ -60,7 +60,7 @@ All tools except `vibe_register` authenticate via HTTP header `Authorization: Be
 
 > Alternative: if your client can't set `Authorization`, use `Api-Key: <key>` — the server recognizes both.
 
-Register first, then configure the header, then call data tools (all zero LLM dependency, BYOK).
+Register first, then configure the header, then call data tools (relevance and demand analysis included, ready to use).
 
 ## License
 
