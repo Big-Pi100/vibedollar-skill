@@ -123,8 +123,8 @@ vibe_balance()
 
 - **始终先注册再配置 Header**：注册返回的 key 配到客户端请求头（`Authorization: Bearer <key>`），
   未带 Header 会返回 `"Missing API key"`，未注册的 key 返回 `"Unknown API key"`。
-- **看 `quota` 块做自我管理**：每次调用响应带 `quota: {used, limit, reset_in_days}`，
-  用尽前主动提示用户升级（Starter/Pro）或接受 reddit 超量按“超出额度后按 $0.05/条线索扣费”扣费。
+- **看 `quota` 块做自我管理**：每次调用响应带 `quota: {scope, used, limit}`（如 `{"scope": "3000/mo", "used": 5, "limit": 3000}` = 已用 5/3000），
+  用尽前主动提示用户升级（Starter/Pro）或接受订阅线索超量按“超出额度后按 $0.05/条线索扣费”扣费。
 - **检查 `remaining_credit`**：余额不足时订阅线索超量扣费返回 `"Insufficient credit"`。
 - **`vibe_leads` 返回帖子 + 评论（带相关性标注）**：每条线索都带作者和**相关性标注：为什么像潜在客户**——点进帖子即可触达，这些人就是你的潜在客户。
 - **订阅模式**：`vibe_subscribe(product)` 创建持续监控 → `vibe_list_subs()` 看状态 → `vibe_leads(subscription_id)` 秒回领取；`vibe_unsubscribe` 取消（线索保留）。
