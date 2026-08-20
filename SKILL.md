@@ -49,7 +49,7 @@ description: >-
 | `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
 | `vibe_balance` | `（无）` | 查余额/tier/配额余量（key 走 Header） | 免费 | Header |
 | `vibe_subscribe` | `product` | **订阅持续监控**：输入产品描述，系统持续跟踪，候选线索自动积累（关键词/来源由系统管理，无需你操心） | 免费（候选免费） | Header |
-| `vibe_leads` | `subscription_id, limit` | **领取候选线索**（免费）：返回候选（含系统参考分），供你评分。评分通过才计费 | **免费** | Header |
+| `vibe_leads` | `subscription_id, limit` | **领取候选线索**（免费）：返回候选（含系统参考分），供你评分。评分通过才计费。**单次上限：free 3 / Starter 20 / Pro 50 条**（实际返回 = min(limit, 档位上限)）| **免费** | Header |
 | `vibe_submit_score` | `scores` | **评分回传**：对候选评分，`relevant` 才计入交付（扣 1 配额/条），`irrelevant` 回灌优化 | 通过才扣档位额度 | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
 | `vibe_set_notify` | `enabled` | 邮件提醒开关：候选积压时是否发邮件通知你（默认开启，可关闭）| 免费 | Header |
@@ -77,6 +77,7 @@ vibedollar 只提供**订阅模式**——输入产品描述，系统持续跟�
 ```
 vibe_leads(subscription_id=12, limit=10)
     → 候选列表: [{"id": 1, "title": "...", "url": "...", "score": 系统参考分, ...}, ...]
+    （limit 传超过档位上限时按上限返回: free 3 / Starter 20 / Pro 50）
 
 vibe_submit_score(scores=[
     {"id": 1, "verdict": "relevant",   "score": 90, "reason": "直接求方案"},
