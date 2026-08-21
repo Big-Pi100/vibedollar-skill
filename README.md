@@ -1,95 +1,152 @@
-# vibedollar — 帮你找到正在等你的客户
+# vibedollar — find your first customers on Reddit
 
-> **Reddit 上正在抱怨、求方案的潜在客户，vibedollar 把他们带给你。**
+> **The customers you're looking for are already complaining and asking for solutions on Reddit. vibedollar brings them to you.**
 
-vibedollar 基于你的产品描述，**持续抓取** Reddit 上的潜在客户线索（帖子+评论，含作者与正文），你的 agent 用自己的 LLM 判断相关性，**评分通过的才计费**（按效果付费）。
+Give vibedollar your product description and it continuously monitors Reddit for **potential-customer leads** (posts + comments, with author, full text, and why-it-matches annotations). Your agent scores each candidate with **your own LLM** — you only pay for leads you score as `relevant` (pay-per-outcome).
 
-1. **MCP 服务**（mcp.vibedollar.net）—— Agent 注册后订阅产品，候选线索自动积累，你的 agent 评分后领取，**零配置**（只输入产品描述）
-2. **SKILL**（vibedollar-skill/）—— 让 vibedollar 能力变成 agent 的"肌肉记忆"
+1. **MCP service** (`mcp.vibedollar.net`) — Register, subscribe a product, candidates accumulate in the background, your agent scores and claims them. Zero setup (just a product description).
+2. **SKILL** — makes vibedollar part of your agent's muscle memory.
 
----
-
-## 一、产品形态
-
-| 形态 | 面向 | 模式 | 状态 |
-|:-----|:-----|:-----|:-----|
-| **MCP 服务**（mcp.vibedollar.net） | AI Agent 直接调用 | FastMCP，订阅制：候选免费，**评分通过才计费** | 🟢 已上线 |
-| **SKILL**（vibedollar-skill/） | 任何 AI Agent | 免费（含工具接入说明） | 🟢 已就绪 |
-
-**核心商业模式：按效果付费** —— 候选线索免费给你，你（你的 agent）评分判断相关性，`relevant` 的才计费（1 条 = 1 配额）。没评上的不花钱。
+- [中文版 README](README.zh-CN.md)
+- [SKILL (English)](SKILL.md) · [SKILL (中文)](SKILL.zh-CN.md)
 
 ---
 
-## 二、MCP 服务：候选线索 + 你的评分
+## What it does for you
 
-通过 MCP，任何 AI Agent 注册获取 API key（两步注册：邮箱验证码，key 邮件送达）→ 订阅后领取候选 → 评分计费。注册不送额度；付费方式：订阅 Starter/Pro（$39/$79 月），或自由充值钱包（微信 ¥1~¥1000 / Creem $1~$200），另有 $1 Welcome Credit 新客福利：
+| Use case | How |
+|----------|-----|
+| Cold-start acquisition | `vibe_subscribe` → system tracks continuously, leads accumulate, open the post and reach the prospect |
+| Validate a product idea | Subscribe, then look at accumulated leads: N strong-demand signals → build it |
+| Ongoing acquisition | `vibe_subscribe` → `vibe_leads` (free) → score → paid on `relevant` |
+| Proof for investors/team | Accumulated leads (that you scored) are ready-made demand validation |
 
-| 工具 | 能干什么 | 成本 |
-|:-----|:---------|:-----|
-| `vibe_register` / `vibe_verify` | 两步注册获取 API key | 免费 |
-| `vibe_balance` | 查余额 / tier / 配额余量 | 免费 |
-| `vibe_subscribe` | 订阅产品（输入描述，后台持续抓取候选） | 免费 |
-| `vibe_leads` | 领取候选线索（含作者/正文/系统参考分） | **免费** |
-| `vibe_submit_score` | 评分回传：`relevant` 计 1 配额进交付，`irrelevant` 回灌优化 | **通过才扣** |
-| `vibe_score_discuss` | 查看/回应你与系统参考评分的分歧（标准对齐） | 免费 |
-| `vibe_list_subs` / `vibe_unsubscribe` | 订阅管理 | 免费 |
-| `vibe_delivered` / `vibe_get_delivered` | 已交付线索（回访） | 免费 |
-| `vibe_mark_leads` | 标记线索结果（valid/contacted） | 免费 |
-
-> 详细能力说明、示例、工作流见 **[docs/mcp-service-guide.md](docs/mcp-service-guide.md)**。
-
-**计费说明**：候选线索**免费**；`vibe_submit_score` 判定 `relevant` 的候选计 1 配额/条并进交付列表，`irrelevant` 不计费（回灌优化，推送越来越准）。每批候选需全部评分后再取下一批。另有 $1 Welcome Credit 新客福利（每人限一次）。
+**Business model: pay-per-outcome.** Candidates are free. You (or your agent) judge relevance. Only `relevant` scores count (1 lead = 1 quota). Not scored → not billed.
 
 ---
 
-## 三、当前状态（2026-08-20）
+## MCP tools
 
-- **v3.1 用户评分模式**：候选免费 → 你的 agent 评分 → `relevant` 才计费（按效果付费）
-- **后台管线**：订阅产品后持续抓取 Reddit（搜索方向/数据源自动优化），候选自动积累
-- **反馈闭环**：你的评分（含不相关）回灌优化推送；分歧可查看对齐（标准校准）
-- **防滥用**：候选批次解锁制 + 已领取校验 + 一致性护栏
+| Tool | What it does | Cost |
+|------|-------------|------|
+| `vibe_register` / `vibe_verify` | Two-step signup → API key (email code → key) | Free |
+| `vibe_balance` | Check balance / tier / quota remaining | Free |
+| `vibe_subscribe` | Subscribe a product (describe it; background tracking starts) | Free |
+| `vibe_leads` | Claim candidate leads (author / body / system reference score) | **Free** |
+| `vibe_submit_score` | Score candidates: `relevant` = 1 quota + delivered; `irrelevant` = feedback for tuning | **Billed only on pass** |
+| `vibe_score_discuss` | View/respond to disagreements with system reference score (calibration) | Free |
+| `vibe_list_subs` / `vibe_unsubscribe` | Subscription management | Free |
+| `vibe_delivered` / `vibe_get_delivered` | Delivered leads (follow-up) | Free |
+| `vibe_mark_leads` | Mark lead outcome (valid / invalid / contacted) | Free |
 
----
-
-## 四、快速开始（开发环境）
-
-```bash
-# MCP 服务（stdio 模式）
-python mcp_server.py
-
-# 测试
-python -m pytest tests/ -q
-```
-
-Windows 可靠后台运行：`scripts/run_batch.bat`（顺序执行每日流水线，替代 Git Bash 无 nohup 的问题）。
+**Billing**: candidates are **free**; `vibe_submit_score` with `relevant` costs 1 quota per lead and moves it to your delivered list; `irrelevant` is free (feeds back to make future pushes more accurate). Score the whole batch before claiming the next one. New users get a **$1 Welcome Credit** (once per person).
 
 ---
 
-## 六、目录结构
+## Quick start
+
+1. **Connect** (remote-hosted, no local setup): add endpoint `https://mcp.vibedollar.net/mcp` to your MCP client (FastMCP HTTP transport).
+2. **Register** (two-step):
+   ```
+   vibe_register(email="you@example.com")     # sends a 6-digit code
+   vibe_verify(email="you@example.com", code="123456")   # returns api_key
+   ```
+   Your API key is also emailed to you. Pay to unlock: subscribe Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). New users get a **$1 Welcome Credit**.
+3. **Configure auth**: put the key in your MCP client request header — `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization headers).
+4. **Check balance/quota**: `vibe_balance()` (key read from header automatically).
+5. **Web self-service** also available: `https://vibedollar.net/account.html` (register / verify / pay).
+
+---
+
+## Recommended workflow
 
 ```
-pipeline/          # 核心管线
-  vibe_product_demo.py   # batch 导入入口（checkpoint/grounding/founder 确定性）
-  batch_fetch_starter.py # 案例抓取 + 官方页解析
-  enrich_cases.py        # 字段补全流水线（EnrichRunner）
-  story_writer.py        # Tier1 故事重写（8-gram + grounding 双门）
-  geo_site_generator.py  # 静态站生成（JSON-LD 结构化）
-  enrich_common.py       # 公共层（checkpoint/原子写/Grounding/_norm_number）
-  llm.py / search.py / config.py
-knowledge/         # 知识库（cases/*.yaml + index.yaml + toolchains/）
-data/              # 线索数据 / checkpoint / 日志 / mcp_store.db
-prompts/           # LLM 提示词（vibe_discover / enrich_fields / story_rewrite）
-scripts/           # run_batch.bat 等运维脚本
-docs/              # 文档
-tests/             # 测试
-mcp_server.py      # MCP 服务（FastMCP，12 个工具）
-vibedollar-skill/  # SKILL 发布物
+vibe_subscribe(product="team wiki tool for small teams")
+    → {"ok": true, "subscription_id": 12, "message": "tracking started..."}
+vibe_list_subs()                          # check status + pending count
+vibe_leads(subscription_id=12, limit=10)  # free candidates
+    → {"id": 1, "title": "...", "url": "...", "score": 90, "reason": "...", ...}
+vibe_submit_score(scores=[
+    {"id": 1, "verdict": "relevant",   "score": 90, "reason": "directly asking for a solution"},
+    {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "unrelated"},
+])
+    → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}
 ```
+
+Rules:
+- Candidates are **free** (`vibe_leads` costs nothing)
+- **Pay only on pass**: `verdict="relevant"` → 1 quota, added to delivered list (`vibe_delivered`)
+- **Please also return `irrelevant`** — that's how the system learns your judgment standard
+- Each candidate can be scored only once (re-scoring is rejected)
+- The `score` field is a system reference score — your judgment wins
+- **Finish the current batch before claiming the next**; unprocessed candidates come back with ids (never lock your subscription); candidates older than 7 days auto-expire
 
 ---
 
-## 七、安全提示
+## Pricing
 
-- 服务器 SSH 使用 ed25519 密钥（`vibedollar_ed25519`），已禁用 root 登录
-- GitHub Secrets 仅保留 `VPS_SSH_KEY`（CI 部署用）
-- **LLM 调用铁律**：所有 `call_llm` 统一用 `config.max_tokens=65536` / `config.input_chars=64000`，禁止硬编码独立限制
+| Tier | Price | **Delivered leads** (scored relevant) | Rate limit |
+|------|-------|----------------------------------------|------------|
+| **Free** | Sign-up | **30/mo** (demo: 1 subscription, 20 per claim; overage $0.05/lead from wallet) | 30 req/min |
+| **Starter** | **$39/mo** | **800/mo** (paid on pass; candidates free; score the batch to unlock the next) | 60 req/min |
+| **Pro** | **$79/mo** | **3000/mo** (paid on pass; candidates free; score the batch to unlock the next) | 120 req/min |
+| **Wallet top-up** | Any amount (Creem $1–$200 / WeChat ¥1–¥1000) | Extends quota at **$0.05/lead** after the tier quota runs out | — |
+
+- **"Lead" = one scored-relevant item**: 1 post or 1 comment = 1 lead (both author and commenter are prospects). Candidates free; only `relevant` consumes quota; no oversell.
+- **After quota**: paid leads auto-deduct $0.05 from wallet (insufficient balance → prompt to top up); Free tier has 30/mo then wallet.
+- **Sign-up gives no quota**: register for the API key, then subscribe Starter/Pro or top up the wallet. $1 Welcome Credit for new users (once).
+- **Upgrade**: Creem (global) or WeChat Pay (CN) at `mcp.vibedollar.net` — auto-activation after payment. **Annual 20% off** (coming soon). **No trial**.
+
+---
+
+## Payment & activation (agent workflow)
+
+The only user action is **scanning a QR code / clicking a link**. You (the agent) do the rest:
+
+1. **Confirm/register api_key**: `vibe_balance()` → if "Missing API key", register via `vibe_register` → user gives you the emailed 6-digit code → `vibe_verify`. Don't ask the user to self-register.
+2. **Pick channel by user location**:
+   | Location | Channel | Price |
+   |----------|---------|-------|
+   | Global (default) | **Creem** (USD card) | Starter $39/mo / Pro $79/mo / Welcome Credit $1 / Top-up $1–$200 |
+   | Mainland China | **WeChat Pay** (CNY) | Starter ¥280.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Top-up ¥1–¥1000 |
+3. **Generate payment entry**:
+   - **Creem**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}` → `{"url": "<payment link>"}` → send the url. **Never put api_key in URLs**.
+   - **WeChat**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}` → `code_url` → render as QR → user scans. For top-up add `"amount_cents": <CNY×100>`.
+4. **Confirm activation**: poll `GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` or re-check `vibe_balance()` — tier/credit auto-updates via webhook/callback.
+
+Troubleshooting:
+- User already has a key → use it directly, don't re-register
+- User prefers web → point them to `https://vibedollar.net/account.html` (equivalent flow)
+- Tier not updated after payment → wait 1–2s and re-check `vibe_balance()`; if still stale, report `out_trade_no` and contact support@vibedollar.net
+- Cancel: Starter/Pro downgrade at expiry (no hard cut), no agent action needed
+
+---
+
+## MCP client config
+
+```json
+{
+  "mcpServers": {
+    "vibedollar": {
+      "type": "http",
+      "url": "https://mcp.vibedollar.net/mcp",
+      "headers": {
+        "Authorization": "Bearer <your-key>"
+      }
+    }
+  }
+}
+```
+
+Some clients (Claude Desktop / Cursor) also support headers via env/config — set `Authorization: Bearer <key>` on the server's headers per your client's docs. Alternative header: `Api-Key: <key>`.
+
+Connect → `vibe_register` → put the key in the header → call data tools. We handle lead discovery and optimization; you handle judgment.
+
+---
+
+## Status (2026-08-21)
+
+- **v3.1 user-scoring mode**: candidates free → your agent scores → `relevant` billed (pay-per-outcome)
+- **Background pipeline**: continuous Reddit monitoring per subscription, candidates accumulate automatically
+- **Feedback loop**: your scores (including irrelevant) tune future pushes; disagreements viewable for calibration
+- **Abuse protection**: batch unlocking + claim validation + consistency guardrails
