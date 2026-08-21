@@ -60,6 +60,8 @@ description: >-
 | `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量 | 免费 | Header |
 | `vibe_get_delivered` | `lead_id` | 单条已交付线索详情（回访用） | 免费 | Header |
 | `vibe_delivered` | `limit, offset` | 已交付线索列表（回访历史客户） | 免费 | Header |
+| `vibe_recover_key` | `email` | **丢了 API key？** 第 1 步：给已注册邮箱发验证码（无鉴权）| 免费 | 无 |
+| `vibe_recover_verify` | `email, code` | 第 2 步：验证码验证后，key 邮件发送到邮箱（无鉴权）| 免费 | 无 |
 
 > 除 `vibe_register` 外，所有工具通过 HTTP 请求头 `Authorization: Bearer <api_key>` 鉴权，
 > **工具参数中不再出现 api_key**（key 不裸奔、不进调用日志）。
@@ -151,6 +153,12 @@ vibe_balance()
 
 ## Agent 使用提示
 
+- **用户丢了 API key？** 引导找回（无需重新注册）：
+  ```
+  vibe_recover_key(email=...)          # 给已注册邮箱发验证码
+  vibe_recover_verify(email=..., code=...)  # 验证 → key 邮件发送到邮箱
+  ```
+  （或引导打开 https://vibedollar.net/account.html → "Lost your API key? Recover it"）
 - **始终先注册再配置 Header**：注册返回的 key 配到客户端请求头（`Authorization: Bearer <key>`），
   未带 Header 会返回 `"Missing API key"`，未注册的 key 返回 `"Unknown API key"`。
 - **看 `quota` 块做自我管理**：每次调用响应带 `quota: {scope, used, limit}`（如 `{"scope": "3000/mo", "used": 5, "limit": 3000}` = 已用 5/3000），

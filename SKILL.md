@@ -58,6 +58,8 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted) — track outreach quality | Free | Header |
 | `vibe_get_delivered` | `lead_id` | Single delivered lead detail (follow-up) | Free | Header |
 | `vibe_delivered` | `limit, offset` | Delivered leads list (follow-up history) | Free | Header |
+| `vibe_recover_key` | `email` | **Lost your API key?** Step 1: send a verification code to a registered email (no auth) | Free | None |
+| `vibe_recover_verify` | `email, code` | Step 2: verify the code, your API key is emailed to you (no auth) | Free | None |
 
 > All tools except `vibe_register` authenticate via the HTTP header `Authorization: Bearer <api_key>` — **the key never appears in tool params or call logs**.
 
@@ -104,6 +106,11 @@ Cancel with `vibe_unsubscribe` (accumulated leads kept).
 
 ## Agent usage tips
 
+- **User lost their API key?** Guide them through recovery — no re-registration needed:/n  ```
+  vibe_recover_key(email=...)          # sends a verification code to their registered email
+  vibe_recover_verify(email=..., code=...)  # verifies → API key is emailed to them
+  ```
+  (Or point them to https://vibedollar.net/account.html → "Lost your API key? Recover it")
 - **Register first, then configure the header**: key goes in `Authorization: Bearer <key>`. Missing header → `"Missing API key"`; unregistered key → `"Unknown API key"`.
 - **Self-manage via the `quota` block**: each response carries `quota: {scope, used, limit}` (e.g. `{"scope": "3000/mo", "used": 5, "limit": 3000}` = 5/3000 used). Proactively suggest an upgrade (Starter/Pro) before exhaustion.
 - **`vibe_leads` returns candidates (posts + comments, free)**: id / title / url / body — your agent reads and judges, then returns scores via `vibe_submit_score`.

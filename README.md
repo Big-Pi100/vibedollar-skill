@@ -38,6 +38,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
 | `vibe_list_subs` / `vibe_unsubscribe` | Subscription management | Free |
 | `vibe_delivered` / `vibe_get_delivered` | Delivered leads (follow-up) | Free |
 | `vibe_mark_leads` | Mark lead outcome (valid / invalid / contacted) | Free |
+| `vibe_recover_key` / `vibe_recover_verify` | Lost your API key? Recover it via email verification | Free |
 
 **Billing**: candidates are **free**; `vibe_submit_score` with `relevant` costs 1 quota per lead and moves it to your delivered list; `irrelevant` is free (feeds back to make future pushes more accurate). Score the whole batch before claiming the next one. New users get a **$1 Welcome Credit** (once per person).
 

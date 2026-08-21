@@ -35,6 +35,7 @@
 | `vibe_list_subs` / `vibe_unsubscribe` | 订阅管理 | 免费 |
 | `vibe_delivered` / `vibe_get_delivered` | 已交付线索（回访） | 免费 |
 | `vibe_mark_leads` | 标记线索结果（valid/contacted） | 免费 |
+| `vibe_recover_key` / `vibe_recover_verify` | 找回 API key（邮箱验证后发到邮箱）| 免费 |
 
 **计费说明**：候选线索**免费**；`vibe_submit_score` 判定 `relevant` 的候选计 1 配额/条并进交付列表，`irrelevant` 不计费（回灌优化，推送越来越准）。每批候选需全部评分后再取下一批。另有 **$1 Welcome Credit** 新客福利（每人限一次）。
 
