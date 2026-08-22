@@ -48,8 +48,8 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_register` | `email` | Step 1: send 6-digit verification code | Free | None |
 | `vibe_verify` | `email, code` | Step 2: verify code, return api_key (also emailed) | Free | None |
 | `vibe_balance` | — | Balance / tier / quota remaining (key via header) | Free | Header |
-| `vibe_subscribe` | `product` | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you) | Free (candidates free) | Header |
-| `vibe_leads` | `subscription_id, limit` | **Claim candidates (free)**: posts/comments with system reference score, for your scoring. Billed only on pass. **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)) | **Free** | Header |
+| `vibe_subscribe` | `product`, `enable_competitor_kw`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts | Free (candidates free) | Header |
+| `vibe_leads` | `subscription_id, limit` | **Claim candidates (free)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Billed only on pass. **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)) | **Free** | Header |
 | `vibe_submit_score` | `scores` | **Score candidates**: `relevant` = 1 delivered (1 quota), `irrelevant` = feedback for tuning | Billed on pass | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score — we tune the standard to match your judgment | Free | Header |
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
