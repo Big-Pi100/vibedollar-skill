@@ -51,7 +51,7 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts | Free (candidates free) | Header |
 | `vibe_leads` | `subscription_id, limit` | **Claim candidates (free)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Billed only on pass. **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)) | **Free** | Header |
 | `vibe_submit_score` | `scores` | **Score candidates**: `relevant` = 1 delivered (1 quota), `irrelevant` = feedback for tuning | Billed on pass | Header |
-| `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score — we tune the standard to match your judgment | Free | Header |
+| `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score — we tune the standard to match your judgment. Use it when a candidate's reference score surprises you; it also flags where your scoring may be drifting, so the pipeline stays aligned with your real definition of a good lead | Free | Header |
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
 | `vibe_unsubscribe` | `subscription_id` | Cancel subscription (accumulated leads kept) | Free | Header |
@@ -80,7 +80,7 @@ vibe_submit_score(scores=[
 Rules:
 - **Candidates free**: `vibe_leads` costs nothing
 - **Pay on pass**: `verdict="relevant"` → 1 quota, added to delivered list (`vibe_delivered`)
-- **Also return `irrelevant`**: that's how the system learns your standard; the more you return, the more accurate pushes get
+- **Also return `irrelevant`**: that's how the system learns your standard. Every `irrelevant` score downgrades the keyword that produced that candidate — so the weak matches stop coming and pushes converge to what you actually want. **Your scoring quality IS your keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile), and the pipeline self-tunes around you. Careless or bulk-scored feedback is detected by the consistency guard and weighted down — so it's in your interest to score well, not just to score fast.
 - Each candidate can be scored only once (repeat submission rejected)
 - The candidate `score` is a system reference — your judgment wins
 
