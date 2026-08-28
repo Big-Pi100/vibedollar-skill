@@ -56,7 +56,7 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
 | `vibe_unsubscribe` | `subscription_id` | Cancel subscription (accumulated leads kept) | Free | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted) — track outreach quality | Free | Header |
-| `vibe_get_delivered` | `lead_id` | Single delivered lead detail (follow-up) | Free | Header |
+| `vibe_get_delivered` | `lead_id` | Single delivered lead detail (follow-up) — includes **full body** for context | Free | Header |
 | `vibe_delivered` | `limit, offset` | Delivered leads list (follow-up history) | Free | Header |
 | `vibe_recover_key` | `email` | **Lost your API key?** Step 1: send a verification code to a registered email (no auth) | Free | None |
 | `vibe_recover_verify` | `email, code` | Step 2: verify the code, your API key is emailed to you (no auth) | Free | None |
