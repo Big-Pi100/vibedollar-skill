@@ -60,7 +60,7 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_verify` | `email, code` | Step 2: verify code, return api_key (also emailed) | Free | None |
 | `vibe_balance` | — | Balance / tier / quota remaining (key via header) | Free | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(optional), `track_type`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts. `track_type` (internal use: outreach/seo/hot_content) | Free (candidates free) | Header |
-| `vibe_leads` | `subscription_id, limit` | **Claim candidates (free)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Billed only on pass. **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)) | **Free** | Header |
+| `vibe_leads` | `subscription_id, limit` | **Claim candidates (free)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Billed only on pass. **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new candidates), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (score pending items first to unlock). See **Working with pending candidates** below | **Free** | Header |
 | `vibe_submit_score` | `scores` | **Score candidates**: `relevant` = 1 delivered (1 quota), `irrelevant` = feedback for tuning | Billed on pass | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score, and we tune the standard to match your judgment. Use it when a candidate's reference score surprises you; it also flags where your scoring may be drifting, so the pipeline stays aligned with your real definition of a good lead | Free | Header |
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
@@ -92,8 +92,20 @@ Rules:
 - **Candidates free**: `vibe_leads` costs nothing
 - **Pay on pass**: `verdict="relevant"` → 1 quota, added to delivered list (`vibe_delivered`)
 - **Also return `irrelevant`**: that's how the system learns your standard. Every `irrelevant` score downgrades the keyword that produced that candidate, so the weak matches stop coming and pushes converge to what you actually want. **Your scoring quality IS your keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile), and the pipeline self-tunes around you. Careless or bulk-scored feedback is detected by the consistency guard and weighted down, so it's in your interest to score well, not just to score fast.
-- Each candidate can be scored only once (repeat submission rejected)
+- Each candidate can be scored only once (repeat submission rejected); scoring is final, so judge before you submit
+- **Score everything you claim**: claiming a batch moves candidates to `pending` and pauses the subscription until they are scored. A `locked` response with a `pending` list is **normal flow, not an error**: score every pending candidate (relevant or irrelevant) and the next batch unlocks. Never leave claimed candidates unscored.
+- **Save every returned field**: persist the full record per candidate (id/title/url/subreddit/score, and body when present). `id` is required later for `vibe_get_delivered`; don't keep only titles.
 - The candidate `score` is a system reference; your judgment wins
+
+## Working with pending candidates (`locked` is normal)
+
+The scoring question for every candidate is always: **is the author of this post a potential customer of the subscribed product?** Judge on topic (does it sit in the problem area the product solves) and signal strength. Answer `relevant` when yes, `irrelevant` when no (irrelevant still teaches the system and costs nothing).
+
+Standard loop:
+1. `vibe_subscribe(product)` → get `subscription_id`.
+2. `vibe_leads(subscription_id, limit)` → save the **entire returned record** for each candidate. Don't drop fields.
+3. Score **all** pending candidates with `vibe_submit_score` (verdict `relevant` or `irrelevant`), this unlocks the subscription for the next batch.
+4. For leads scored `relevant`, `vibe_get_delivered(lead_id)` returns the full post body for outreach.
 
 ## Subscription mode (continuous monitoring)
 
@@ -115,54 +127,54 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 Cancel with `vibe_unsubscribe` (accumulated leads kept).
 
-## Ways to use the data (beyond the lead list — no extra service)
+## Ways to use the data (beyond the lead list, no extra service)
 
-Subscription data = **real people expressing real needs in their own words** (who + where + how they say it). It's not just a lead list — it feeds downstream work:
+Subscription data = **real people expressing real needs in their own words** (who + where + how they say it). It's not just a lead list; it feeds downstream work:
 
-### ① Customer interviews (understand the customer — pre-PMF)
+### ① Customer interviews (understand the customer, pre-PMF)
 ```
 Source: vibe_leads candidates (author + original text + subreddit)
 Use it to:
   - Interview pool: candidate authors are people actively expressing the
-    problem you solve — sharper than a generic persona (they already said
+    problem you solve, sharper than a generic persona (they already said
     the need in their own words)
   - Interview questions: extract what they actually ask, what they're torn
-    about, which alternatives they compare — build the interview guide
+    about, which alternatives they compare; build the interview guide
     around their real concerns, don't guess
   - Language alignment: write product copy / landing pages in their words
     ("this was made for me" feeling)
 ```
 
-### ② First 100 customers (cold start — from discovery to outreach)
+### ② First 100 customers (cold start, from discovery to outreach)
 ```
-Source: scored-relevant delivered leads (vibe_delivered — authors reachable)
+Source: scored-relevant delivered leads (vibe_delivered, authors reachable)
 Use it to:
-  - Priority list: sort by score/reason — "directly asking for a solution"
+  - Priority list: sort by score/reason: "directly asking for a solution"
     authors get contacted first
   - Outreach copy: reference the real need from their post ("saw you ask
-    about X on Reddit") — beats template blasts (door-opener: evidence
+    about X on Reddit"), which beats template blasts (door-opener: evidence
     first, personal, one soft ask)
   - Cadence: process a batch weekly (score → filter → contact → follow up);
-    candidates keep accumulating — first customers come from first delivered
+    candidates keep accumulating, and first customers come from first delivered
     leads
 ```
 
-### ③ SEO/GEO content data (content strategy — from keywords to user language)
+### ③ SEO/GEO content data (content strategy, from keywords to user language)
 ```
 Source: subscription keyword set (how your domain's users actually phrase
 things on Reddit) + candidate posts
 Use it to:
-  - Content skeleton: extract how users describe the problem — write
+  - Content skeleton: extract how users describe the problem, and write
     titles/H1/FAQ in their language (more authentic than optimized
-    keywords — AI engines prefer citing real community language)
+    keywords; AI engines prefer citing real community language)
   - Evidence references: candidate posts as real demand evidence in
     articles (describe patterns, don't name authors)
   - Keyword iteration: recurring phrasing in candidates → update content
-    keywords (your score feedback also sharpens the subscription — a
+    keywords (your score feedback also sharpens the subscription; a
     two-way loop)
 ```
 
-**Common thread**: all three reuse **data you already receive** — no new
+**Common thread**: all three reuse **data you already receive**; no new
 service, no interface changes. vibedollar provides "people expressing the
 need + their own words"; how you use it (interviews / outreach / content)
 is up to your agent.
