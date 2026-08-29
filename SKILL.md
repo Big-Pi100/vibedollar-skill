@@ -22,6 +22,11 @@ You've built your product, but the posts and comments where people are actively 
 > Reddit DMs or their public contact info. Use leads in line with Reddit's platform
 > terms and applicable laws.
 
+**What you can do with the data** (three proven use cases):
+- **Customer interviews**: the authors of relevant posts are your best interview candidates. Reach them via Reddit DMs or public contact info, and run short discovery calls to validate demand.
+- **First 100 customers**: demand signals are a customer list in disguise. Score by how directly each person asks for a solution, reach out with a relevant first message, and turn replies into paying users.
+- **SEO & GEO optimization**: the words your customers use in their posts are what search engines and AI assistants reward. Reuse them in your landing page, FAQ, and content.
+
 - [中文版 SKILL](SKILL.zh-CN.md) · [README (English)](README.md)
 
 ## When to use it
