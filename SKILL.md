@@ -110,6 +110,58 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 Cancel with `vibe_unsubscribe` (accumulated leads kept).
 
+## Ways to use the data (beyond the lead list — no extra service)
+
+Subscription data = **real people expressing real needs in their own words** (who + where + how they say it). It's not just a lead list — it feeds downstream work:
+
+### ① Customer interviews (understand the customer — pre-PMF)
+```
+Source: vibe_leads candidates (author + original text + subreddit)
+Use it to:
+  - Interview pool: candidate authors are people actively expressing the
+    problem you solve — sharper than a generic persona (they already said
+    the need in their own words)
+  - Interview questions: extract what they actually ask, what they're torn
+    about, which alternatives they compare — build the interview guide
+    around their real concerns, don't guess
+  - Language alignment: write product copy / landing pages in their words
+    ("this was made for me" feeling)
+```
+
+### ② First 100 customers (cold start — from discovery to outreach)
+```
+Source: scored-relevant delivered leads (vibe_delivered — authors reachable)
+Use it to:
+  - Priority list: sort by score/reason — "directly asking for a solution"
+    authors get contacted first
+  - Outreach copy: reference the real need from their post ("saw you ask
+    about X on Reddit") — beats template blasts (door-opener: evidence
+    first, personal, one soft ask)
+  - Cadence: process a batch weekly (score → filter → contact → follow up);
+    candidates keep accumulating — first customers come from first delivered
+    leads
+```
+
+### ③ SEO/GEO content data (content strategy — from keywords to user language)
+```
+Source: subscription keyword set (how your domain's users actually phrase
+things on Reddit) + candidate posts
+Use it to:
+  - Content skeleton: extract how users describe the problem — write
+    titles/H1/FAQ in their language (more authentic than optimized
+    keywords — AI engines prefer citing real community language)
+  - Evidence references: candidate posts as real demand evidence in
+    articles (describe patterns, don't name authors)
+  - Keyword iteration: recurring phrasing in candidates → update content
+    keywords (your score feedback also sharpens the subscription — a
+    two-way loop)
+```
+
+**Common thread**: all three reuse **data you already receive** — no new
+service, no interface changes. vibedollar provides "people expressing the
+need + their own words"; how you use it (interviews / outreach / content)
+is up to your agent.
+
 ## Agent usage tips
 
 - **User lost their API key?** Guide them through recovery; no re-registration needed:/n  ```
