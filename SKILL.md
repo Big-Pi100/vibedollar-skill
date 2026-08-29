@@ -16,6 +16,12 @@ You've built your product, but the posts and comments where people are actively 
 
 **We handle lead discovery and continuous tuning** (search direction and data sources adjust automatically), **you decide what a good customer looks like** (your agent scores with your LLM) — each side does what it's best at, and pushes get more accurate over time.
 
+> **Data source**: leads are records of **publicly visible posts at collection time**.
+> Posts may later be removed by the platform or the author, but the historical record
+> remains a valid demand signal — the author is a real person still reachable via
+> Reddit DMs or their public contact info. Use leads in line with Reddit's platform
+> terms and applicable laws.
+
 - [中文版 SKILL](SKILL.zh-CN.md) · [README (English)](README.md)
 
 ## When to use it
