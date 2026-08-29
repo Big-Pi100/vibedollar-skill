@@ -2,7 +2,7 @@
 name: vibedollar
 description: >-
   vibedollar helps indie founders find their first customers — describe your product and it
-  continuously monitors Reddit for potential-customer leads (posts + comments), with subscription
+  continuously monitors Reddit for potential-customer leads (posts + comments) — Reddit lead generation that finds customers looking for you — with subscription
   tracking. Your agent judges relevance with its own LLM; you pay only for leads scored relevant
   (pay-per-outcome). Remote-hosted, zero setup. Paid plans: Starter $39/mo, Pro $79/mo; wallet
   top-up (WeChat / Creem) also available.
