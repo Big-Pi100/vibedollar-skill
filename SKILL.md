@@ -47,7 +47,7 @@ You've built your product, but the posts and comments where people are actively 
    vibe_verify(email="you@example.com", code="123456")  # returns api_key
    ```
    > After verification the API key is **also emailed to you** (also viewable once on the success page). Keep it safe.
-   > Unlock by: subscribe Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200); **$1 Welcome Credit** for new users (once per person).
+   > Unlock by: upgrade to Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). The free tier gives 30 delivered leads/month as a demo (subscribe, claim, score — full flow), upgrade when useful.
 3. **Configure auth header**: `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization). After that, data tools don't need `api_key` as a parameter.
 4. **Check balance/quota**: `vibe_balance()` (key read from header).
 5. **Web self-service** also available: `https://vibedollar.net/account.html` (register/verify/pay).
@@ -66,6 +66,7 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
 | `vibe_unsubscribe` | `subscription_id` | Cancel subscription (accumulated leads kept) | Free | Header |
+| `vibe_cancel_plan` (指引) | — | **Paid plans (Starter/Pro) cancel via the payment platform** (Creem customer portal / WeChat Pay management), not via this API. After cancellation your tier stays until the current period ends, then downgrades to free; leads already delivered are kept. Product subscriptions are cancelled with `vibe_unsubscribe`. | Free | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality | Free | Header |
 | `vibe_get_delivered` | `lead_id` | Single delivered lead detail (follow-up), including **full body** for context | Free | Header |
 | `vibe_delivered` | `limit, offset` | Delivered leads list (follow-up history) | Free | Header |
@@ -204,7 +205,7 @@ is up to your agent.
 
 - **"Lead" = one scored-relevant item**: 1 post or 1 comment = 1 lead (poster/commenter are both prospects). Candidates free; `relevant` consumes 1 quota; auto-limited when insufficient, no oversell.
 - **After quota**: paid leads auto-deduct $0.05 from wallet (prompt top-up when low); Free tier 30/mo then wallet.
-- **No free quota at signup**: register for the key, then subscribe Starter/Pro or top up. $1 Welcome Credit for new users (once).
+- **Free tier at signup**: register for the key and get the free tier (30 delivered leads/month demo — subscribe, claim, score — the full flow). Upgrade to Starter/Pro or top up when you need more.
 - **Upgrade (Starter/Pro)**: Creem (global) or WeChat Pay (CN) at `mcp.vibedollar.net`; auto-activation after payment. **Annual 20% off** (coming soon). **No trial**.
 
 ## Payment & activation (agent workflow)
@@ -215,11 +216,11 @@ is up to your agent.
 2. **Pick channel by location**:
    | Location | Channel | Price |
    |----------|---------|-------|
-   | Global (default) | **Creem** (USD card) | Starter $39/mo / Pro $79/mo / Welcome Credit $1.00 / Top-up $1–$200 (Pay What You Want) |
-   | Mainland China | **WeChat Pay** (CNY) | Starter ¥280.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Top-up ¥1–¥1000 |
+   | Global (default) | **Creem** (USD card) | Starter $39/mo / Pro $79/mo / Top-up $1–$200 (Pay What You Want) |
+   | Mainland China | **WeChat Pay** (CNY) | Starter ¥280.8/mo / Pro ¥568.8/mo / Top-up ¥1–¥1000 |
 3. **Generate payment entry**:
-   - **Creem (global)**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}` → `{"ok": true, "url": "<payment link>"}` → send the url (top-up: user enters $1–$200 on the Creem page). **Never put api_key in URLs**.
-   - **WeChat (CN)**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}` → `code_url` → render as QR → user scans (top-up: add `"amount_cents": <CNY×100>`, e.g. ¥36 → 3600).
+   - **Creem (global)**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"ok": true, "url": "<payment link>"}` → send the url (top-up: user enters $1–$200 on the Creem page). **Never put api_key in URLs**.
+   - **WeChat (CN)**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → render as QR → user scans (top-up: add `"amount_cents": <CNY×100>`, e.g. ¥36 → 3600).
 4. **User pays → confirm activation**: poll `GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` or re-check `vibe_balance()`: tier/credit auto-updates via WeChat callback / Creem webhook, no manual step.
 
 Edge cases:
