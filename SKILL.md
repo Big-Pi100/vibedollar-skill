@@ -108,6 +108,34 @@ Standard loop:
 3. Score **all** pending candidates with `vibe_submit_score` (verdict `relevant` or `irrelevant`), this unlocks the subscription for the next batch.
 4. For leads scored `relevant`, `vibe_get_delivered(lead_id)` returns the full post body for outreach.
 
+## Headless auto mode (run the loop with your own LLM, no interactive agent)
+
+Prefer a scheduled, autonomous loop over an interactive session? `scripts/lead_agent.py`
+runs the exact same claim → judge → submit loop unattended, judging with **your own
+LLM key** (any OpenAI-compatible provider — DeepSeek, OpenAI, ...). vibedollar's own
+marketing fleet runs this same pattern in production, so it is a proven, dogfooded loop.
+
+```bash
+export VIBEDOLLAR_API_KEY=...                          # from vibe_verify / account page
+export LLM_API_KEY=...                                 # your LLM key
+export LLM_BASE_URL=https://api.deepseek.com/v1        # OpenAI-compatible base
+export LLM_MODEL=deepseek-chat
+python3 scripts/lead_agent.py --limit 10               # one pass over all your subs
+python3 scripts/lead_agent.py --sub 12 --out ./evidence   # one sub + save relevant rows
+python3 scripts/lead_agent.py --loop 3600              # hourly daemon loop
+python3 scripts/lead_agent.py --dry-run                # claim only, no LLM / no submit
+```
+
+- **Judgment is yours**: edit `scripts/judge_prompt.md` (plain template) to define what a
+  good customer looks like for your market. `--threshold` (default 60) sets the
+  relevant/irrelevant score cut.
+- **Costs**: candidates free; `relevant` verdicts count against your vibedollar quota
+  (pay-on-pass, same as interactive). The judging LLM calls are billed to **your** key.
+- **Evidence (optional)**: `--out dir` appends CSV (or `--out-format json` → JSONL) of
+  your relevant judgments, with reason + score, for your own records.
+- **Failure-safe**: a candidate whose LLM judgment fails is simply left for the next run
+  (pending candidates are retried automatically, never lost).
+
 ## Subscription mode (continuous monitoring)
 
 ```

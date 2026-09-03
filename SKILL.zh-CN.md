@@ -98,6 +98,31 @@ vibe_submit_score(scores=[
 - 每条候选只能评分一次（重复回传会被拒绝）
 - 候选的 `score` 字段是系统参考分（仅供你参考，以你的判断为准）
 
+## 无头自动模式（填自己的 LLM key 无人值守跑循环）
+
+不想开交互式会话、想定时自动跑"领贴→判真→交还"循环？`scripts/lead_agent.py` 用
+**你自己的 LLM key**（任意 OpenAI-compatible：DeepSeek/OpenAI/...）无人值守执行同一主循环。
+vibedollar 自家营销舰队在生产就是跑这套模式（dogfood 验证过），普通用户拿来即用：
+
+```bash
+export VIBEDOLLAR_API_KEY=...                          # 你的 vibedollar key
+export LLM_API_KEY=...                                 # 你的 LLM key
+export LLM_BASE_URL=https://api.deepseek.com/v1        # OpenAI-compatible base
+export LLM_MODEL=deepseek-chat
+python3 scripts/lead_agent.py --limit 10               # 全部订阅跑一轮
+python3 scripts/lead_agent.py --sub 12 --out ./evidence   # 指定订阅 + 存证据
+python3 scripts/lead_agent.py --loop 3600              # 每小时循环（守护）
+python3 scripts/lead_agent.py --dry-run                # 只领取，不判真不交还
+```
+
+- **判真标准是你的**：编辑 `scripts/judge_prompt.md`（纯文本模板）定义"什么样的帖子算好客户"；
+  `--threshold`（默认 60）设 relevant/irrelevant 的分数门槛
+- **费用**：候选免费；`relevant` 才计 vibedollar 配额（按效果付费，与交互式一致）；
+  判真的 LLM 调用费走**你自己的 key**
+- **证据（可选）**：`--out dir` 把判 relevant 的行（含理由/分数）追加存 CSV（或
+  `--out-format json` → JSONL），留作自己的记录
+- **失败安全**：某条判真失败不会丢——留到下一轮 pending 自动重试
+
 ## 订阅模式（持续监控，不用反复调用）
 
 不想每次手动查询？订阅一个产品，系统会**持续跟踪**，线索自动积累，你随时查看即可：
