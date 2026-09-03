@@ -216,7 +216,10 @@ def _env_or(name: str, default: str = "") -> str:
 
 def run_pass(mc: MCPClient, args, prompt: str, threshold: int) -> dict:
     """单轮: 列订阅 → 每 sub 领取 → 判真 → 交还 → (可选)存证据。"""
-    subs = mc.call("vibe_list_subs").get("subscriptions", [])
+    _ls = mc.call("vibe_list_subs")
+    if isinstance(_ls, dict) and isinstance(_ls.get("data"), dict):
+        _ls = _ls["data"]          # {"ok":true,"data":{"subscriptions":[...]}}
+    subs = _ls.get("subscriptions", []) if isinstance(_ls, dict) else []
     if not isinstance(subs, list):
         subs = []
     active = [s for s in subs if s.get("status") in (None, "", "active")]
@@ -238,6 +241,8 @@ def run_pass(mc: MCPClient, args, prompt: str, threshold: int) -> dict:
             print(f"  ❌ sub {sid} 领取失败: {str(e)[:80]}")
             tot["failed"] += 1
             continue
+        if isinstance(r, dict) and isinstance(r.get("data"), dict):
+            r = r["data"]          # {"ok":true,"data":{"posts":[...],"pending":[...]}}
         posts = r.get("posts", []) if isinstance(r, dict) else []
         pending = r.get("pending", []) if isinstance(r, dict) else []
         leads = posts + pending
