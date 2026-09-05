@@ -81,6 +81,7 @@ You've built your product, but the posts and comments where people are actively 
 |------|--------|-------------|------|------|
 | `vibe_keywords` | `subscription_id`, `status`(optional: all/active/monitor/removed/retire) | **Keyword list + hit stats** (query/hit/pooled/avg-score/source): what your subscription currently matches on and how each word performs. Read before deciding to expand or retire | Free | Header |
 | `vibe_keyword_add` | `subscription_id`, `kw`, `kw_type`(tail/entity/competitor/comment), `source`(manual default / auto) | **Add a keyword** to broaden recall. `source=manual` words are yours and protected from auto-retirement; `source=auto` marks orchestrator-added words (they may be retired later). Adding the same word as an existing auto word takes ownership (manual) | Free | Header |
+| `vibe_keyword_add_batch` | `subscription_id`, `keywords`(list of `{kw, kw_type}`), `source`(auto default) | **Add N keywords in ONE call** (same per-word semantics as `vibe_keyword_add`) — use this for init/expand lists of several words instead of looping, to stay inside the per-account rate window (free 5 / starter 10 / pro 20 per 60s). Per-word failures never fail the batch; returns `{added, total, results}` | Free | Header |
 | `vibe_keyword_remove` | `subscription_id`, `kw`, `force`(false default) | **Retire a keyword** (status → removed, stops matching). Only manual words by default; `force=true` is for the orchestrator to retire weak auto words — don't use force manually | Free | Header |
 | `vibe_sd_update` | `subscription_id`, `supply_side`, `demand_side`, `core_friction`, `demand_pain` | **Set the supply/demand judgement scope** (four fields, persisted server-side). This is the official judging context — it is injected into your scoring engine as [SUPPLY/DEMAND] on every call. Empty fields keep the previous value; it is never overwritten by the backend after you edit it | Free | Header |
 | `vibe_sub_health` | `subscription_id` | **Delivery health, zero LLM**: quota / commitment line (2 × quota ÷ 30) / today's pooled / stock (new+sent) / gap flag / collecting_ok / last optimization event. Read this to decide whether to expand keywords | Free | Header |
@@ -89,7 +90,7 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_recover_lead` | `lead_id` | **Recover a misjudged lead** from recycle back to the scoring queue — re-score it (no double billing on pass) | Free | Header |
 | `vibe_subs` | `subscription_id` | **Source subreddit hit stats** (pooled per sub, by status) — which subreddits actually contribute candidates. Note: this is *source stats*, distinct from `vibe_list_subs` (your subscriptions) | Free | Header |
 
-> Cost note: the nine tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
+> Cost note: the ten tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
 
 ### Managing delivery health (commitment-gap driven tuning)
 

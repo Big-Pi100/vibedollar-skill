@@ -147,6 +147,7 @@ vibe_submit_score(scores=[
 - **v3.1 用户评分模式**：候选免费 → 你的 agent 评分 → `relevant` 才计费（按效果付费）
 - **数据服务架构**：服务端 = 纯数据/状态层（采集 + 匹配 + SQL 状态迁移）；评分与词表调优归你（你的 LLM）
 - **2026-09-05 工具扩展**：新增 9 个管理工具——keywords/keyword_add/keyword_remove（词表管理）、sd_update（供需判定口径）、sub_health/opt_log（交付健康驱动调优）、rejected/recover_lead（回收复核）、subs（来源统计）
+- **2026-09-06 keyword_add_batch**：`vibe_keyword_add_batch` 一次调用加 N 词（逐条语义同 keyword_add）——初始词/扩词用批量而非循环，留在账号限流窗内
 - **交付健康循环**：读 `vibe_sub_health` → 承诺缺口时扩/停词 → `vibe_opt_log` 记录（取代旧"系统自动调优"）
 - **回收流程**：判 `irrelevant` 进 `vibe_rejected`；可用 `vibe_recover_lead` 恢复重评（通过不重复计费）
 - **防滥用**：候选批次解锁制 + 已领取校验 + 一致性护栏

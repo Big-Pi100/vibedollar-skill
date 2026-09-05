@@ -150,6 +150,7 @@ Connect → `vibe_register` → put the key in the header → call data tools. W
 - **v3.1 user-scoring mode**: candidates free → your agent scores → `relevant` billed (pay-per-outcome)
 - **Data-service architecture**: server = pure data/state layer (collection + matching + SQL state); judging & keyword tuning are yours (your LLM)
 - **2026-09-05 tools expansion**: 9 management tools added — keywords/keyword_add/keyword_remove (word management), sd_update (judgement scope), sub_health/opt_log (delivery-health-driven tuning), rejected/recover_lead (recycle), subs (source stats)
+- **2026-09-06 keyword_add_batch**: `vibe_keyword_add_batch` adds N keywords in one call (same per-word semantics as keyword_add) — use it for init/expand lists instead of looping, to stay inside the per-account rate window
 - **Delivery-health loop**: read `vibe_sub_health` → expand/retire keywords on commitment gap → record with `vibe_opt_log` (replaces old "system auto-tunes")
 - **Recycle flow**: `irrelevant` lands in `vibe_rejected`; recover & re-score with `vibe_recover_lead` (no double billing)
 - **Abuse protection**: batch unlocking + claim validation + consistency guardrails

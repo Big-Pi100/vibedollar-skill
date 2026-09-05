@@ -72,6 +72,7 @@ description: >-
 |------|------|------|------|------|
 | `vibe_keywords` | `subscription_id`, `status`(可选) | **词表 + 命中统计**（query/hit/pooled/avg-score/source）：当前靠哪些词在匹配、每个词表现如何——扩/停前先读它 | 免费 | Header |
 | `vibe_keyword_add` | `subscription_id, kw, kw_type, source` | **加词扩召回**。`source=manual`（默认）= 你的词、受保护不会被自动停；`source=auto` = 编排器加的词（未来弱了可被停）。同词覆盖 auto 词 = 你接管（变 manual）| 免费 | Header |
+| `vibe_keyword_add_batch` | `subscription_id, keywords`(list of `{kw, kw_type}`), `source`(默认 auto) | **一次调用加 N 词**（逐条语义同 `vibe_keyword_add`）——初始词/扩词列表请用批量而非循环，留在账号限流窗内（free 5 / starter 10 / pro 20 每 60s）。单词失败不影响整批；返回 `{added, total, results}` | 免费 | Header |
 | `vibe_keyword_remove` | `subscription_id, kw, force` | **停用词**（→ removed 不再匹配）。默认只停 manual 词；`force=true` 仅供编排器停 auto 弱词——手动勿用 | 免费 | Header |
 | `vibe_sd_update` | `subscription_id, supply_side, demand_side, core_friction, demand_pain` | **设供需判定口径**（四段，服务端持久化）——这是评分引擎的官方判定上下文，每次评分注入为 [SUPPLY/DEMAND]。空字段保留旧值；你编辑后后端永不覆盖 | 免费 | Header |
 | `vibe_sub_health` | `subscription_id` | **交付健康（零 LLM）**：配额 / 承诺日线（2×配额÷30）/ 今日入池 / 候选存量(new+sent) / 缺口 / 采集是否足量 / 上次优化。据此决定是否扩词 | 免费 | Header |
@@ -80,7 +81,7 @@ description: >-
 | `vibe_recover_lead` | `lead_id` | **恢复误判线索**：从回收池回到待评分队列，可重新评分（通过不重复计费）| 免费 | Header |
 | `vibe_subs` | `subscription_id` | **来源 sub 命中统计**（各 sub 入池/状态分布）——哪些 subreddit 真在贡献。注意与 `vibe_list_subs`（你的订阅列表）区分 | 免费 | Header |
 
-> 费用说明：上面 9 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
+> 费用说明：上面 10 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
 
 ### 交付健康管理（承诺缺口驱动的调优循环）
 
