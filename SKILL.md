@@ -14,7 +14,7 @@ description: >-
 
 You've built your product, but the posts and comments where people are actively solving the problem you solve are impossible to find with regular search. Describe your product, and vibedollar continuously collects **potential-customer leads** (candidate posts and comments, with author and full text). **Your agent scores them with your own LLM**, and scored-relevant ones go to your delivered list, clickable for outreach.
 
-**We handle lead discovery and continuous tuning** (search direction and data sources adjust automatically), **you decide what a good customer looks like** (your agent scores with your LLM). Each side does what it's best at, and pushes get more accurate over time.
+**We run the data service: Reddit collection + candidate matching into a raw pool, and the state layer (keywords / supply-demand scope / recycle / health). You decide what a good customer looks like — your agent scores with your LLM, and drives tuning: read health (`vibe_sub_health`) → expand / retire keywords (`vibe_keyword_add` / `vibe_keyword_remove`) when the commitment gap shows, and record optimization events (`vibe_opt_log`).**
 
 > **Data source**: leads are records of **publicly visible posts at collection time**.
 > Posts may later be removed by the platform or the author, but the historical record
@@ -75,6 +75,37 @@ You've built your product, but the posts and comments where people are actively 
 
 > All tools except `vibe_register` authenticate via the HTTP header `Authorization: Bearer <api_key>`; **the key never appears in tool params or call logs**.
 
+### Management tools (2026-09-05 — keyword / health / recycle / scope)
+
+| Tool | Params | What it does | Cost | Auth |
+|------|--------|-------------|------|------|
+| `vibe_keywords` | `subscription_id`, `status`(optional: all/active/monitor/removed/retire) | **Keyword list + hit stats** (query/hit/pooled/avg-score/source): what your subscription currently matches on and how each word performs. Read before deciding to expand or retire | Free | Header |
+| `vibe_keyword_add` | `subscription_id`, `kw`, `kw_type`(tail/entity/competitor/comment), `source`(manual default / auto) | **Add a keyword** to broaden recall. `source=manual` words are yours and protected from auto-retirement; `source=auto` marks orchestrator-added words (they may be retired later). Adding the same word as an existing auto word takes ownership (manual) | Free | Header |
+| `vibe_keyword_remove` | `subscription_id`, `kw`, `force`(false default) | **Retire a keyword** (status → removed, stops matching). Only manual words by default; `force=true` is for the orchestrator to retire weak auto words — don't use force manually | Free | Header |
+| `vibe_sd_update` | `subscription_id`, `supply_side`, `demand_side`, `core_friction`, `demand_pain` | **Set the supply/demand judgement scope** (four fields, persisted server-side). This is the official judging context — it is injected into your scoring engine as [SUPPLY/DEMAND] on every call. Empty fields keep the previous value; it is never overwritten by the backend after you edit it | Free | Header |
+| `vibe_sub_health` | `subscription_id` | **Delivery health, zero LLM**: quota / commitment line (2 × quota ÷ 30) / today's pooled / stock (new+sent) / gap flag / collecting_ok / last optimization event. Read this to decide whether to expand keywords | Free | Header |
+| `vibe_opt_log` | `subscription_id`, `outcome`, `reason`, `n_new_kw`, `n_replaced` | **Record a keyword optimization event** (persisted to the optimization history shown in health) — call it after you expand/retire, so the loop is auditable | Free | Header |
+| `vibe_rejected` | `subscription_id`, `limit` | **Recycle history**: candidates your engine marked irrelevant (with reason/score), persisted across sessions | Free | Header |
+| `vibe_recover_lead` | `lead_id` | **Recover a misjudged lead** from recycle back to the scoring queue — re-score it (no double billing on pass) | Free | Header |
+| `vibe_subs` | `subscription_id` | **Source subreddit hit stats** (pooled per sub, by status) — which subreddits actually contribute candidates. Note: this is *source stats*, distinct from `vibe_list_subs` (your subscriptions) | Free | Header |
+
+> Cost note: the nine tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
+
+### Managing delivery health (commitment-gap driven tuning)
+
+The backend's promise is **data delivery**: Reddit collection + matching into the pool. Your job is to keep the pool feeding your buyer profile. Health is the loop driver:
+
+```
+1. vibe_sub_health(subscription_id)         → line / pooled_today / stock / gap / collecting_ok
+2. If gap (today's pool under line, or stock < 20) and collecting_ok:
+     vibe_keywords(subscription_id)         → current words + hit stats
+     (your LLM) propose add/retire          → keyword_add (source=auto) / keyword_remove(force)
+     vibe_opt_log(...)                      → record the optimization event
+3. If gap but !collecting_ok: the backend pulled little today — don't churn keywords, wait
+```
+
+This replaces the old "system auto-tunes" narrative: **you (your agent) are the tuner**, the service is a pure data/state layer. The same loop runs in the vibedollar web workbench orchestrator and in our own marketing fleet.
+
 ## Scoring format (agent calling convention)
 
 ```
@@ -92,8 +123,8 @@ vibe_submit_score(scores=[
 Rules:
 - **Candidates free**: `vibe_leads` costs nothing
 - **Pay on pass**: `verdict="relevant"` → 1 quota, added to delivered list (`vibe_delivered`)
-- **Also return `irrelevant`**: that's how the system learns your standard. Every `irrelevant` score downgrades the keyword that produced that candidate, so the weak matches stop coming and pushes converge to what you actually want. **Your scoring quality IS your keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile), and the pipeline self-tunes around you. Careless or bulk-scored feedback is detected by the consistency guard and weighted down, so it's in your interest to score well, not just to score fast.
-- Each candidate can be scored only once (repeat submission rejected); scoring is final, so judge before you submit
+- **Also return `irrelevant`**: that's how the state layer learns your standard — every `irrelevant` verdict downgrades the keyword that produced that candidate (pure SQL, server-side). **Your scoring quality drives keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile). Careless or bulk-scored feedback is detected by the consistency guard and weighted down.
+- **Each candidate is scored once per claim; `irrelevant` verdicts land in the recycle pool (`vibe_rejected`)** — if you later decide one was misjudged (e.g. after opening the post), recover it with `vibe_recover_lead` and re-score. `relevant` is final (billed).
 - **Score everything you claim**: claiming a batch moves candidates to `pending` and pauses the subscription until they are scored. A `locked` response with a `pending` list is **normal flow, not an error**: score every pending candidate (relevant or irrelevant) and the next batch unlocks. Never leave claimed candidates unscored.
 - **Save every returned field**: persist the full record per candidate (id/title/url/subreddit/score, and body when present). `id` is required later for `vibe_get_delivered`; don't keep only titles.
 - The candidate `score` is a system reference; your judgment wins
@@ -150,7 +181,7 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 ```
 
 - For a defined product that needs **continuous** new prospects, not ad-hoc searches
-- No keyword/source maintenance: describe the product, we manage the search direction
+- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when delivery runs behind the commitment line, **you** (your agent) expand/retire keywords via the health tools — see **Managing delivery health** below
 - **Paid on pass only** (pay-per-outcome); subscription itself is free
 - **Score the batch to unlock the next**: claimed candidates must all be scored (relevant or not) before the next claim; claiming early returns the pending list with ids (ids recoverable, never locks your subscription). Candidates un-scored for 7 days auto-expire.
 
@@ -275,4 +306,4 @@ Edge cases:
 
 Some clients (Claude Desktop / Cursor) allow headers via env/config; set `Authorization: Bearer <key>` on the server headers per their docs. Alternative header: `Api-Key: <key>`.
 
-Connect → `vibe_register` → configure the key in the header → call data tools (lead discovery and search-direction tuning are ours; judgment is yours).
+Connect → `vibe_register` → configure the key in the header → call data tools (Reddit collection, matching and state are ours; judging and keyword tuning are yours — see **Managing delivery health**).

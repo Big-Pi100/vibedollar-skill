@@ -15,7 +15,7 @@ description: >-
 产品做出来了，但那些正在解决你问题的帖子和评论，你用常规搜索找不到。
 输入你的产品描述，vibedollar 持续抓取**潜在客户线索**（候选帖子与评论，含作者与正文）——**由你的 agent 评分判断相关性**，评分通过的进交付列表，点进去就能直接触达。
 
-**我们负责线索抓取与持续优化**（搜索词、数据源自动调优），**你负责判断什么算好客户**（你的 agent 用你的 LLM 评分）——两边各做最擅长的事，推送会越来越准。
+**我们运行数据服务**：Reddit 采集 + 候选匹配入池 + 状态层（词表 / 供需判定口径 / 回收 / 健康）。**你决定什么算好客户**——你的 agent 用你的 LLM 评分，并驱动调优：读健康（`vibe_sub_health`）→ 承诺缺口时扩词/停弱词（`vibe_keyword_add` / `vibe_keyword_remove`）→ 记录优化事件（`vibe_opt_log`）。
 
 
 ## 什么时候用它
@@ -50,7 +50,7 @@ description: >-
 | `vibe_register` | `email` | 注册第 1 步: 发送 6 位邮箱验证码 | 免费 | 无需 |
 | `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
 | `vibe_balance` | `（无）` | 查余额/tier/配额余量（key 走 Header） | 免费 | Header |
-| `vibe_subscribe` | `product` | **订阅持续监控**：输入产品描述，系统持续跟踪，候选线索自动积累（关键词/来源由系统管理，无需你操心） | 免费（候选免费） | Header |
+| `vibe_subscribe` | `product` | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按健康缺口扩/停——见"交付健康管理"） | 免费（候选免费） | Header |
 | `vibe_leads` | `subscription_id, limit` | **领取候选线索**（免费）：返回候选（含系统参考分），供你评分。评分通过才计费。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）| **免费** | Header |
 | `vibe_submit_score` | `scores` | **评分回传**：对候选评分，`relevant` 才计入交付（扣 1 配额/条），`irrelevant` 回灌优化 | 通过才扣档位额度 | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
@@ -65,6 +65,37 @@ description: >-
 
 > 除 `vibe_register` 外，所有工具通过 HTTP 请求头 `Authorization: Bearer <api_key>` 鉴权，
 > **工具参数中不再出现 api_key**（key 不裸奔、不进调用日志）。
+
+### 管理工具（2026-09-05 —— 词表 / 健康 / 回收 / 判定口径）
+
+| 工具 | 参数 | 作用 | 费用 | 鉴权 |
+|------|------|------|------|------|
+| `vibe_keywords` | `subscription_id`, `status`(可选) | **词表 + 命中统计**（query/hit/pooled/avg-score/source）：当前靠哪些词在匹配、每个词表现如何——扩/停前先读它 | 免费 | Header |
+| `vibe_keyword_add` | `subscription_id, kw, kw_type, source` | **加词扩召回**。`source=manual`（默认）= 你的词、受保护不会被自动停；`source=auto` = 编排器加的词（未来弱了可被停）。同词覆盖 auto 词 = 你接管（变 manual）| 免费 | Header |
+| `vibe_keyword_remove` | `subscription_id, kw, force` | **停用词**（→ removed 不再匹配）。默认只停 manual 词；`force=true` 仅供编排器停 auto 弱词——手动勿用 | 免费 | Header |
+| `vibe_sd_update` | `subscription_id, supply_side, demand_side, core_friction, demand_pain` | **设供需判定口径**（四段，服务端持久化）——这是评分引擎的官方判定上下文，每次评分注入为 [SUPPLY/DEMAND]。空字段保留旧值；你编辑后后端永不覆盖 | 免费 | Header |
+| `vibe_sub_health` | `subscription_id` | **交付健康（零 LLM）**：配额 / 承诺日线（2×配额÷30）/ 今日入池 / 候选存量(new+sent) / 缺口 / 采集是否足量 / 上次优化。据此决定是否扩词 | 免费 | Header |
+| `vibe_opt_log` | `subscription_id, outcome, reason, n_new_kw, n_replaced` | **记录一次扩词/优化事件**（写入优化历史，健康页可见）——扩/停后调用，闭环可审计 | 免费 | Header |
+| `vibe_rejected` | `subscription_id, limit` | **回收历史**：引擎判不相关的候选（含理由分），跨会话持久 | 免费 | Header |
+| `vibe_recover_lead` | `lead_id` | **恢复误判线索**：从回收池回到待评分队列，可重新评分（通过不重复计费）| 免费 | Header |
+| `vibe_subs` | `subscription_id` | **来源 sub 命中统计**（各 sub 入池/状态分布）——哪些 subreddit 真在贡献。注意与 `vibe_list_subs`（你的订阅列表）区分 | 免费 | Header |
+
+> 费用说明：上面 9 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
+
+### 交付健康管理（承诺缺口驱动的调优循环）
+
+后端承诺的是**数据交付**：Reddit 采集 + 匹配入池。你的职责是让池子持续喂给你的买家画像——健康就是循环驱动器：
+
+```
+1. vibe_sub_health(subscription_id)        → 日线 / 今日入池 / 存量 / 缺口 / 采集足量
+2. 若缺口（今日入池低于日线，或存量 < 20）且采集足量:
+     vibe_keywords(subscription_id)         → 当前词 + 命中统计
+     （你的 LLM）给出扩/停建议            → keyword_add(source=auto) / keyword_remove(force)
+     vibe_opt_log(...)                      → 记录本次优化事件
+3. 若缺口但采集不足: 后端今天拉得少——不要反复扩词，等数据
+```
+
+这取代旧的"系统自动调优"叙事：**你（你的 agent）是调优者**，服务端是纯数据/状态层。同一循环也跑在 vibedollar Web 工作台编排器与我们的营销舰队里。
 
 ## 获客方式（订阅即所有，2026-08-17 起纯订阅模式；2026-08-20 起候选+评分计费）
 
@@ -94,8 +125,8 @@ vibe_submit_score(scores=[
 规则：
 - **候选免费**：`vibe_leads` 不扣任何配额
 - **通过才计费**：`verdict="relevant"` 的候选扣 1 配额/条，计入交付列表（`vibe_delivered` 可查）
-- **不相关也请回传**（`irrelevant`）：这是系统学习你评价标准的方式，回传越多推送越准
-- 每条候选只能评分一次（重复回传会被拒绝）
+- **不相关也请回传**（`irrelevant`）：这是状态层学习你评价标准的方式——每次 `irrelevant` 会降权产生该候选的词（服务端纯 SQL 状态迁移，不做 LLM）
+- **每条候选每轮领取评一次；判 `irrelevant` 的进回收池**（`vibe_rejected` 可查）——若事后（如点开原文后）觉得判错了，用 `vibe_recover_lead` 恢复再评。判 `relevant` 即最终（已计费）
 - 候选的 `score` 字段是系统参考分（仅供你参考，以你的判断为准）
 
 ## 无头自动模式（填自己的 LLM key 无人值守跑循环）
@@ -143,7 +174,7 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 **适用场景**：
 - 产品定位已确定，希望**持续获取**新出现的潜在客户，而不是想起来才查一次
-- 关键词/来源不用自己维护——订阅产品描述即可，系统管理搜索方向
+- 词表不用手工维护——订阅产品描述即可；当交付落后于承诺线时，由**你的 agent** 读健康工具扩/停词（见"交付健康管理"）
 - **评分通过才消耗配额**（按效果付费），订阅本身不额外收费
 - **先处理再取下一批**：已领取的候选需全部评分（相关/不相关都算）后，才能领取下一批；未处理完时再次领取会返回**待处理候选列表（含 id）**——直接用这些 id 评分即可解锁下一批（id 丢了也能找回，不会锁死订阅）。长期未评分的候选（7 天）会自动过期释放。
 
@@ -304,4 +335,4 @@ MCP 客户端配置示例（**关键：在 headers 里配 `Authorization: Bearer
 
 > 兼容备选：若客户端不允许自定义 `Authorization` 头，也可用 `Api-Key: <key>` 请求头，服务端同样识别。
 
-连接后先 `vibe_register` 注册获取 `api_key`，再把它配到请求头，之后直接调用数据工具（线索抓取与搜索方向优化由我们完成，你负责评分判断）。
+连接后先 `vibe_register` 注册获取 `api_key`，再把它配到请求头，之后直接调用数据工具（Reddit 采集、匹配与状态层由我们完成；评分与词表调优由你负责——见"交付健康管理"）。
