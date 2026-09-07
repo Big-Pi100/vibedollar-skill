@@ -7,11 +7,11 @@ description: "vibedollar helps indie founders find their first customers. Descri
 
 vibedollar monitors Reddit for posts and comments where people are actively seeking
 the kind of product the user builds, and surfaces them as scored **potential-customer
-leads**. The division of labor: vibedollar runs the data service (Reddit collection,
+leads**. Division of labor: vibedollar runs the data service (Reddit collection,
 candidate matching into a raw pool, and the state layer — keywords / supply-demand
 scope / recycle / health); **the host agent decides what a good customer looks like** —
-it scores candidates with its own LLM key and drives tuning (see **Managing delivery
-health** and **Supply-side decisions** below).
+it scores candidates with its own LLM key and drives tuning (see **Delivery-health
+tuning** and **Supply-side decisions** below).
 
 > **Data source**: leads are records of **publicly visible posts at collection time**.
 > Posts may later be removed by the platform or the author, but the historical record
@@ -19,10 +19,12 @@ health** and **Supply-side decisions** below).
 > Reddit DMs or their public contact info. Use leads in line with Reddit's platform
 > terms and applicable laws.
 
-**What the data is good for** (three proven use cases):
-- **Customer interviews**: the authors of relevant posts are the best interview candidates. Reach them via Reddit DMs or public contact info, and run short discovery calls to validate demand.
-- **First 100 customers**: demand signals are a customer list in disguise. Score by how directly each person asks for a solution, reach out with a relevant first message, and turn replies into paying users.
-- **SEO & GEO optimization**: the words customers use in their posts are what search engines and AI assistants reward. Reuse them in the landing page, FAQ, and content.
+**What the data is good for** — full playbooks (interviews / first 100 customers /
+SEO-GEO) live in `references/use-cases.md`; short form:
+- **Customer interviews**: authors of relevant posts are the best interview candidates.
+- **First 100 customers**: demand signals are a customer list in disguise; score by
+  how directly each person asks for a solution, then reach out.
+- **SEO & GEO optimization**: reuse customers' own words on landing page / FAQ / content.
 
 - [中文版 SKILL](SKILL.zh-CN.md) · [README (English)](README.md) · [Skill design guide](SKILL-DESIGN-GUIDE.md)
 
@@ -38,13 +40,7 @@ health** and **Supply-side decisions** below).
 ## Quick start
 
 1. **Connect** (remote-hosted, no local setup): add endpoint `https://mcp.vibedollar.net/mcp` to your MCP client (FastMCP HTTP transport).
-2. **Register** (two-step; email code → key; key also emailed):
-   ```
-   vibe_register(email="you@example.com")   # sends a 6-digit code
-   vibe_verify(email="you@example.com", code="123456")  # returns api_key
-   ```
-   > After verification the API key is **also emailed to you** (also viewable once on the success page). Keep it safe.
-   > Unlock by: upgrade to Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). The free tier gives 30 delivered leads/month as a demo (subscribe, claim, score — full flow), upgrade when useful.
+2. **Register (first time only)**: `vibe_register(email)` sends a 6-digit code; `vibe_verify(email, code)` returns the api_key (also emailed). The key unlocks after a Starter/Pro upgrade or wallet top-up. Full registration, unlock, payment and activation flow: `references/billing.md`.
 3. **Configure auth header**: `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization). After that, data tools don't need `api_key` as a parameter.
 4. **Check balance/quota**: `vibe_balance()` (key read from header).
 5. **Web self-service** also available: `https://vibedollar.net/account.html` (register/verify/pay).
@@ -91,7 +87,7 @@ health** and **Supply-side decisions** below).
 
 > Cost note: the ten tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
 
-### Managing delivery health (commitment-gap driven tuning)
+### Delivery-health tuning
 
 The backend's promise is **data delivery**: Reddit collection + matching into the pool. Your job is to keep the pool feeding your buyer profile. Health is the loop driver:
 
@@ -222,77 +218,25 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 ```
 
 - For a defined product that needs **continuous** new prospects, not ad-hoc searches
-- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when delivery runs behind the commitment line, **you** (your agent) expand/retire keywords via the health tools — see **Managing delivery health** below
+- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when delivery runs behind the commitment line, **you** (your agent) expand/retire keywords via the health tools — see **Delivery-health tuning** below
 - **Paid on pass only** (pay-per-outcome); subscription itself is free
 - **Score the batch to unlock the next**: claimed candidates must all be scored (relevant or not) before the next claim; claiming early returns the pending list with ids (ids recoverable, never locks your subscription). Candidates un-scored for 7 days auto-expire.
 
 Cancel with `vibe_unsubscribe` (accumulated leads kept).
 
-## Ways to use the data (beyond the lead list, no extra service)
+## Data use cases (downstream — read on need)
 
-Subscription data = **real people expressing real needs in their own words** (who + where + how they say it). It's not just a lead list; it feeds downstream work:
-
-### ① Customer interviews (understand the customer, pre-PMF)
-```
-Source: vibe_leads candidates (author + original text + subreddit)
-Use it to:
-  - Interview pool: candidate authors are people actively expressing the
-    problem you solve, sharper than a generic persona (they already said
-    the need in their own words)
-  - Interview questions: extract what they actually ask, what they're torn
-    about, which alternatives they compare; build the interview guide
-    around their real concerns, don't guess
-  - Language alignment: write product copy / landing pages in their words
-    ("this was made for me" feeling)
-```
-
-### ② First 100 customers (cold start, from discovery to outreach)
-```
-Source: scored-relevant delivered leads (vibe_delivered, authors reachable)
-Use it to:
-  - Priority list: sort by score/reason: "directly asking for a solution"
-    authors get contacted first
-  - Outreach copy: reference the real need from their post ("saw you ask
-    about X on Reddit"), which beats template blasts (door-opener: evidence
-    first, personal, one soft ask)
-  - Cadence: process a batch weekly (score → filter → contact → follow up);
-    candidates keep accumulating, and first customers come from first delivered
-    leads
-```
-
-### ③ SEO/GEO content data (content strategy, from keywords to user language)
-```
-Source: subscription keyword set (how your domain's users actually phrase
-things on Reddit) + candidate posts
-Use it to:
-  - Content skeleton: extract how users describe the problem, and write
-    titles/H1/FAQ in their language (more authentic than optimized
-    keywords; AI engines prefer citing real community language)
-  - Evidence references: candidate posts as real demand evidence in
-    articles (describe patterns, don't name authors)
-  - Keyword iteration: recurring phrasing in candidates → update content
-    keywords (your score feedback also sharpens the subscription; a
-    two-way loop)
-```
-
-**Common thread**: all three reuse **data you already receive**; no new
-service, no interface changes. vibedollar provides "people expressing the
-need + their own words"; how you use it (interviews / outreach / content)
-is up to your agent.
+Delivered leads, candidates and keywords are also raw material for **customer
+interviews**, **first-100-customer outreach**, and **SEO/GEO content** — full
+playbooks in `references/use-cases.md` (zh: `references/use-cases.zh-CN.md`).
+Read them when the user asks how to turn leads into conversations/customers/content.
 
 ## Agent usage tips
 
-- **User lost their API key?** Guide them through recovery; no re-registration needed:/n  ```
-  vibe_recover_key(email=...)          # sends a verification code to their registered email
-  vibe_recover_verify(email=..., code=...)  # verifies → API key is emailed to them
-  ```
-  (Or point them to https://vibedollar.net/account.html → "Lost your API key? Recover it")
-- **Register first, then configure the header**: key goes in `Authorization: Bearer <key>`. Missing header → `"Missing API key"`; unregistered key → `"Unknown API key"`.
-- **Self-manage via the `quota` block**: each response carries `quota: {scope, used, limit}` (e.g. `{"scope": "3000/mo", "used": 5, "limit": 3000}` = 5/3000 used). Proactively suggest an upgrade (Starter/Pro) before exhaustion.
-- **`vibe_leads` returns candidates (posts + comments, free)**: id / title / url / body; your agent reads and judges, then returns scores via `vibe_submit_score`.
-- **Paid on pass**: `relevant` → 1 quota + delivered list (`vibe_delivered`); `irrelevant` also returned (tunes search direction, pushes get more accurate).
-- **Score the batch before the next claim**.
-- **Typical workflow**: `vibe_subscribe` → `vibe_leads` → your agent scores with your LLM → `vibe_submit_score` → passed leads in delivered list (validate demand + find first customers).
+- **Lost API key?** Guide recovery: `vibe_recover_key(email)` → `vibe_recover_verify(email, code)` — or point to https://vibedollar.net/account.html → "Lost your API key? Recover it". No re-registration needed.
+- **Watch the `quota` block**: every response carries `quota: {scope, used, limit}` — proactively suggest an upgrade (Starter/Pro) before exhaustion.
+- **Registration & payment flow**: `references/billing.md` (agent does the full flow; the only user actions are providing the email/code and scanning a QR / clicking a link).
+- **Typical workflow**: `vibe_subscribe` → `vibe_leads` → your agent scores with its own LLM → `vibe_submit_score` → passed leads in delivered list (validate demand + find first customers).
 
 ## Pricing, payment & client config (reference)
 

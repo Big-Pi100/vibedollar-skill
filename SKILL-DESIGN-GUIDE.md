@@ -153,6 +153,12 @@ SKILL.md 回答三个问题：
 - [x] **A. 无 references/**：Pricing / Payment & activation / MCP client config 已拆到
       `references/billing.md` + `references/billing.zh-CN.md` + `references/mcp-config.md`；
       SKILL.md 正文降到 <5k 词（f34b36d）
+- [x] **A2. 低频内容二次清理（2026-09-08）**：渐进披露只做了一半 —— 注册流程（Quick start /
+      用法示例 / Agent tips 三处重复）、定价解锁明细（zh 快速开始）、下游用例（"Ways to use the
+      data" 50 行 + zh 3 用法）仍整段留在正文。本次：注册收敛为一句指引（完整流程指
+      billing.md）；定价明细从正文删除；下游用例整体迁移到新 `references/use-cases.md` +
+      `references/use-cases.zh-CN.md`；zh "用法示例"（重复注册演示）删除；双语段落结构对齐
+      （EN/ZH 各 16 节）；SKILL.md 307→248 行（3602→3157 词），SKILL.zh-CN.md 309→247 行
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）
