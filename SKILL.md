@@ -1,20 +1,17 @@
 ---
 name: vibedollar
-description: >-
-  vibedollar helps indie founders find their first customers. Describe your product and it
-  continuously monitors Reddit for potential-customer leads (posts + comments): Reddit lead generation that finds customers looking for you, with subscription
-  tracking. Your agent judges relevance with its own LLM; you pay only for leads scored relevant
-  (pay-per-outcome). Remote-hosted, zero setup. Paid plans: Starter $39/mo, Pro $79/mo; wallet
-  top-up (WeChat / Creem) also available.
+description: "vibedollar helps indie founders find their first customers. Describe your product and it continuously monitors Reddit for potential-customer leads (posts and comments). Your agent judges relevance with its own LLM; pay only for leads scored relevant. Remote-hosted, zero setup. Starter 39/mo, Pro 79/mo; wallet top-up available."
 ---
 
 # vibedollar | find your first customers on Reddit
 
-**The customers you want are already complaining and asking for solutions on Reddit. vibedollar brings them to you.**
-
-You've built your product, but the posts and comments where people are actively solving the problem you solve are impossible to find with regular search. Describe your product, and vibedollar continuously collects **potential-customer leads** (candidate posts and comments, with author and full text). **Your agent scores them with your own LLM**, and scored-relevant ones go to your delivered list, clickable for outreach.
-
-**We run the data service: Reddit collection + candidate matching into a raw pool, and the state layer (keywords / supply-demand scope / recycle / health). You decide what a good customer looks like — your agent scores with your LLM, and drives tuning: read health (`vibe_sub_health`) → expand / retire keywords (`vibe_keyword_add` / `vibe_keyword_remove`) when the commitment gap shows, and record optimization events (`vibe_opt_log`).**
+vibedollar monitors Reddit for posts and comments where people are actively seeking
+the kind of product the user builds, and surfaces them as scored **potential-customer
+leads**. The division of labor: vibedollar runs the data service (Reddit collection,
+candidate matching into a raw pool, and the state layer — keywords / supply-demand
+scope / recycle / health); **the host agent decides what a good customer looks like** —
+it scores candidates with its own LLM key and drives tuning (see **Managing delivery
+health** and **Supply-side decisions** below).
 
 > **Data source**: leads are records of **publicly visible posts at collection time**.
 > Posts may later be removed by the platform or the author, but the historical record
@@ -22,12 +19,12 @@ You've built your product, but the posts and comments where people are actively 
 > Reddit DMs or their public contact info. Use leads in line with Reddit's platform
 > terms and applicable laws.
 
-**What you can do with the data** (three proven use cases):
-- **Customer interviews**: the authors of relevant posts are your best interview candidates. Reach them via Reddit DMs or public contact info, and run short discovery calls to validate demand.
+**What the data is good for** (three proven use cases):
+- **Customer interviews**: the authors of relevant posts are the best interview candidates. Reach them via Reddit DMs or public contact info, and run short discovery calls to validate demand.
 - **First 100 customers**: demand signals are a customer list in disguise. Score by how directly each person asks for a solution, reach out with a relevant first message, and turn replies into paying users.
-- **SEO & GEO optimization**: the words your customers use in their posts are what search engines and AI assistants reward. Reuse them in your landing page, FAQ, and content.
+- **SEO & GEO optimization**: the words customers use in their posts are what search engines and AI assistants reward. Reuse them in the landing page, FAQ, and content.
 
-- [中文版 SKILL](SKILL.zh-CN.md) · [README (English)](README.md)
+- [中文版 SKILL](SKILL.zh-CN.md) · [README (English)](README.md) · [Skill design guide](SKILL-DESIGN-GUIDE.md)
 
 ## When to use it
 
@@ -162,11 +159,14 @@ Standard loop:
 
 ## Local script tools (batch executors — call when the action is mechanical)
 
-You are the decision engine (when/what/why). The scripts below are **pure executors**:
-they do one mechanical batch action fast (parallel per-item judging) — far more
-efficient than you writing the loop yourself. You decide when to call one and what
-to pass; the script returns structured JSON for your next decision. They do **not**
+The host agent is the decision engine (when/what/why). The scripts below are **pure
+executors**: each does one mechanical batch action fast (parallel per-item judging) —
+far more efficient than hand-writing the loop. Decide when to call one and what to
+pass; the script returns structured JSON for the next decision. Scripts do **not**
 self-schedule or loop on their own.
+
+**First use**: run with `--dry-run` once to verify key/connectivity before spending
+LLM calls (claims candidates only, judges nothing, submits nothing).
 
 ### `scripts/score_batch.py` — score one subscription's batch (claim → judge → submit)
 
@@ -294,57 +294,13 @@ is up to your agent.
 - **Score the batch before the next claim**.
 - **Typical workflow**: `vibe_subscribe` → `vibe_leads` → your agent scores with your LLM → `vibe_submit_score` → passed leads in delivered list (validate demand + find first customers).
 
-## Pricing
+## Pricing, payment & client config (reference)
 
-| Tier | Price | **Delivered leads** (scored relevant) | Rate limit |
-|------|-------|----------------------------------------|------------|
-| **Free** | Sign-up | **30/mo** (demo: 1 subscription, 20 per claim; overage $0.05/lead from wallet) | 30 req/min |
-| **Starter** | **$39/mo** | **800/mo** (paid on pass; candidates free; score the batch to unlock the next; 30 per claim) | 60 req/min |
-| **Pro** | **$79/mo** | **3000/mo** (paid on pass; candidates free; 50 per claim) | 120 req/min |
-| **Wallet top-up** | Any amount (Creem $1–$200 / WeChat ¥1–¥1000) | Extends quota at **$0.05/lead** after tier quota runs out | — |
+Pricing tiers, wallet top-up, the full agent payment/activation workflow, and MCP
+client connection config live in `references/` — read them only when needed:
 
-- **"Lead" = one scored-relevant item**: 1 post or 1 comment = 1 lead (poster/commenter are both prospects). Candidates free; `relevant` consumes 1 quota; auto-limited when insufficient, no oversell.
-- **After quota**: paid leads auto-deduct $0.05 from wallet (prompt top-up when low); Free tier 30/mo then wallet.
-- **Free tier at signup**: register for the key and get the free tier (30 delivered leads/month demo — subscribe, claim, score — the full flow). Upgrade to Starter/Pro or top up when you need more.
-- **Upgrade (Starter/Pro)**: Creem (global) or WeChat Pay (CN) at `mcp.vibedollar.net`; auto-activation after payment. **Annual 20% off** (coming soon). **No trial**.
-
-## Payment & activation (agent workflow)
-
-**The only user action is scanning a QR / clicking a link**: registration, ordering, generating the QR, confirming activation are all done by you (the agent).
-
-1. **Confirm/register api_key**: `vibe_balance()` → "Missing API key" means no header configured. If the user has no key: `vibe_register(email=...)` → user gives you the emailed 6-digit code → `vibe_verify(email, code)` → api_key. **Don't ask the user to self-register**; that's your job; the user only provides email and code.
-2. **Pick channel by location**:
-   | Location | Channel | Price |
-   |----------|---------|-------|
-   | Global (default) | **Creem** (USD card) | Starter $39/mo / Pro $79/mo / Top-up $1–$200 (Pay What You Want) |
-   | Mainland China | **WeChat Pay** (CNY) | Starter ¥280.8/mo / Pro ¥568.8/mo / Top-up ¥1–¥1000 |
-3. **Generate payment entry**:
-   - **Creem (global)**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"ok": true, "url": "<payment link>"}` → send the url (top-up: user enters $1–$200 on the Creem page). **Never put api_key in URLs**.
-   - **WeChat (CN)**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → render as QR → user scans (top-up: add `"amount_cents": <CNY×100>`, e.g. ¥36 → 3600).
-4. **User pays → confirm activation**: poll `GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` or re-check `vibe_balance()`: tier/credit auto-updates via WeChat callback / Creem webhook, no manual step.
-
-Edge cases:
-- User already has a key → use it directly, don't re-register
-- User prefers web → point them to `https://vibedollar.net/account.html` (equivalent self-service flow)
-- Tier not updated after payment → wait 1–2s, re-check `vibe_balance()`; still stale → report `out_trade_no` and contact support@vibedollar.net
-- Cancel: Starter/Pro downgrade at expiry (no hard cut), no agent action
-
-## MCP client config
-
-```json
-{
-  "mcpServers": {
-    "vibedollar": {
-      "type": "http",
-      "url": "https://mcp.vibedollar.net/mcp",
-      "headers": {
-        "Authorization": "Bearer <your-key>"
-      }
-    }
-  }
-}
-```
-
-Some clients (Claude Desktop / Cursor) allow headers via env/config; set `Authorization: Bearer <key>` on the server headers per their docs. Alternative header: `Api-Key: <key>`.
-
-Connect → `vibe_register` → configure the key in the header → call data tools (Reddit collection, matching and state are ours; judging and keyword tuning are yours — see **Managing delivery health**).
+- **Pricing & payment**: read `references/billing.md` when the user asks about price,
+  upgrading, topping up, or after payment (confirm activation). Quick checks: call
+  `vibe_balance()` for current quota/tier — the response carries `quota: {scope, used, limit}`.
+- **MCP client config**: read `references/mcp-config.md` on first connect or when moving
+  to another client (endpoint URL, `Authorization: Bearer <key>` header setup).
