@@ -69,7 +69,10 @@ def _load_judge_prompt(path: str) -> str:
 
 
 def _llm_judge(base: str, model: str, key: str, prompt: str,
-               product: str, post: dict, timeout: int = 60) -> dict | None:
+               product: str, post: dict, timeout: int = 60,
+               retries: int = 2) -> dict | None:
+    """判真单条。网络瞬态失败 (SSL 握手/超时) 重试 retries 次 (指数退避)。"""
+    import time as _t
     body = json.dumps({
         "model": model,
         "messages": [
@@ -84,18 +87,25 @@ def _llm_judge(base: str, model: str, key: str, prompt: str,
         "max_tokens": 300,
     }).encode()
     url = base.rstrip("/") + "/chat/completions"
-    req = urllib.request.Request(url, data=body, headers={
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {key}",
-        "User-Agent": UA,
-    })
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        text = data["choices"][0]["message"]["content"]
-    except Exception as e:  # noqa: BLE001
-        print(f"  ⚠ LLM 判真失败: {str(e)[:100]}", file=sys.stderr)
-        return None
+    last_err = ""
+    for attempt in range(retries + 1):
+        req = urllib.request.Request(url, data=body, headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}",
+            "User-Agent": UA,
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            text = data["choices"][0]["message"]["content"]
+            break  # 成功
+        except Exception as e:  # noqa: BLE001
+            last_err = str(e)
+            if attempt < retries:
+                _t.sleep(1.5 * (attempt + 1))  # 1.5s → 3s
+            else:
+                print(f"  ⚠ LLM 判真失败: {last_err[:100]}", file=sys.stderr)
+                return None
     text = re.sub(r"^```(?:json)?\s*\n?", "", text.strip(), flags=re.MULTILINE)
     text = re.sub(r"\n?```\s*$", "", text, flags=re.MULTILINE)
     m = re.search(r"\{.*\}", text, re.S)

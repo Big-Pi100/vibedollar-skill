@@ -83,6 +83,28 @@ class MCPClient:
         })
 
     def call(self, name: str, arguments: dict | None = None) -> dict:
+        """调工具并自动解包: result.content[].text (JSON 字符串) → dict。
+
+        业务工具 (vibe_*) 返回 JSON-RPC result.content[].text 内嵌 JSON 字符串;
+        这里解包成 dict, 调用方直接用 r.get('data', r) 取业务数据 (score_batch 同款)。
+        非 text 内容 / 解析失败 → 返回原始 result dict (兼容)。
+        """
         if not self._session:
             self.initialize()
-        return self._request("tools/call", {"name": name, "arguments": arguments or {}})
+        raw = self._request("tools/call", {"name": name, "arguments": arguments or {}})
+        if isinstance(raw, dict) and "result" in raw:
+            res = raw["result"]
+            if isinstance(res, dict) and res.get("content"):
+                text = ""
+                for c in res["content"]:
+                    if c.get("type") == "text":
+                        text += c.get("text", "")
+                if text.strip():
+                    try:
+                        return json.loads(text)
+                    except json.JSONDecodeError:
+                        return {"raw": text}
+                # content 无 text → 返回 isError/结构信息
+                return res
+            return res
+        return raw
