@@ -89,6 +89,8 @@ You've built your product, but the posts and comments where people are actively 
 | `vibe_rejected` | `subscription_id`, `limit` | **Recycle history**: candidates your engine marked irrelevant (with reason/score), persisted across sessions | Free | Header |
 | `vibe_recover_lead` | `lead_id` | **Recover a misjudged lead** from recycle back to the scoring queue — re-score it (no double billing on pass) | Free | Header |
 | `vibe_subs` | `subscription_id` | **Source subreddit hit stats** (pooled per sub, by status) — which subreddits actually contribute candidates. Note: this is *source stats*, distinct from `vibe_list_subs` (your subscriptions) | Free | Header |
+| `vibe_supply_status` | `subscription_id` | **Corpus supply snapshot (zero LLM, 2026-09-07)**: sub pull pool size / reserve depth tiers / word-search last run / **7-day post_store intake trend** (is the corpus still growing?) / catalog freshness (total + last updated) / ArcticShift rate-limit state (shared circuit, cross-process). Read this to tell apart: *keywords exhausted* (expand) vs *corpus boundary thin* (widen subs) vs *registry stale* (catalog needs monthly refresh) vs *collection down* vs *rate-limited* | Free | Header |
+| `vibe_search_probe` | `subscription_id`, `query`, `subreddits`, `limit`(≤5) | **Out-of-pool directed search probe (ArcticShift, 2026-09-07)**: search a keyword/phrase *inside target subreddits* before expanding it — verifies "does this phrase actually surface posts out there?" (instant feedback, no blind expansion). Found posts are upserted into the shared corpus (idempotent); **not** added to your lead pool (matching stays keyword-driven). Complements `sub_pull` (which only covers in-pool subs) | Free | Header |
 
 > Cost note: the ten tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
 
@@ -106,6 +108,24 @@ The backend's promise is **data delivery**: Reddit collection + matching into th
 ```
 
 This replaces the old "system auto-tunes" narrative: **you (your agent) are the tuner**, the service is a pure data/state layer. The same loop runs in the vibedollar web workbench orchestrator and in our own marketing fleet.
+
+### Supply-side decisions (2026-09-07 — expand words vs widen corpus vs wait)
+
+`gap` from health is the *delivery* flag — but the daily line is **not** a per-day intake target (day one's stock-match burst is huge; steady state is small increments). Judge **whether more keywords would help** by marginal yield, not by the line:
+
+```
+1. vibe_supply_status(subscription_id) → pool size / 7d intake trend / catalog fresh / arctic limited?
+2. If arctic.limited: pause supply actions (probe/expand/widen) until it clears — physical wait, not a cooldown
+3. If intake trend healthy and stock > 0: score the pool first (fast loop) — don't churn keywords
+4. Keywords recently added still all hitting (>0 hit)? → keep expanding (probe-verified words only)
+5. New keywords mostly zero-hit (auto-retired) → keyword face is swept → switch to corpus: widen subs
+   (vibe_widen_pool on refreshed catalog) or deepen an in-pool sub (vibe_expand_sub)
+6. Catalog last_updated_at is old → registry needs its monthly refresh (backend concern — alert, don't self-scan)
+```
+
+Key habit: **probe before you expand** — `vibe_search_probe(query, [subs])` tells you in seconds whether a
+phrase surfaces posts out there; expanding blind and waiting 30min for pipeline stats is how keyword lists rot.
+Retire zero-hit words via `vibe_keyword_remove(force=true)` (auto words) — the server also auto-retires them (F3).
 
 ## Scoring format (agent calling convention)
 

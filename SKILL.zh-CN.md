@@ -80,6 +80,8 @@ description: >-
 | `vibe_rejected` | `subscription_id, limit` | **回收历史**：引擎判不相关的候选（含理由分），跨会话持久 | 免费 | Header |
 | `vibe_recover_lead` | `lead_id` | **恢复误判线索**：从回收池回到待评分队列，可重新评分（通过不重复计费）| 免费 | Header |
 | `vibe_subs` | `subscription_id` | **来源 sub 命中统计**（各 sub 入池/状态分布）——哪些 subreddit 真在贡献。注意与 `vibe_list_subs`（你的订阅列表）区分 | 免费 | Header |
+| `vibe_supply_status` | `subscription_id` | **语料供给状态快照（零 LLM，2026-09-07）**：拉取池规模 / 储备分层 / 词搜最近运行 / **近 7 天 post_store 入帖趋势**（语料是否还在增长）/ 名录新鲜度（总量 + 最后更新）/ ArcticShift 限流态（共享熔断，跨进程）。用于区分：*词面耗尽*（应扩词）vs *语料边界窄*（应扩 sub）vs *名录旧*（catalog 需月度刷新）vs *采集停* vs *限流中* | 免费 | Header |
+| `vibe_search_probe` | `subscription_id`, `query`, `subreddits`, `limit`(≤5) | **池外定向搜索探测（ArcticShift，2026-09-07）**：扩词前先在目标 sub 内搜这个词——即时验证"这个词在那边到底能不能搜出帖子"（防盲扩）。命中的帖幂等入库共享语料；**不入你的 lead_pool**（匹配仍由词驱动）。与 `sub_pull`（只覆盖池内 sub）互补 | 免费 | Header |
 
 > 费用说明：上面 10 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
 
@@ -97,6 +99,24 @@ description: >-
 ```
 
 这取代旧的"系统自动调优"叙事：**你（你的 agent）是调优者**，服务端是纯数据/状态层。同一循环也跑在 vibedollar Web 工作台编排器与我们的营销舰队里。
+
+### 供给侧决策（2026-09-07 —— 扩词 vs 扩语料 vs 等待）
+
+`gap`（健康）是*交付*信号——但日线**不是**每日入池目标（首日存量匹配爆发巨大，稳态是少量增量）。判断"扩词是否还有用"要看**边际产出**，不是看日线：
+
+```
+1. vibe_supply_status(subscription_id) → 池规模 / 7 天入帖趋势 / 名录新鲜度 / 是否限流
+2. 若 arctic.limited: 暂停供给动作（probe/扩词/扩 sub）等限流解除 —— 物理等待，非冷却
+3. 若趋势健康且存量 > 0: 先评池（快环）——不要动词表
+4. 近期新扩的词仍有命中（hit>0）？→ 继续扩（只用 probe 验证过的词）
+5. 新词大量零命中（被自动退役）→ 词面已扫净 → 转向扩语料：widen subs
+   （在刷新后的名录里重跑）或深挖已入池 sub（vibe_expand_sub）
+6. 名录 last_updated_at 很旧 → 名录需要月度刷新（后端职责 —— alert，别自己扫）
+```
+
+关键习惯：**扩词前先 probe** —— `vibe_search_probe(query, [subs])` 几秒告诉你这词在那边
+有没有帖子；盲扩后等 30min pipeline 统计，词表就是这样烂掉的。零命中词用
+`vibe_keyword_remove(force=true)` 停（auto 词）——服务端也会自动退役它们（F3）。
 
 ## 获客方式（订阅即所有，2026-08-17 起纯订阅模式；2026-08-20 起候选+评分计费）
 
