@@ -150,30 +150,48 @@ vibe_submit_score(scores=[
 - **每条候选每轮领取评一次；判 `irrelevant` 的进回收池**（`vibe_rejected` 可查）——若事后（如点开原文后）觉得判错了，用 `vibe_recover_lead` 恢复再评。判 `relevant` 即最终（已计费）
 - 候选的 `score` 字段是系统参考分（仅供你参考，以你的判断为准）
 
-## 无头自动模式（填自己的 LLM key 无人值守跑循环）
+## 本地脚本工具（批量执行器 —— 机械动作用脚本，决策归你）
 
-不想开交互式会话、想定时自动跑"领贴→判真→交还"循环？`scripts/lead_agent.py` 用
-**你自己的 LLM key**（任意 OpenAI-compatible：DeepSeek/OpenAI/...）无人值守执行同一主循环。
-vibedollar 自家营销舰队在生产就是跑这套模式（dogfood 验证过），普通用户拿来即用：
+**你是决策引擎**（何时做/做什么/为什么）。下面的脚本是**纯执行器**：各自高效完成一个
+机械批量动作（逐条并行判真）——比你现场写循环快得多。你决定何时调用、传什么参；
+脚本返回结构化 JSON 供你决定下一步。脚本**不自带调度、不自循环**。
+
+### `scripts/score_batch.py` —— 评单个订阅的一批（领取→判真→交还）
+
+| 参数 | 含义 |
+|-------|------|
+| `--sub` | 目标订阅 id（**必填** —— 单订阅单批）|
+| `--limit` | 领取上限（默认 10）|
+| `--judge` | 你的判真模板路径（默认 `scripts/judge_prompt.md`）|
+| `--parallel` | 并行判真路数（默认 8 —— 效率核心）|
+| `--threshold` | score ≥ 门槛 → `relevant`（默认 60）|
+| `--out` | 证据输出目录（可选；relevant 行存 csv/jsonl）|
+| `--dry-run` | 只领取，不判真不交还 |
 
 ```bash
-export VIBEDOLLAR_API_KEY=...                          # 你的 vibedollar key
-export LLM_API_KEY=...                                 # 你的 LLM key
-export LLM_BASE_URL=https://api.deepseek.com/v1        # OpenAI-compatible base
+export VIBEDOLLAR_API_KEY=...        # 你的 vibedollar key
+export LLM_API_KEY=...               # 你的 LLM key
+export LLM_BASE_URL=https://api.deepseek.com/v1
 export LLM_MODEL=deepseek-chat
-python3 scripts/lead_agent.py --limit 10               # 全部订阅跑一轮
-python3 scripts/lead_agent.py --sub 12 --out ./evidence   # 指定订阅 + 存证据
-python3 scripts/lead_agent.py --loop 3600              # 每小时循环（守护）
-python3 scripts/lead_agent.py --dry-run                # 只领取，不判真不交还
+python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidence]
 ```
 
+返回 JSON：`{sub_id, claimed, judged, relevant, submitted, failed, pending[]}` ——
+读它再决定下一步（评别的订阅 / 扩词 / 等待）。
+
 - **判真标准是你的**：编辑 `scripts/judge_prompt.md`（纯文本模板）定义"什么样的帖子算好客户"；
-  `--threshold`（默认 60）设 relevant/irrelevant 的分数门槛
-- **费用**：候选免费；`relevant` 才计 vibedollar 配额（按效果付费，与交互式一致）；
-  判真的 LLM 调用费走**你自己的 key**
-- **证据（可选）**：`--out dir` 把判 relevant 的行（含理由/分数）追加存 CSV（或
-  `--out-format json` → JSONL），留作自己的记录
-- **失败安全**：某条判真失败不会丢——留到下一轮 pending 自动重试
+  `--threshold` 设 relevant 门槛
+- **费用**：候选免费；`relevant` 才计 vibedollar 配额（按效果付费）；判真的 LLM 调用费走**你自己的 key**
+- **失败安全**：某条判真失败不丢——留 pending 下轮重试；`vibe_leads` 返回 `locked`+pending 列表
+  直到评完为止，把领的全评了（relevant 或 irrelevant）就解锁下一批
+
+### `scripts/mcp.py` —— 共享 MCP 客户端（库，非 CLI）
+
+供其他本地脚本 import：`from mcp import MCPClient`。不由你直接调用。
+
+> **为什么用脚本而不是你自己写循环**：批量动作是机械的（领 N 条 → 逐条用你的 LLM 判 →
+> 交还）。脚本把逐条判真并行化并返回干净 JSON —— 你仍是决策者，脚本替你干重复体力活，
+> 比你每次现场手写循环快得多。
 
 ## 订阅模式（持续监控，不用反复调用）
 

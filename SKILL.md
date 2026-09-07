@@ -160,33 +160,53 @@ Standard loop:
 3. Score **all** pending candidates with `vibe_submit_score` (verdict `relevant` or `irrelevant`), this unlocks the subscription for the next batch.
 4. For leads scored `relevant`, `vibe_get_delivered(lead_id)` returns the full post body for outreach.
 
-## Headless auto mode (run the loop with your own LLM, no interactive agent)
+## Local script tools (batch executors — call when the action is mechanical)
 
-Prefer a scheduled, autonomous loop over an interactive session? `scripts/lead_agent.py`
-runs the exact same claim → judge → submit loop unattended, judging with **your own
-LLM key** (any OpenAI-compatible provider — DeepSeek, OpenAI, ...). vibedollar's own
-marketing fleet runs this same pattern in production, so it is a proven, dogfooded loop.
+You are the decision engine (when/what/why). The scripts below are **pure executors**:
+they do one mechanical batch action fast (parallel per-item judging) — far more
+efficient than you writing the loop yourself. You decide when to call one and what
+to pass; the script returns structured JSON for your next decision. They do **not**
+self-schedule or loop on their own.
+
+### `scripts/score_batch.py` — score one subscription's batch (claim → judge → submit)
+
+| Param | Meaning |
+|-------|---------|
+| `--sub` | target subscription id (**required** — one sub, one batch) |
+| `--limit` | candidates to claim (default 10) |
+| `--judge` | path to your judgement template (default `scripts/judge_prompt.md`) |
+| `--parallel` | parallel judge lanes (default 8 — this is the efficiency win) |
+| `--threshold` | score ≥ threshold → `relevant` (default 60) |
+| `--out` | evidence dir (optional; relevant rows → csv/jsonl) |
+| `--dry-run` | claim only, no LLM / no submit |
 
 ```bash
-export VIBEDOLLAR_API_KEY=...                          # from vibe_verify / account page
-export LLM_API_KEY=...                                 # your LLM key
-export LLM_BASE_URL=https://api.deepseek.com/v1        # OpenAI-compatible base
+export VIBEDOLLAR_API_KEY=...        # from vibe_verify / account page
+export LLM_API_KEY=...               # your LLM key
+export LLM_BASE_URL=https://api.deepseek.com/v1
 export LLM_MODEL=deepseek-chat
-python3 scripts/lead_agent.py --limit 10               # one pass over all your subs
-python3 scripts/lead_agent.py --sub 12 --out ./evidence   # one sub + save relevant rows
-python3 scripts/lead_agent.py --loop 3600              # hourly daemon loop
-python3 scripts/lead_agent.py --dry-run                # claim only, no LLM / no submit
+python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidence]
 ```
 
+Returns JSON: `{sub_id, claimed, judged, relevant, submitted, failed, pending[]}` —
+read it, then decide next (score another sub, expand keywords, wait).
+
 - **Judgment is yours**: edit `scripts/judge_prompt.md` (plain template) to define what a
-  good customer looks like for your market. `--threshold` (default 60) sets the
-  relevant/irrelevant score cut.
+  good customer looks like for your market. `--threshold` sets the relevant cut.
 - **Costs**: candidates free; `relevant` verdicts count against your vibedollar quota
-  (pay-on-pass, same as interactive). The judging LLM calls are billed to **your** key.
-- **Evidence (optional)**: `--out dir` appends CSV (or `--out-format json` → JSONL) of
-  your relevant judgments, with reason + score, for your own records.
-- **Failure-safe**: a candidate whose LLM judgment fails is simply left for the next run
-  (pending candidates are retried automatically, never lost).
+  (pay-on-pass). The judging LLM calls are billed to **your** key.
+- **Failure-safe**: a candidate whose LLM judgment fails is left pending — retried next
+  run, never lost. `vibe_leads` returns `locked` with pending ids until they're scored;
+  scoring everything you claimed unlocks the next batch.
+
+### `scripts/mcp.py` — shared MCP client (library, not a CLI)
+
+Import by other local tools: `from mcp import MCPClient`. Not called directly by you.
+
+> **Why scripts, not you writing loops**: batch actions are mechanical (claim N →
+> judge each with your LLM → submit). A script parallelises per-item judging and
+> returns clean JSON — you stay the decider, the script does the grunt work faster
+> than you could by hand-writing the loop each time.
 
 ## Subscription mode (continuous monitoring)
 
