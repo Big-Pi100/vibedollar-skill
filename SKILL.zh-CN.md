@@ -81,38 +81,92 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 > 费用说明：上面 12 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
 
-### 交付健康管理
+### Agent 决策循环（每订阅、每轮）
 
-后端承诺的是**数据交付**：Reddit 采集 + 匹配入池。你的职责是让池子持续喂给你的买家画像——健康就是循环驱动器：
-
-```
-1. vibe_sub_health(subscription_id)        → 日线 / 今日入池 / 存量 / 缺口 / 采集足量
-2. 若缺口（今日入池低于日线，或存量 < 20）且采集足量:
-     vibe_keywords(subscription_id)         → 当前词 + 命中统计
-     （你的 LLM）给出扩/停建议            → keyword_add(source=auto) / keyword_remove(force)
-     vibe_opt_log(...)                      → 记录本次优化事件
-3. 若缺口但采集不足: 后端今天拉得少——不要反复扩词，等数据
-```
-
-这取代旧的"系统自动调优"叙事：**你（你的 agent）是调优者**，服务端是纯数据/状态层。同一循环也跑在 vibedollar Web 工作台编排器与我们的营销舰队里。
-
-### 供给侧决策（2026-09-07 —— 扩词 vs 扩语料 vs 等待）
-
-`gap`（健康）是*交付*信号——但日线**不是**每日入池目标（首日存量匹配爆发巨大，稳态是少量增量）。判断"扩词是否还有用"要看**边际产出**，不是看日线：
+vibedollar 是数据/状态层；**你（宿主 agent）是调优者**。服务端自动调优刻意做得很薄：
+F3 零命中退役在每轮 pipeline 后跑、F2 深负退役每天一次、服务端扩词已停
+（"P3 disabled — consumer-driven"）。所以让订阅保持健康的循环是**你的**。
+每个订阅一轮一个动作地跑：
 
 ```
-1. vibe_supply_status(subscription_id) → 池规模 / 7 天入帖趋势 / 名录新鲜度 / 是否限流
-2. 若 arctic.limited: 暂停供给动作（probe/扩词/扩 sub）等限流解除 —— 物理等待，非冷却
-3. 若趋势健康且存量 > 0: 先评池（快环）——不要动词表
-4. 近期新扩的词仍有命中（hit>0）？→ 继续扩（只用 probe 验证过的词）
-5. 新词大量零命中（被自动退役）→ 词面已扫净 → 转向扩语料：widen subs
-   （在刷新后的名录里重跑）或深挖已入池 sub（vibe_expand_sub）
-6. 名录 last_updated_at 很旧 → 名录需要月度刷新（后端职责 —— alert，别自己扫）
+perceive → plan → act → verify  （verify 门控下一轮 — 无时钟冷却）
 ```
 
-关键习惯：**扩词前先 probe** —— `vibe_search_probe(query, [subs])` 几秒告诉你这词在那边
-有没有帖子；盲扩后等 30min pipeline 统计，词表就是这样烂掉的。零命中词用
-`vibe_keyword_remove(force=true)` 停（auto 词）——服务端也会自动退役它们（F3）。
+#### 1. Perceive（读工具，零 LLM）
+
+```
+vibe_sub_health(sid)     → stock / gap / collecting_ok / last_opt
+vibe_supply_status(sid)  → 语料入库趋势 / 名录新鲜度 / arctic.limited
+vibe_keywords(sid, all)  → 每词: status/source/query/hit/pooled/avg_score/
+                           n_delivered/n_rejected/invalid_sample/created_at
+vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
+```
+
+#### 2. Plan —— 先闭环你自己的评分反馈，再按边际产出判断
+
+**A. 评分反馈是最强信号 —— 当轮行动，别等服务端的每日批。**
+若你上一轮评分给某词产出 `irrelevant` 且该词 **0 delivered**
+（n_rejected ≥ 2 来自你的评分，`invalid_sample` 显示它拉进的是什么垃圾）→ 该词是
+噪声制造机 → **立即退役**：
+
+```
+vibe_keyword_remove(subscription_id, kw, force=true)   # auto 词, 编排器动作
+vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
+```
+
+服务端也会惩罚它（consume_feedback 每条 irrelevant −3 → F2 到 avg ≤ −6 退役），
+但那在**每日批**上——你当轮就看到了噪声，就当轮退役它。
+
+**B. 然后读 NEW30 边际产出信号**（判断"扩词还有没有用"）：
+近 ~30 天新增的词（`created_at` 新）里：
+- 大多**有命中**（hit>0）且存量低 → 继续扩（只用 probe 验证过的词）
+- 大多**零命中**（被 F3 自动退役）→ 词面已扫净 → 停扩词——当前语料里可发现的需求
+  接近天花板，转语料探索或如实报告，而不是继续盲目加词
+
+**C. 语料 / 采集状态**（判据③）：
+- `collecting_ok=false` → alert：采集停了，扩词无用
+- 名录 `last_updated_at` 很旧 → alert 月度刷新（后端职责）
+- 入库健康但词面扫净 → 语料边界窄 → 深挖已入池 sub / 扩新 sub 是阶段 B 工具；
+  工具存在前：probe 有潜力的词 + 记录需求，不要发明扩法
+
+决策表：
+
+| 观察到 | 动作 |
+|---|---|
+| 词: 0 delivered + ≥2 条你的 irrelevant | `vibe_keyword_remove` force + `vibe_opt_log`（立即）|
+| NEW30 词有命中、存量低 | 扩: `vibe_keyword_add_batch`（只用 probe 验证过的词）|
+| NEW30 扫净（被 F3 退）、collecting_ok | 停扩 → 语料探索（阶段 B）/ 如实报告 |
+| `collecting_ok=false` | alert（后端采集停 —— 扩词无用）|
+| `arctic.limited` | 暂停供给动作 —— 物理等待，非冷却 |
+| 全健康 + 存量 > 0 | wait —— 让快环（评分）消化 |
+
+#### 3. Act
+
+执行**一个**动作。加/停词后调 `vibe_opt_log(...)` 记录，健康页可审计。写下
+**expect**：动作若有效，下一轮应该看到什么（如"新词在一轮 pipeline 内命中" /
+"退役词停止入池垃圾"）？
+
+#### 4. Verify（下一轮）
+
+用新一轮 perceive 对照 expect：新词命中了吗？退役词停止拉垃圾了吗？下轮评分产出
+改善了吗？
+- expect 达成 → 继续同方向
+- expect 失败 → **切换策略**（扩词 → probe 别的词 → 语料 → 如实报告），
+  不要重复同一个失败动作
+
+**纪律**（无时间冷却 / 每日次数 —— v2 §5.3）：
+- 每轮一个动作（收敛纪律，非节流）
+- verify 门控而非时钟门控：act → 看结果 → 决定下一步
+- **扩词前先 probe**：`vibe_search_probe(query, [subs])` 秒级告诉你这词在那边有没有
+  帖子——绝不盲扩然后等 30min pipeline 统计
+- 唯一硬等待是 ArcticShift 物理限流，经 `vibe_supply_status` 透明感知
+
+#### 5. 审计日志（每轮）
+
+每轮完整记录以便回放与迭代 prompt —— ts / sid / round_no / world（工具原始返回，
+不裁剪）/ 实际发出的 prompt / llm_raw / plan / action / result / verify / cost。
+存在你自己的存储（可导出 JSON）。没有它就无法回答"agent 为什么这么判"、无法迭代
+循环——日志是核心基建，不是事后补丁。
 
 ## 评分回传格式（用户 agent 调用规范）
 

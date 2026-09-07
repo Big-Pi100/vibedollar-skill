@@ -159,6 +159,16 @@ SKILL.md 回答三个问题：
       billing.md）；定价明细从正文删除；下游用例整体迁移到新 `references/use-cases.md` +
       `references/use-cases.zh-CN.md`；zh "用法示例"（重复注册演示）删除；双语段落结构对齐
       （EN/ZH 各 16 节）；SKILL.md 307→248 行（3602→3157 词），SKILL.zh-CN.md 309→247 行
+- [x] **A2.2. 决策循环落 SKILL.md（2026-09-08）**：v2 决策循环（判据②③/决策表/验证门控/
+      审计日志）原设计由 lead_agent.py 承载，裁决砍内嵌 agent 后未迁移到新载体 → SKILL.md
+      只有两段零散提示，agent 跑到"stock>0 → score first"后无下一步（345 A2 实测暴露）。
+      本次：新增 **"Agent decision loop (per subscription, per round)"** 节（EN/ZH 同步）——
+      perceive/plan/act/verify 四步 + 决策表；**A. 评分反馈优先闭环**（词 0 delivered +
+      ≥2 irrelevant → 当轮 `vibe_keyword_remove(force)` 退役，不等服务端每日批）；
+      B. NEW30 边际产出（created_at 近 30 天词命中率 → 扩或停）；C. collecting_ok/catalog
+      判据③；决策表 6 行；verify 门控 + 策略切换纪律（无时钟冷却）；审计日志要求。
+      替换旧 "Delivery-health tuning"（gap 驱动已过时）+ "Supply-side decisions" 两节；
+      EN 248→306 行（3157→3505 词），ZH 247→301 行，双语各 15 节仍对齐。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

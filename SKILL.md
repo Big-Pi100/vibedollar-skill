@@ -87,38 +87,96 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 
 > Cost note: the ten tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
 
-### Delivery-health tuning
+### Agent decision loop (per subscription, per round)
 
-The backend's promise is **data delivery**: Reddit collection + matching into the pool. Your job is to keep the pool feeding your buyer profile. Health is the loop driver:
-
-```
-1. vibe_sub_health(subscription_id)         → line / pooled_today / stock / gap / collecting_ok
-2. If gap (today's pool under line, or stock < 20) and collecting_ok:
-     vibe_keywords(subscription_id)         → current words + hit stats
-     (your LLM) propose add/retire          → keyword_add (source=auto) / keyword_remove(force)
-     vibe_opt_log(...)                      → record the optimization event
-3. If gap but !collecting_ok: the backend pulled little today — don't churn keywords, wait
-```
-
-This replaces the old "system auto-tunes" narrative: **you (your agent) are the tuner**, the service is a pure data/state layer. The same loop runs in the vibedollar web workbench orchestrator and in our own marketing fleet.
-
-### Supply-side decisions (2026-09-07 — expand words vs widen corpus vs wait)
-
-`gap` from health is the *delivery* flag — but the daily line is **not** a per-day intake target (day one's stock-match burst is huge; steady state is small increments). Judge **whether more keywords would help** by marginal yield, not by the line:
+vibedollar is the data/state layer; **you (the host agent) are the tuner**. Server-side
+auto-tune is deliberately thin: F3 zero-hit retire runs after each pipeline round, F2
+deep-negative retire runs once daily, and server-side keyword *expansion* is off
+("P3 disabled — consumer-driven"). So the loop that keeps a subscription healthy is
+**yours**. Run it per subscription, one action per round:
 
 ```
-1. vibe_supply_status(subscription_id) → pool size / 7d intake trend / catalog fresh / arctic limited?
-2. If arctic.limited: pause supply actions (probe/expand/widen) until it clears — physical wait, not a cooldown
-3. If intake trend healthy and stock > 0: score the pool first (fast loop) — don't churn keywords
-4. Keywords recently added still all hitting (>0 hit)? → keep expanding (probe-verified words only)
-5. New keywords mostly zero-hit (auto-retired) → keyword face is swept → switch to corpus: widen subs
-   (vibe_widen_pool on refreshed catalog) or deepen an in-pool sub (vibe_expand_sub)
-6. Catalog last_updated_at is old → registry needs its monthly refresh (backend concern — alert, don't self-scan)
+perceive → plan → act → verify  (verify gates the next round — no clock cooldowns)
 ```
 
-Key habit: **probe before you expand** — `vibe_search_probe(query, [subs])` tells you in seconds whether a
-phrase surfaces posts out there; expanding blind and waiting 30min for pipeline stats is how keyword lists rot.
-Retire zero-hit words via `vibe_keyword_remove(force=true)` (auto words) — the server also auto-retires them (F3).
+#### 1. Perceive (read tools, zero LLM)
+
+```
+vibe_sub_health(sid)     → stock / gap / collecting_ok / last_opt
+vibe_supply_status(sid)  → corpus intake trend / catalog age / arctic.limited
+vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
+                           n_delivered/n_rejected/invalid_sample/created_at
+vibe_subs(sid)           → which subreddits actually contribute candidates
+```
+
+#### 2. Plan — judge by marginal yield, close your own scoring loop first
+
+**A. Scoring feedback is the strongest signal — act on it now, don't wait for the server's daily batch.**
+If your last scoring round produced `irrelevant` verdicts for a word with **0 delivered**
+(n_rejected ≥ 2 from your own scores, `invalid_sample` shows what junk it pulls) → that
+word is a noise generator → **retire it immediately**:
+
+```
+vibe_keyword_remove(subscription_id, kw, force=true)   # auto word, orchestrator action
+vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
+```
+
+The server also penalizes it (consume_feedback −3/irrelevant → F2 retire at avg ≤ −6),
+but only on its **daily** batch — you saw the noise this round; retire it this round.
+
+**B. Then read the NEW30 marginal-yield signal** (is expanding keywords still useful?):
+words added in the last ~30 days (`created_at` recent) that you or the server added:
+- mostly **hitting** (>0 hit) and stock is low → keep expanding (probe-verified words only)
+- mostly **zero-hit** (auto-retired by F3) → keyword face is swept → stop expanding,
+  the discoverable demand in current corpus is near its ceiling — switch to corpus
+  exploration or report honestly instead of churning more words
+
+**C. Corpus / collection state** (judge ③):
+- `collecting_ok=false` → alert: collection down, expanding words is useless
+- catalog `last_updated_at` old → alert for the monthly refresh (backend concern)
+- intake healthy but keyword face swept → corpus boundary is thin → deeper in-pool subs
+  / widen to new subs are stage-B tools; until they exist, probe likely candidates and
+  record the need — do not invent expansions
+
+Decision table:
+
+| Observed | Action |
+|---|---|
+| word: 0 delivered + ≥2 of your irrelevant | `vibe_keyword_remove` force + `vibe_opt_log` (immediate) |
+| NEW30 words hitting, stock low | expand: `vibe_keyword_add_batch` (probe-verified words only) |
+| NEW30 swept (F3 retires), collecting_ok | stop expanding → corpus exploration (stage B) / honest report |
+| `collecting_ok=false` | alert (backend intake down — expanding useless) |
+| `arctic.limited` | pause supply actions — physical wait, not a cooldown |
+| all healthy + stock > 0 | wait — let the fast loop (scoring) digest |
+
+#### 3. Act
+
+Execute **one** action. After add/remove, call `vibe_opt_log(...)` so the event is
+auditable in health. State the **expect**: what should the next round show if the action
+worked (e.g. "new words hit within a pipeline round" / "retired word stops pooling")?
+
+#### 4. Verify (next round)
+
+Check the expect against the new perceive: did new words hit? did the retired word stop
+pooling junk? did the next scoring yield improve?
+- Expect met → continue the same direction
+- Expect failed → **switch strategy** (expand → probe different words → corpus → honest
+  report), don't repeat the same failing action
+
+**Discipline** (no time cooldowns / daily caps — v2 §5.3):
+- one action per round (convergence discipline, not throttling)
+- verify-gated, not clock-gated: act → see the result → decide next
+- **probe before you expand**: `vibe_search_probe(query, [subs])` gives instant feedback
+  on whether a phrase surfaces posts — never blind-expand and wait 30 min for pipeline stats
+- the only hard wait is the ArcticShift rate limit, surfaced transparently via `vibe_supply_status`
+
+#### 5. Audit log (per round)
+
+Record each round so decisions are replayable and prompts iterable — ts / sid / round_no /
+world (raw tool returns, uncropped) / prompt sent / llm_raw / plan / action / result /
+verify / cost. Persist it in your own store (exportable JSON). Without this you cannot
+answer "why did the agent decide that" or iterate the loop — the log is core infrastructure,
+not a post-hoc patch.
 
 ## Scoring format (agent calling convention)
 
