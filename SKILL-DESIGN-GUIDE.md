@@ -53,7 +53,7 @@ skill-name/
 ---
 name: <hyphen-case, ≤40 字符>          # 必填
 description: <第三人称, 不含 < 或 >>     # 必填
-agent_created: true                    # 本地自建必须加 → 否则 SkillManage 无法改/删
+agent_created: true                    # 仅 WorkBuddy 本地自建必须加 → 否则 SkillManage 无法改/删
 ---
 ```
 
@@ -62,6 +62,24 @@ agent_created: true                    # 本地自建必须加 → 否则 SkillM
 2. 忘加 `agent_created: true` → 自己写的 skill 改不动
 3. 编辑 marketplace 已装 skill 后没写 `"userModified": true` 到 `_skillhub_meta.json`
    或 `_knot_meta.json` → 下次市场更新静默覆盖
+
+### 3b. 跨平台分发（GitHub 通用 skill — vibedollar-skill 场景）
+
+**平台特有元数据不进仓库源文件；各平台安装时自己加。** vibedollar-skill 会被
+Claude / pi / 任意 MCP agent / WorkBuddy 等多个宿主拉取，SKILL.md 必须平台中立：
+
+| 字段 | 归属 |
+|---|---|
+| `name` + `description` | 源文件保留（通用最小集 — 所有平台认可）|
+| `agent_created` / `userModified` | WorkBuddy **安装/编辑时**补，不进源文件 |
+| `license` | 可留（平台无关）|
+
+**安装到不同宿主**：
+- WorkBuddy → `~/.workbuddy/skills/<name>/`，宿主自行补 agent_created/meta，用户不改 SKILL.md
+- Claude / 其他 MCP agent → 按各宿主的 skill 目录约定放置（如 `.claude/skills/`）；
+  vibedollar-skill 是 MCP 远程工具型 skill，连 `mcp.vibedollar.net/mcp` 即用
+- **写作纪律**：SKILL.md 不出现任何宿主名（"在 WorkBuddy 里…"等），只描述工具/端点/
+  决策知识 —— 保持任何 agent 可消费
 
 ---
 
@@ -119,7 +137,7 @@ SKILL.md 回答三个问题：
 
 | # | 检查项 | 通过标准 |
 |---|---|---|
-| 1 | frontmatter | name hyphen-case ≤40；description 第三人称无尖括号；本地受管则 agent_created: true |
+| 1 | frontmatter | name hyphen-case ≤40；description 第三人称无尖括号；**跨平台通用 skill 只保留 name+description，不加 agent_created（平台安装时补）**；仅纯本地自建加 agent_created: true |
 | 2 | 渐进披露 | 定价/支付/配置/政策在 references/ 不在 SKILL.md 正文；SKILL.md <5k 词 |
 | 3 | 写作风格 | 全篇祈使/不定式，无第二人称叙述 |
 | 4 | 资源引用 | SKILL.md 引用全部 scripts/references，说明何时调、入参、返回 |
@@ -132,10 +150,9 @@ SKILL.md 回答三个问题：
 
 ## 7. 当前审查已知差距（待修复队列）
 
-- [ ] **A. 无 references/**：Pricing / Payment & activation / MCP client config 应从
-      SKILL.md 正文（350 行）拆到 `references/billing.md` + `references/mcp-config.md`，
-      正文降到 <5k 词
-- [ ] **B. frontmatter 无 agent_created**：待定 vibedollar-skill 使用形态
-      （本地受管 → 加；纯 GitHub 外部 → 不加）
-- [ ] **C. 开场第二人称叙述**（"You've built your product..."）→ 改祈使/客观
-- [ ] **D. score_batch.py 使用引导**：SKILL.md 顶部加"先 --dry-run 验证连通"
+- [x] **A. 无 references/**：Pricing / Payment & activation / MCP client config 已拆到
+      `references/billing.md` + `references/billing.zh-CN.md` + `references/mcp-config.md`；
+      SKILL.md 正文降到 <5k 词（f34b36d）
+- [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
+- [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
+- [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）
