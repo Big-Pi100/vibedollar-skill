@@ -326,7 +326,8 @@ python3 scripts/sd_doc.py write --sub <sid> --json '{...}'   → data/sd_<sid>.m
 vibe_sd_update(subscription_id, supply_side=..., demand_side=..., ...)  # backend copy
 
 # any later step — read + inject (agent's native read; no replace):
-python3 scripts/sd_doc.py show --sub <sid>     → prints data/sd_<sid>.md content
+python3 scripts/sd_doc.py show --sub <sid> --values   → prints only the 4 field values
+   (strip self-describing header — safe to drop straight into an LLM user message)
    (or: vibe_list_subs → sd_json — same data, backend is authoritative)
 ```
 
@@ -334,8 +335,8 @@ python3 scripts/sd_doc.py show --sub <sid>     → prints data/sd_<sid>.md conte
 |---|---|---|
 | `scripts/sd_doc.py` | fetch/show/write the sd doc (`data/sd_<sid>.md`) — mechanical file ops only | decision (generate/update) stays with you |
 | `scripts/sd_gen.md` | Subscription has no sd (no supply_side/demand_side/demand_pain) — first setup or after a rebuild | supply/demand four fields → sd_doc.py write + `vibe_sd_update` |
-| `scripts/kw_init.md` | Keyword face is empty (initial setup) — needs sd doc present first | initial keyword list → `vibe_keyword_add_batch` (source=auto) |
-| `scripts/kw_opt.md` | Decision loop says expand / after a retire sweep — needs sd doc + current words | `{add, weak}` → add via `vibe_keyword_add_batch`; weak per decision-table guards |
+| `scripts/kw_init.md` | Keyword face is empty (initial setup) — needs sd doc present first | initial keyword list → `vibe_keyword_add_batch` (source=auto); dedup vs ALL statuses |
+| `scripts/kw_opt.md` | Decision loop says expand / after a retire sweep — needs sd doc + current words (active+monitor rows) | `{add, weak}` → add via `vibe_keyword_add_batch` (dedup vs ALL statuses — don't revive removed words); weak per decision-table guards |
 | `scripts/judge_prompt.md` | Default judge template for `score_batch.py` (editable profile, fixed contract) | per-candidate verdicts → `vibe_submit_score` |
 | `scripts/eng_sys_core.md` | **READ-ONLY** scoring core (billing-bound contract). Reference verbatim; never edit | reference for judge alignment |
 

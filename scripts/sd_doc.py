@@ -8,7 +8,9 @@
 
     python3 sd_doc.py fetch --sub 12        # 从 vibe_list_subs 拉 sd_json → 写 data/sd_12.md
                                             # (dry 只打印不写: 加 --dry-run)
-    python3 sd_doc.py show  --sub 12        # 打印 data/sd_12.md 内容 (供注入/核对)
+    python3 sd_doc.py show  --sub 12        # 打印 data/sd_12.md 内容 (供核对)
+    python3 sd_doc.py show  --sub 12 --values  # 只出四字段值 (剥离自描述头 —
+                                            # 直接注入 LLM user 消息用, 防记号泄漏)
     python3 sd_doc.py write --sub 12 --json '{...}'   # 手动写 sd (校准后) → data/sd_12.md
                                             # (不调 vibe_sd_update — 持久化由 agent 决定)
 
@@ -63,6 +65,8 @@ def main() -> int:
     ap.add_argument("cmd", choices=["fetch", "show", "write"])
     ap.add_argument("--sub", type=int, required=True)
     ap.add_argument("--json", default="", help="write: sd JSON (四段)")
+    ap.add_argument("--values", action="store_true",
+                    help="show: 只出四字段值 (剥离自描述头, 供注入)")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     path = _doc_path(args.sub)
@@ -84,7 +88,15 @@ def main() -> int:
             print(f"NO DOC {path} — run: sd_doc.py fetch --sub {args.sub}")
             return 1
         with open(path, encoding="utf-8") as f:
-            print(f.read())
+            content = f.read()
+        if args.values:
+            # --values: 只出四字段值 (剥离自描述头) — 供直接注入 LLM user 消息,
+            # 避免整体粘贴把 "[SUPPLY/DEMAND STRUCTURE]" 说明行泄漏给 LLM
+            sd = _from_md(path)
+            for k in KEYS:
+                print(str(sd.get(k) or ""))
+        else:
+            print(content)
         return 0
 
     # fetch

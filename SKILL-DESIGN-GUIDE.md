@@ -208,6 +208,14 @@ SKILL.md 回答三个问题：
       方括号 = 组装提示，非字面量），并注明"nothing here is literal"；README/billing
       的 `<key>`（API 文档参数记号）与 python f-string 属正常保留。复查后 LLM 模板
       user 块零尖括号待填记号。
+- [x] **A2.8. sd 组装流程实测缺口修复（2026-09-08，干净 agent 验证反馈）**：验证子
+      agent 走通 sd 文档化流程但报 4 缺口 —— ① kw_opt 未说明 rows 状态口径（agent 靠
+      读源码猜 active+monitor；前端只传 active —— 三方不统一）→ kw_opt how-to 明确
+      rows=active+monitor、removed/retire 不放进 rows；② add 去重只对在役词，会复活
+      removed 死词 → 去重改对全状态（SKILL.md/kw_opt/kw_init 同步）；③ sys 词形禁令
+      与 sd 场景句有张力、缺正例 → kw_init/kw_opt sys 补 GOOD tail 正例锚点 + "勿照抄
+      demand_pain 场景句"提示；④ sd_doc show 整体输出含自描述头有泄漏隐患 → sd_doc.py
+      加 `--values`（只出四字段值）。sk-valid 通过。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

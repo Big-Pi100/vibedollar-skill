@@ -311,7 +311,8 @@ python3 scripts/sd_doc.py write --sub <sid> --json '{...}'   → data/sd_<sid>.m
 vibe_sd_update(subscription_id, supply_side=..., demand_side=..., ...)  # 后端副本
 
 # 之后任何步骤 —— 读 + 注入（agent 原生读文件，无 replace）:
-python3 scripts/sd_doc.py show --sub <sid>     → 打印 data/sd_<sid>.md 内容
+python3 scripts/sd_doc.py show --sub <sid> --values   → 只出四字段值（剥离自描述头 —
+   可直接放进 LLM user 消息，防记号泄漏）
    （或 vibe_list_subs → sd_json —— 同数据，后端权威）
 ```
 
@@ -319,8 +320,8 @@ python3 scripts/sd_doc.py show --sub <sid>     → 打印 data/sd_<sid>.md 内�
 |---|---|---|
 | `scripts/sd_doc.py` | fetch/show/write sd 文档（`data/sd_<sid>.md`）—— 纯机械文件操作 | 是否生成/更新由你决定 |
 | `scripts/sd_gen.md` | 订阅无 sd（缺 supply_side/demand_side/demand_pain）—— 首次建立或重建后 | 供需四段 → sd_doc.py write + `vibe_sd_update` |
-| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd 文档 | 初始词表 → `vibe_keyword_add_batch`（source=auto）|
-| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd 文档 + 现词 | `{add, weak}` → add 走 `vibe_keyword_add_batch`; weak 按决策表守卫 |
+| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd 文档 | 初始词表 → `vibe_keyword_add_batch`（source=auto）；去重对全状态 |
+| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd 文档 + 现词（active+monitor 行）| `{add, weak}` → add 走 `vibe_keyword_add_batch`（去重对全状态 —— 勿复活 removed 死词）; weak 按决策表守卫 |
 | `scripts/judge_prompt.md` | `score_batch.py` 默认判真模板（profile 可编辑、契约固定）| 逐条 verdict → `vibe_submit_score` |
 | `scripts/eng_sys_core.md` | **只读**评分核心（计费契约）。原样引用，禁止编辑 | judge 对齐参考 |
 
