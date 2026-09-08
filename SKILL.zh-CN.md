@@ -123,7 +123,7 @@ vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
 | 数据 | 含义 | 你的决定 |
 |---|---|---|
 | `delivered_month` vs quota | 本月交付进度 vs 目标 | **目标检查**：达成 → wait；未达成 → act（驱动一切）|
-| `hit_count` = 0 | 该表达在语料里**不存在**（没人这么发帖）| 别留着等——probe 它 / 换词 / 退役（F3 语义：90 天语料首轮 0 命中即结论性）|
+| `hit_count` = 0 | 该短语**还没命中** —— **首轮 0 命中非结论**（2026-09-08 Snag 实证：declutter home q1=0 → q2 命中；语料增量入库，词可能等帖子出现才命中）| 别凭单轮 0 命中退役：观察到 qc≥3；语料在长仍多轮 0 → probe 目标 sub / 换词 / 退役（持续 0 命中 + 语料新鲜 = 表达确实不存在）|
 | `hit_count` > 0 但你的评分全 `irrelevant` | 表达存在但**匹配的是噪声**——是词错了，不是需求到头了 | 退役该词，然后**从 sd 重生成词面**（sd 缺→`sd_gen.md`；`kw_init.md` → `vibe_keyword_add_batch`）——词错用重生成修，不是放弃 |
 | `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` 跨主题 | 噪声制造机 | `vibe_keyword_remove` force + `vibe_opt_log`（见 Plan A）|
 | `avg_score`（负）| 评分反馈聚合信号（每条你的 irrelevant −3，服务端只记录）| 越负 = 被拒越多 → 支持退役/重生成判断；**服务端不据它自动退役** |
@@ -168,7 +168,7 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 | 目标未达成、stock(new+sent)>0 | 评池（`score_batch.py`）——结果喂下轮本表 |
 | 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题 | `vibe_keyword_remove` force + `vibe_opt_log` |
 | 退役后词面清空、目标仍缺 | **重生成**：sd_gen（sd 缺）→ kw_init/kw_opt → `vibe_keyword_add_batch` |
-| 新词 hit=0 | `vibe_search_probe` 验证表达 → 换词 / 调整 / 扩 sub |
+| 新词池级 sweep hit=0 | 查 `pipeline_recent`（词搜覆盖**全语料**）——池搜多轮都 0 才 probe 指定 sub / 换词 / 扩 sub；**probe 在几个选定 sub 得 0 ≠ 短语不存在**（Snag："free furniture" 在 5 个 lifestyle sub probe 0，但全池词搜 hit 21 含 r/vancouver）——probe 验目标 sub，词搜才是全语料信号 |
 | NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_add_batch`（probe 验证过的词）|
 | NEW30 扫净、collecting_ok | 语料边界窄 → expand_sub/widen_pool（阶段 B）；之前 probe + 记录 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
@@ -195,8 +195,10 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 **纪律**（无时间冷却 / 每日次数 —— v2 §5.3）：
 - 每轮一个方向性动作（收敛纪律，非节流）
 - verify 门控而非时钟门控：act → 看结果 → 决定下一步
-- **扩词前先 probe**：`vibe_search_probe(query, [subs])` 秒级验证这词在那边有没有帖——
-  绝不盲扩后等 pipeline 统计
+- **扩词前先 probe**：`vibe_search_probe(query, [subs])` 秒级验证这词在**选定的 sub** 有没有帖——
+  绝不盲扩后等 pipeline 统计。但 **probe 0 是 sub 级结论**：证明不了全语料（那是池级词搜的
+  事）；probe 用于在候选表达间选型或查特定 niche sub，"0 命中退役"以 `pipeline_recent`/
+  hit_count（全语料）为准。
 - 唯一硬等待是 ArcticShift 物理限流，经 `vibe_supply_status` 感知
 
 #### 6. 审计日志（每轮）

@@ -131,7 +131,7 @@ The server only *reports* these; **you** act on them (v2.1 — server makes zero
 | Data | What it means | Your decision |
 |---|---|---|
 | `delivered_month` vs quota | delivery progress vs goal (this month) | **goal check**: met → wait; not met → act (this drives everything) |
-| `hit_count` = 0 | the phrase **doesn't exist** in corpus (nobody posts it) | don't keep it hoping — probe it, replace it, or retire it (F3 semantics: 90-day corpus, first-round 0-hit is conclusive) |
+| `hit_count` = 0 | the phrase hasn't matched yet in corpus — **not conclusive on round one** (2026-09-08 Snag: "declutter home" q1=0 then q2 hit — search intake is incremental, a word can surface once its post arrives) | don't retire on a single 0-hit round: keep observing until qc≥3; if still 0 after several rounds with the corpus growing, probe targeted subs, replace the phrasing, or retire (F3-like: sustained 0-hit across rounds with fresh corpus = phrase absent) |
 | `hit_count` > 0 but all your scores `irrelevant` | the phrase exists but **matches noise** — it's a wrong word, not proof demand is exhausted | retire the word, then **regenerate the word face from sd** (`sd_gen.md` if sd missing → `kw_init.md` → `vibe_keyword_add_batch`) — wrong words are fixed by regenerating, not by giving up |
 | `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` off-topic | noise generator | `vibe_keyword_remove` force + `vibe_opt_log` (see Plan A) |
 | `avg_score` (negative) | aggregated scoring feedback signal (−3 per your irrelevant, server records only) | the more negative, the more rejects — supports retire/regenerate decision; **server does not retire on it** |
@@ -180,7 +180,7 @@ Decision table (goal-driven):
 | Goal not met, stock(new+sent)>0 | score the pool (`score_batch.py`) — results feed this table next round |
 | word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_remove` force + `vibe_opt_log` |
 | face cleared after retires, goal still short | **regenerate**: sd_gen (if sd missing) → kw_init/kw_opt → `vibe_keyword_add_batch` |
-| new words hit=0 | `vibe_search_probe` the phrasing → replace / adjust / widen subs |
+| new words hit=0 in pool sweeps | check `pipeline_recent` (word-search covers the WHOLE corpus) — if the pool search itself matched nothing across rounds, then probe specific subs / replace / widen; **a probe-0 on a few chosen subs is NOT proof the phrase is absent** (Snag: "free furniture" probed 0 in 5 lifestyle subs but the whole-corpus word-search hit 21 incl. r/vancouver) — probe verifies *targeted* subs, word-search is the corpus-wide signal |
 | NEW30 hitting, goal short | expand: `vibe_keyword_add_batch` (probe-verified) |
 | NEW30 swept, collecting_ok | corpus boundary thin → expand_sub/widen_pool (stage B); until then probe + record |
 | `collecting_ok=false` | alert (intake down — expanding useless) |
@@ -213,7 +213,11 @@ Check the expect against the new perceive, then **return to the goal check**:
 - one direction action per round (convergence discipline, not throttling)
 - verify-gated, not clock-gated: act → see the result → decide next
 - **probe before you expand**: `vibe_search_probe(query, [subs])` gives instant feedback
-  on whether a phrase surfaces posts — never blind-expand and wait for pipeline stats
+  on whether a phrase surfaces posts in *chosen* subs — never blind-expand and wait for
+  pipeline stats. But a probe-0 is **sub-scoped**: it proves nothing about the whole
+  corpus (the pool word-search does); use probe to pick between candidate phrasings or
+  to check a specific niche sub, and use `pipeline_recent`/hit_count as the corpus-wide
+  truth before retiring a word on "0 hit".
 - the only hard wait is the ArcticShift rate limit, surfaced via `vibe_supply_status`
 
 #### 6. Audit log (per round)

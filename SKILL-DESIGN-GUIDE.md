@@ -216,6 +216,24 @@ SKILL.md 回答三个问题：
       与 sd 场景句有张力、缺正例 → kw_init/kw_opt sys 补 GOOD tail 正例锚点 + "勿照抄
       demand_pain 场景句"提示；④ sd_doc show 整体输出含自描述头有泄漏隐患 → sd_doc.py
       加 `--values`（只出四字段值）。sk-valid 通过。
+- [x] **A2.9. 冷门 C2C 场景缺口修复（2026-09-08，Snag 362 通用性验证反馈）**：验证子
+      agent 在全新冷门 C2C 产品 (Snag 免费物品平台) 上跑通 sd→kw→pipeline→评分冷启动
+      闭环 (delivered 1), 报 5 缺口 —— ① **跨领域高频 token 噪声**: give away/buy
+      nothing/marketplace 类词 FTS 在 SaaS/营销语料拉噪声 (kw_init 只禁 umbrella) →
+      kw_init/kw_opt sys 补 "BAN cross-domain high-frequency tokens, 词必须带领域名词
+      锚" (free furniture pickup > give away furniture); ② sd 静默截断 → 已单独修
+      (600→800 + truncated 信号 + sd_gen 约束, A2.10); ③ **probe 0 ≠ 无语言**: probe
+      只验指定 sub, 全池词搜才是语料真相 (Snag free furniture probe 5sub=0 但词搜 hit
+      21) → SKILL.md 决策表/discipline 补 probe sub 级语义; ④ **首轮 0-hit 非结论**
+      (declutter home q1=0→q2 hit) → hit=0 语义表改多轮确认 (qc≥3), 弃 "first-round
+      conclusive"; ⑤ **双边市场评分无 guidance**: giver 帖 (本地免费家具) 是 C2C 核心
+      用户但 active-struggle 契约判低 → sd_gen demand_side 补双边市场双侧描述要求。
+- [x] **A2.10. sd 静默截断修复（2026-09-08，字符截断全仓排查）**：DB schema 全 TEXT
+      无 DB 层截断, 截断全在应用层。sd 600 上限前后端一致但超限无提示 → 上限 600→800
+      (后端 vibe_sd_update + 前端 app.js 4 处 slice 同步); vibe_sd_update 超限返回
+      truncated 信号; sd_gen sys 加每段 ≤800 硬约束; sd_doc write/fetch 加超限警告 +
+      本地比后端长漂移检测; opt_log reason 120→800/outcome→80, submit_score reason
+      300→800 (进 invalid_sample 仲裁依据)。实测 900 字 → truncated 提示 + 存 800。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）
