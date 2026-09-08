@@ -77,6 +77,13 @@ def main() -> int:
         except json.JSONDecodeError:
             print("bad --json")
             return 2
+        # v2.1 (2026-09-08): 800 上限校验 — 超限警告 (后端 vibe_sd_update 同限,
+        # 不静默 — 提示 agent 重生成压缩段)
+        over = {k: len(str(sd.get(k) or "")) for k in KEYS
+                if len(str(sd.get(k) or "")) > 800}
+        if over:
+            print(f"⚠️ 字段超 800 上限 (后端会截断): "
+                  f"{', '.join(f'{k}={n}' for k, n in over.items())}")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(_to_md(args.sub, sd))
@@ -118,6 +125,18 @@ def main() -> int:
     if args.dry_run:
         print(_to_md(args.sub, sd))
         return 0
+    # v2.1 (2026-09-08): 后端已是 800 截断口径 — 若本地旧文档字段更长,
+    # 提示漂移 (本地完整 vs 后端截断 → 需按 ≤800 重生成或用后端为准)
+    if os.path.exists(path):
+        try:
+            local = _from_md(path)
+            drift = [k for k in KEYS
+                     if len(str(local.get(k) or "")) > len(str(sd.get(k) or ""))]
+            if drift:
+                print(f"⚠️ 本地文档比后端长 (后端 800 截断?) — 字段: {drift} — "
+                      f"以后端为准已重写; 如需完整版请重生成 ≤800 段")
+        except Exception:  # noqa: BLE001
+            pass
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(_to_md(args.sub, sd))
