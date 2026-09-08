@@ -11,3 +11,8 @@ Thumbs.db
 
 __pycache__/
 *.pyc
+
+# Runtime subscription data — private per-host, never committed
+data/*.md
+!data/.gitkeep
+

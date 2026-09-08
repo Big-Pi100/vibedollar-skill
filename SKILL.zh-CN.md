@@ -294,17 +294,33 @@ python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidenc
 > 交还）。脚本把逐条判真并行化并返回干净 JSON —— 你仍是决策者，脚本替你干重复体力活，
 > 比你每次现场手写循环快得多。
 
-## 判真与调优 prompt 资产（运行时按需加载）
+## 判真与调优 prompt 资产（无占位符替换 —— sd 是运行时数据文档）
 
 评分判真与词表调优的 LLM 模板在 `scripts/*.md`。它们是 **prompt 资产**：加载对应文件，
-用自己的 LLM key 按其 `sys`/`user`（填 `{占位符}`）调用，解析 JSON，再经工具持久化。
-宿主 agent 仍是决策引擎 —— 文件永不自行运行。
+用自己的 LLM key 按其 `sys` 内容 + 你**从订阅实际数据组装的 user 消息**调用 ——
+**模板不含 `{占位符}`、也没有替换机制**（那是前端 JS 拼字符串的做法；作为 agent，
+你读数据、原生组装 user 消息即可）。
+
+**供需分析是运行时数据文档** —— 不是模板变量。存在 `data/sd_<sid>.md`
+（git-ignored，每宿主本地一份），后续判分 / kw_init / kw_opt 都读这一个文件注入：
+
+```
+# 首次 / 重建后 —— 生成 sd:
+scripts/sd_gen.md        → LLM（产品文案）→ 四段
+python3 scripts/sd_doc.py write --sub <sid> --json '{...}'   → data/sd_<sid>.md
+vibe_sd_update(subscription_id, supply_side=..., demand_side=..., ...)  # 后端副本
+
+# 之后任何步骤 —— 读 + 注入（agent 原生读文件，无 replace）:
+python3 scripts/sd_doc.py show --sub <sid>     → 打印 data/sd_<sid>.md 内容
+   （或 vibe_list_subs → sd_json —— 同数据，后端权威）
+```
 
 | 资产 | 何时加载 | 产出 → 持久化 |
 |---|---|---|
-| `scripts/sd_gen.md` | 订阅无 sd（缺 supply_side/demand_side/demand_pain）—— 首次建立或重建后 | 供需四段 → `vibe_sd_update` |
-| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd | 初始词表 → `vibe_keyword_add_batch`（source=auto）|
-| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd + 现词 | `{add, weak}` → add 走 `vibe_keyword_add_batch`; weak 按决策表守卫 |
+| `scripts/sd_doc.py` | fetch/show/write sd 文档（`data/sd_<sid>.md`）—— 纯机械文件操作 | 是否生成/更新由你决定 |
+| `scripts/sd_gen.md` | 订阅无 sd（缺 supply_side/demand_side/demand_pain）—— 首次建立或重建后 | 供需四段 → sd_doc.py write + `vibe_sd_update` |
+| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd 文档 | 初始词表 → `vibe_keyword_add_batch`（source=auto）|
+| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd 文档 + 现词 | `{add, weak}` → add 走 `vibe_keyword_add_batch`; weak 按决策表守卫 |
 | `scripts/judge_prompt.md` | `score_batch.py` 默认判真模板（profile 可编辑、契约固定）| 逐条 verdict → `vibe_submit_score` |
 | `scripts/eng_sys_core.md` | **只读**评分核心（计费契约）。原样引用，禁止编辑 | judge 对齐参考 |
 

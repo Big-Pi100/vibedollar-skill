@@ -307,18 +307,35 @@ Import by other local tools: `from mcp import MCPClient`. Not called directly by
 > returns clean JSON — you stay the decider, the script does the grunt work faster
 > than you could by hand-writing the loop each time.
 
-## Setup & tuning prompts (assets — load the file when you run that step)
+## Setup & tuning prompts (assets — no placeholder replacement, sd is a data doc)
 
 The scoring/judging and keyword-tuning LLM templates live in `scripts/*.md`. They are
-**prompt assets**: load the relevant file, call your own LLM with its `sys`/`user`
-content (fill the `{placeholders}`), parse the JSON, then persist via the tools. The
-host agent stays the decision engine — the files never self-run.
+**prompt assets**: load the relevant file, call your own LLM with its `sys` content and
+a `user` message you build from the subscription's actual data — **the templates carry
+no `{placeholders}` and there is no replacement mechanism** (that was the front-end's
+JS-string approach; as an agent you read data and compose the user message natively).
+
+**The supply/demand profile is a runtime data document** — not a template variable.
+Keep it as `data/sd_<sid>.md` (git-ignored, per-host) so every later step (scoring /
+kw_init / kw_opt) reads one file and injects it:
+
+```
+# first time / after rebuild — generate sd:
+scripts/sd_gen.md        → LLM (product text) → 4 fields
+python3 scripts/sd_doc.py write --sub <sid> --json '{...}'   → data/sd_<sid>.md
+vibe_sd_update(subscription_id, supply_side=..., demand_side=..., ...)  # backend copy
+
+# any later step — read + inject (agent's native read; no replace):
+python3 scripts/sd_doc.py show --sub <sid>     → prints data/sd_<sid>.md content
+   (or: vibe_list_subs → sd_json — same data, backend is authoritative)
+```
 
 | Asset | When to load | Produces → persist via |
 |---|---|---|
-| `scripts/sd_gen.md` | Subscription has no sd (no supply_side/demand_side/demand_pain) — first setup or after a rebuild | supply/demand four fields → `vibe_sd_update` |
-| `scripts/kw_init.md` | Keyword face is empty (initial setup) — needs sd present first | initial keyword list → `vibe_keyword_add_batch` (source=auto) |
-| `scripts/kw_opt.md` | Decision loop says expand / after a retire sweep — needs sd + current words | `{add, weak}` → add via `vibe_keyword_add_batch`; weak per decision-table guards |
+| `scripts/sd_doc.py` | fetch/show/write the sd doc (`data/sd_<sid>.md`) — mechanical file ops only | decision (generate/update) stays with you |
+| `scripts/sd_gen.md` | Subscription has no sd (no supply_side/demand_side/demand_pain) — first setup or after a rebuild | supply/demand four fields → sd_doc.py write + `vibe_sd_update` |
+| `scripts/kw_init.md` | Keyword face is empty (initial setup) — needs sd doc present first | initial keyword list → `vibe_keyword_add_batch` (source=auto) |
+| `scripts/kw_opt.md` | Decision loop says expand / after a retire sweep — needs sd doc + current words | `{add, weak}` → add via `vibe_keyword_add_batch`; weak per decision-table guards |
 | `scripts/judge_prompt.md` | Default judge template for `score_batch.py` (editable profile, fixed contract) | per-candidate verdicts → `vibe_submit_score` |
 | `scripts/eng_sys_core.md` | **READ-ONLY** scoring core (billing-bound contract). Reference verbatim; never edit | reference for judge alignment |
 

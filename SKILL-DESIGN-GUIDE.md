@@ -192,6 +192,15 @@ SKILL.md 回答三个问题：
       （每个返回字段的含义 + agent 该决定的动作）；全 irrelevant → retire → **从 sd
       重生成词面**（sd_gen/kw_init）而非放弃；服务端零决策措辞（无 server penalize/无
       F2-wait）。后端同步 A1.5：F3/F2/decide_kw 自动退役停用、consume_feedback 只聚合。
+- [x] **A2.6. prompt 资产去占位符、sd 数据文档化（2026-09-08，用户指正）**：原模板 user
+      块用 `{supply_side}` 等占位符 —— 那是前端 JS 拼模板的产物；agent 场景无替换机制，
+      子 agent 被迫现场手写 151 行执行器填占位符。本次：sd 四段文档化为运行时数据
+      `data/sd_<sid>.md`（git-ignored 每宿主私有，`.gitignore` 排除）；新增纯执行器
+      `scripts/sd_doc.py`（fetch/show/write —— 从 vibe_list_subs 拉 sd_json 写本地文档）；
+      sd_gen/kw_init/kw_opt 的 user 块改"注入说明"（读 data/sd_<sid>.md 组装 user 消息），
+      模板零占位符；kw_init/kw_opt sys 补 tail 形态硬约束（2-4 词名词短语，禁
+      "at home nails"/"kit hard to use" 场景句 —— 345 噪声实证）；SKILL.md/zh 资产表
+      重写为 sd 文档化流程。judge_prompt/score_batch 保持 sd_json 注入（后端权威）。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

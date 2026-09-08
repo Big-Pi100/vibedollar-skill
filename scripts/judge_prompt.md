@@ -3,7 +3,8 @@
 这是评分时发给判真 LLM 的 `system` 模板 (`scripts/score_batch.py` 使用)。
 **下文的评分契约与计费绑定 —— verdict/score 分段不可改** (规范见
 `eng_sys_core.md`, 只读的评分核心)。每个订阅可编辑的是需求侧画像 —— sd 四段来自
-`vibe_sd_update` (生成方法见 `sd_gen.md`)。
+该订阅的供需分析文档 `data/sd_<sid>.md` (生成/校准见 `sd_gen.md` + `scripts/sd_doc.py`;
+后端权威副本在 product_subs.sd_json, `vibe_sd_update` 写)。
 
 Also readable in English below; edit the sd fields to match YOUR market.
 
