@@ -116,7 +116,7 @@ quota, and the monthly accumulated delivered). Every round asks:
 #### 1. Perceive (read tools, zero LLM)
 
 ```
-vibe_sub_health(sid)     → quota / delivered-so-far / stock / gap / collecting_ok / last_opt
+vibe_sub_health(sid)     → quota / delivered_month / delivered_total / stock / gap / collecting_ok / last_opt
 vibe_supply_status(sid)  → corpus intake trend / catalog age / arctic.limited
 vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
@@ -129,7 +129,7 @@ The server only *reports* these; **you** act on them (v2.1 — server makes zero
 
 | Data | What it means | Your decision |
 |---|---|---|
-| `delivered` vs quota | delivery progress vs goal | **goal check**: met → wait; not met → act (this drives everything) |
+| `delivered_month` vs quota | delivery progress vs goal (this month) | **goal check**: met → wait; not met → act (this drives everything) |
 | `hit_count` = 0 | the phrase **doesn't exist** in corpus (nobody posts it) | don't keep it hoping — probe it, replace it, or retire it (F3 semantics: 90-day corpus, first-round 0-hit is conclusive) |
 | `hit_count` > 0 but all your scores `irrelevant` | the phrase exists but **matches noise** — it's a wrong word, not proof demand is exhausted | retire the word, then **regenerate the word face from sd** (`sd_gen.md` if sd missing → `kw_init.md` → `vibe_keyword_add_batch`) — wrong words are fixed by regenerating, not by giving up |
 | `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` off-topic | noise generator | `vibe_keyword_remove` force + `vibe_opt_log` (see Plan A) |
@@ -137,6 +137,7 @@ The server only *reports* these; **you** act on them (v2.1 — server makes zero
 | `query_count` < 3 | not enough observation | don't judge yet (avoid single-shot miskill) |
 | `created_at` recent | NEW30 group (judge ② input) | recently-added words' hit rate → keep expanding or stop |
 | `collecting_ok=false` | backend intake down today | alert — expanding is useless until collection recovers |
+| `pipeline_recent` (matched=0 several rounds) | words find nothing in corpus now | word exhaustion → probe/replace/regenerate; **distinguish from corpus intake stall**: if `corpus_today` collapsed (vs ~90k/day baseline) the corpus isn't growing — wait/alert, not a word problem |
 | `arctic.limited` | physical rate limit | pause supply actions until clear (not a cooldown) |
 
 #### 3. Plan — one action, driven by the goal

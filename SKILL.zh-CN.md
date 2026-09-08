@@ -108,7 +108,7 @@ delivered）。每轮先问：
 #### 1. Perceive（读工具，零 LLM）
 
 ```
-vibe_sub_health(sid)     → quota / delivered-so-far / stock / gap / collecting_ok / last_opt
+vibe_sub_health(sid)     → quota / delivered_month / delivered_total / stock / gap / collecting_ok / last_opt
 vibe_supply_status(sid)  → 语料入库趋势 / 名录新鲜度 / arctic.limited
 vibe_keywords(sid, all)  → 每词: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
@@ -121,7 +121,7 @@ vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
 
 | 数据 | 含义 | 你的决定 |
 |---|---|---|
-| `delivered` vs quota | 交付进度 vs 目标 | **目标检查**：达成 → wait；未达成 → act（驱动一切）|
+| `delivered_month` vs quota | 本月交付进度 vs 目标 | **目标检查**：达成 → wait；未达成 → act（驱动一切）|
 | `hit_count` = 0 | 该表达在语料里**不存在**（没人这么发帖）| 别留着等——probe 它 / 换词 / 退役（F3 语义：90 天语料首轮 0 命中即结论性）|
 | `hit_count` > 0 但你的评分全 `irrelevant` | 表达存在但**匹配的是噪声**——是词错了，不是需求到头了 | 退役该词，然后**从 sd 重生成词面**（sd 缺→`sd_gen.md`；`kw_init.md` → `vibe_keyword_add_batch`）——词错用重生成修，不是放弃 |
 | `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` 跨主题 | 噪声制造机 | `vibe_keyword_remove` force + `vibe_opt_log`（见 Plan A）|
@@ -129,6 +129,7 @@ vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
 | `query_count` < 3 | 观测不足 | 先别判（防单次误杀）|
 | `created_at` 近期 | NEW30 组（判据②输入）| 近 30 天新词的命中率 → 继续扩或停 |
 | `collecting_ok=false` | 后端今天采集不足 | alert——采集恢复前扩词无用 |
+| `pipeline_recent`（连续多轮 matched=0）| 词在语料里现在捞不到 | 词耗尽 → probe/换词/重生成；**与语料停区分**：若 `corpus_today` 暴跌（对比 ~90k/日基准）→ 语料没在长——等待/alert，不是词的问题 |
 | `arctic.limited` | 物理限流 | 暂停供给动作到解除（非冷却）|
 
 #### 3. Plan —— 一个动作，目标驱动

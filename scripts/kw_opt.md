@@ -5,8 +5,12 @@
 > active+monitor keywords with hit stats (from `vibe_keywords`). Call the LLM with
 > `sys` below + `user` (sd + product + current keywords), parse JSON, then:
 >   - add → `vibe_keyword_add_batch(source=auto)`
->   - weak → retire per SKILL.md decision-table guards (`vibe_keyword_remove` force,
->     auto words only; verify with invalid_sample before retiring)
+>   - weak → **candidate only, NOT an auto-retire verdict** — retiring still follows
+>     SKILL.md decision-table row-1: only words with **0 delivered + ≥2 rejected +
+>     invalid_sample off-topic** may be removed (`vibe_keyword_remove` force). A word
+>     with n_delivered>0 is kept even if kw_opt flags it weak (it has produced buyers;
+>     flagging weak means "watch it", not "kill it"). Verify invalid_sample before
+>     retiring; manual words never touched.
 >   - log via `vibe_opt_log(outcome, reason, n_new_kw, n_replaced)`
 > Front-end source of truth: `site/js/app.js` orchPrompts().kwOpt.
 > Rows format: `kw | type= | query= | hit= | pooled= | avgScore= | delivered= | invalid= | rejected= | invalidSample="..."`.

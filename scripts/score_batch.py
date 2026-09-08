@@ -24,7 +24,14 @@ agent 直接调本工具比自己写脚本高效得多。
 
 返回 (stdout JSON — 宿主 agent 读取决定下一步):
     {"sub_id": 12, "claimed": N, "judged": N, "relevant": N,
-     "submitted": N, "failed": N, "pending": [...ids]}
+     "submitted": N, "failed": N, "pending": [...ids],
+     "submit_state": "ok|timeout_unclear|none"}
+    # v2.1 (缺口2): submit_state 标注交还是否确认 —
+    #   ok              = 收到服务端回执 (submitted = passed relevant 数)
+    #   timeout_unclear = 交还超时, 不确定服务端是否已处理 → 宿主用
+    #                     vibe_sub_health 的 delivered/pending 交叉核验,
+    #                     别盲目重交 (服务端幂等: 已评分 id 返回 error 不双计)
+    #   none            = 无提交 (空批/dry-run)
 """
 from __future__ import annotations
 
@@ -211,6 +218,7 @@ def main() -> None:
     leads = posts + pending
     out = {"sub_id": args.sub, "claimed": len(leads), "judged": 0,
            "relevant": 0, "submitted": 0, "failed": 0,
+           "submit_state": "none",
            "pending": [p.get("id") for p in pending if p.get("id")]}
     if not leads:
         print(json.dumps(out, ensure_ascii=False))
@@ -249,12 +257,24 @@ def main() -> None:
 
     # 交还
     scores = [payload for _, payload in judged]
+    # v2.1 (缺口2): submitted 只回显 passed (relevant 数) — 无法回答"交还调用
+    # 是否成功"。MCP 超时可能发生在请求前(未提交)或响应后(已提交但没收到回执) —
+    # 脚本如实标注 submit_state: "ok"=收到回执 / "timeout_unclear"=超时不确定
+    # (宿主需用 vibe_sub_health/vibe_keywords 交叉核验 pending 是否清空, 别重复
+    # 提交已处理的 id — 服务端对已评分 id 返回 error 而非双计, 幂等安全)。
     try:
         resp = mc.call("vibe_submit_score", {"scores": scores})
         out["submitted"] = int(resp.get("passed") or 0)
+        out["submit_state"] = "ok"
+        out["submit_resp"] = {k: resp.get(k) for k in
+                              ("passed", "rejected", "errors", "quota_used")
+                              if resp.get(k) is not None}
     except Exception as e:  # noqa: BLE001
         out["failed"] += 1
-        print(f"  ❌ 交还失败: {str(e)[:100]}", file=sys.stderr)
+        out["submit_state"] = "timeout_unclear"
+        out["submit_err"] = str(e)[:150]
+        print(f"  ❌ 交还超时/失败 (状态不确定 — 用 health 核验): {str(e)[:100]}",
+              file=sys.stderr)
     out["relevant"] = sum(1 for _, pl in judged if pl["verdict"] == "relevant")
     if args.out:
         _save_evidence(args.out, args.sub, product, judged, args.out_format)
