@@ -87,102 +87,140 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 
 > Cost note: the ten tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
 
-### Agent decision loop (per subscription, per round)
+### Agent decision loop (per subscription, per round — v2.1 delivery-driven)
 
-vibedollar is the data/state layer; **you (the host agent) are the tuner**. Server-side
-auto-tune is deliberately thin: F3 zero-hit retire runs after each pipeline round, F2
-deep-negative retire runs once daily, and server-side keyword *expansion* is off
-("P3 disabled — consumer-driven"). So the loop that keeps a subscription healthy is
-**yours**. Run it per subscription, one action per round:
+vibedollar is the **data/state layer — server makes zero decisions**. It collects Reddit,
+matches candidates into the pool, records your scoring feedback as signals, and returns
+health data; **you (the host agent) decide everything** — expand / retire / regenerate /
+probe / wait / report. There is no server-side auto-retire to wait for: hit=0, avg_score,
+n_rejected etc. are *signals for you to act on*, not actions the server takes.
+
+**The loop is driven by the delivery goal, not by "is there a pool to score".** Each round:
 
 ```
-perceive → plan → act → verify  (verify gates the next round — no clock cooldowns)
+goal check → perceive → plan (one action) → act → verify → back to goal check
 ```
+
+#### 0. Goal check (before anything — the loop's engine)
+
+Delivery goal = this month's delivered count vs the commitment (see `vibe_sub_health`:
+quota, and the monthly accumulated delivered). Every round asks:
+
+- **Goal met / exceeded** → `wait` (fast loop digests; no supply action needed)
+- **Goal not met** → the task is NOT done. Pick the next action from the decision table
+  below, act, verify, and **return to the goal check**. You may only stop (report
+  exhausted) after trying every available direction and verifying none improved delivery.
+  **Never end a round silently after scoring** — "scored 15, all irrelevant" is a signal
+  to change direction, not a completed task.
 
 #### 1. Perceive (read tools, zero LLM)
 
 ```
-vibe_sub_health(sid)     → stock / gap / collecting_ok / last_opt
+vibe_sub_health(sid)     → quota / delivered-so-far / stock / gap / collecting_ok / last_opt
 vibe_supply_status(sid)  → corpus intake trend / catalog age / arctic.limited
 vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → which subreddits actually contribute candidates
 ```
 
-#### 2. Plan — judge by marginal yield, close your own scoring loop first
+#### 2. Health-data semantics (what each returned number means → what you decide)
 
-**A. Scoring feedback is the strongest signal — act on it now, don't wait for the server's daily batch.**
+The server only *reports* these; **you** act on them (v2.1 — server makes zero decisions):
+
+| Data | What it means | Your decision |
+|---|---|---|
+| `delivered` vs quota | delivery progress vs goal | **goal check**: met → wait; not met → act (this drives everything) |
+| `hit_count` = 0 | the phrase **doesn't exist** in corpus (nobody posts it) | don't keep it hoping — probe it, replace it, or retire it (F3 semantics: 90-day corpus, first-round 0-hit is conclusive) |
+| `hit_count` > 0 but all your scores `irrelevant` | the phrase exists but **matches noise** — it's a wrong word, not proof demand is exhausted | retire the word, then **regenerate the word face from sd** (`sd_gen.md` if sd missing → `kw_init.md` → `vibe_keyword_add_batch`) — wrong words are fixed by regenerating, not by giving up |
+| `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` off-topic | noise generator | `vibe_keyword_remove` force + `vibe_opt_log` (see Plan A) |
+| `avg_score` (negative) | aggregated scoring feedback signal (−3 per your irrelevant, server records only) | the more negative, the more rejects — supports retire/regenerate decision; **server does not retire on it** |
+| `query_count` < 3 | not enough observation | don't judge yet (avoid single-shot miskill) |
+| `created_at` recent | NEW30 group (judge ② input) | recently-added words' hit rate → keep expanding or stop |
+| `collecting_ok=false` | backend intake down today | alert — expanding is useless until collection recovers |
+| `arctic.limited` | physical rate limit | pause supply actions until clear (not a cooldown) |
+
+#### 3. Plan — one action, driven by the goal
+
+**A. Close your own scoring loop first** (scoring feedback is the strongest signal).
 If your last scoring round produced `irrelevant` verdicts for a word with **0 delivered**
 (n_rejected ≥ 2 and `invalid_sample` shows off-topic junk it pulls) → that word is a
-noise generator → **retire it immediately**:
+noise generator → **retire it now**:
 
 ```
-vibe_keyword_remove(subscription_id, kw, force=true)   # auto word, orchestrator action
+vibe_keyword_remove(subscription_id, kw, force=true)   # auto word — your call, no server batch to wait for
 vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
 ```
 
-`n_rejected` is **cumulative across scorers** (anyone who scored this subscription), not
-just your own verdicts — when you can't tell whose rejects they are, let `invalid_sample`
-arbitrate: clearly off-topic junk (email-marketing noise, food recipes, unrelated pain)
-confirms a noise generator; a plausible in-scene post that was rejected suggests a
-misjudgment — recover it, don't retire the word on that evidence.
-
-The server also penalizes it (consume_feedback −3/irrelevant → F2 retire at avg ≤ −6),
-but only on its **daily** batch — you saw the noise this round; retire it this round.
+`n_rejected` is cumulative across scorers — when you can't tell whose rejects they are,
+let `invalid_sample` arbitrate: clearly off-topic junk confirms a noise generator; a
+plausible in-scene post that was rejected suggests a misjudgment — recover it
+(`vibe_recover_lead`), don't retire the word on that evidence.
 
 **B. Then read the NEW30 marginal-yield signal** (is expanding keywords still useful?):
-words added in the last ~30 days (`created_at` recent) that you or the server added:
-- mostly **hitting** (>0 hit) and stock is low → keep expanding (probe-verified words only)
-- mostly **zero-hit** (auto-retired by F3) → keyword face is swept → stop expanding,
-  the discoverable demand in current corpus is near its ceiling — switch to corpus
-  exploration or report honestly instead of churning more words
+words added in the last ~30 days (`created_at` recent):
+- mostly **hitting** (>0 hit) and delivery still short → keep expanding (probe-verified words only)
+- mostly **zero-hit** → the current word face can't reach demand → don't just stop: probe
+  alternative phrasings, and if the face is exhausted after retires, **regenerate from sd**
+  (see C) before concluding anything about the market
 
-**C. Corpus / collection state** (judge ③):
-- `collecting_ok=false` → alert: collection down, expanding words is useless
-- catalog `last_updated_at` old → alert for the monthly refresh (backend concern)
-- intake healthy but keyword face swept → corpus boundary is thin → deeper in-pool subs
-  / widen to new subs are stage-B tools; until they exist, probe likely candidates and
-  record the need — do not invent expansions
+**C. All-irrelevant ≠ market ceiling — regenerate the word face.** If you retired a batch
+of noise words (0 relevant) and delivery is still short, the words were wrong, not the
+demand. Regenerate from the supply/demand profile: sd missing → `sd_gen.md` →
+`vibe_sd_update`; then `kw_init.md` (or `kw_opt.md` with current rows) → new word face →
+`vibe_keyword_add_batch`. Only after a regenerated face also fails (new words hit=0 or
+all-irrelevant again) do you move to corpus exploration or report.
 
-Decision table:
+Decision table (goal-driven):
 
 | Observed | Action |
 |---|---|
-| word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_remove` force + `vibe_opt_log` (immediate) |
-| NEW30 words hitting, stock low | expand: `vibe_keyword_add_batch` (probe-verified words only) |
-| NEW30 swept (F3 retires), collecting_ok | stop expanding → corpus exploration (stage B) / honest report |
-| `collecting_ok=false` | alert (backend intake down — expanding useless) |
+| Goal met / exceeded | `wait` (fast loop digests) |
+| Goal not met, stock(new+sent)>0 | score the pool (`score_batch.py`) — results feed this table next round |
+| word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_remove` force + `vibe_opt_log` |
+| face cleared after retires, goal still short | **regenerate**: sd_gen (if sd missing) → kw_init/kw_opt → `vibe_keyword_add_batch` |
+| new words hit=0 | `vibe_search_probe` the phrasing → replace / adjust / widen subs |
+| NEW30 hitting, goal short | expand: `vibe_keyword_add_batch` (probe-verified) |
+| NEW30 swept, collecting_ok | corpus boundary thin → expand_sub/widen_pool (stage B); until then probe + record |
+| `collecting_ok=false` | alert (intake down — expanding useless) |
 | `arctic.limited` | pause supply actions — physical wait, not a cooldown |
-| all healthy + stock > 0 | wait — let the fast loop (scoring) digest |
 
-#### 3. Act
+**Exhausted (only legal stop)** — delivery still short AND you have already tried, in
+order, with verification at each step: score → retire noise → regenerate face from sd →
+probe → expand_sub/widen_pool (where tools exist). Then report honestly what you tried
+and why the ceiling is real (market wording / corpus boundary), and log it. **No silent
+stops**: every round ends with "continue toward goal" or "exhausted, here is the
+evidence".
 
-Execute **one** action. After add/remove, call `vibe_opt_log(...)` so the event is
-auditable in health. State the **expect**: what should the next round show if the action
-worked (e.g. "new words hit within a pipeline round" / "retired word stops pooling")?
+#### 4. Act
 
-#### 4. Verify (next round)
+Execute **one** action. After add/remove, call `vibe_opt_log(...)` (auditable in health).
+State the **expect**: what should the next round show if the action worked (e.g.
+"regenerated words hit within a pipeline round" / "retired word stops pooling junk" /
+"delivered increments by N")?
 
-Check the expect against the new perceive: did new words hit? did the retired word stop
-pooling junk? did the next scoring yield improve?
-- Expect met → continue the same direction
-- Expect failed → **switch strategy** (expand → probe different words → corpus → honest
-  report), don't repeat the same failing action
+#### 5. Verify (next round)
+
+Check the expect against the new perceive, then **return to the goal check**:
+- Expect met → continue the same direction (same action type)
+- Expect failed → **switch strategy**: score → retire → regenerate → probe → corpus —
+  don't repeat a failing action
+- Delivery still short with directions left → next round continues; only exhausted
+  (above) permits `report_exhausted`
 
 **Discipline** (no time cooldowns / daily caps — v2 §5.3):
-- one action per round (convergence discipline, not throttling)
+- one direction action per round (convergence discipline, not throttling)
 - verify-gated, not clock-gated: act → see the result → decide next
 - **probe before you expand**: `vibe_search_probe(query, [subs])` gives instant feedback
-  on whether a phrase surfaces posts — never blind-expand and wait 30 min for pipeline stats
-- the only hard wait is the ArcticShift rate limit, surfaced transparently via `vibe_supply_status`
+  on whether a phrase surfaces posts — never blind-expand and wait for pipeline stats
+- the only hard wait is the ArcticShift rate limit, surfaced via `vibe_supply_status`
 
-#### 5. Audit log (per round)
+#### 6. Audit log (per round)
 
 Record each round so decisions are replayable and prompts iterable — ts / sid / round_no /
-world (raw tool returns, uncropped) / prompt sent / llm_raw / plan / action / result /
-verify / cost. Persist it in your own store (exportable JSON). Without this you cannot
-answer "why did the agent decide that" or iterate the loop — the log is core infrastructure,
-not a post-hoc patch.
+goal check result / world (raw tool returns, uncropped) / prompt sent / llm_raw / plan /
+action / result / verify / cost. Persist it in your own store (exportable JSON). Without
+this you cannot answer "why did the agent decide that" or iterate the loop — the log is
+core infrastructure, not a post-hoc patch.
 
 ## Scoring format (agent calling convention)
 

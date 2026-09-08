@@ -184,6 +184,14 @@ SKILL.md 回答三个问题：
       成熟卖家排除 0-29，契约段不可改）；score_batch.py 从 vibe_list_subs 读 sd_json 注入
       system；SKILL.md/zh 新增 "Setup & tuning prompts" 资产表（顺序：sd → kw → judge），
       修复旧节名交叉引用；前端单源迁移仍待做（app.js 与 scripts/*.md 并存，阶段 C 收口）。
+- [x] **A2.5. 决策循环 v2.1 交付驱动重写（2026-09-08，用户裁决⑥⑦）**：旧决策循环
+      "评分→retire→等服务端批" 停摆于全 irrelevant —— 无交付目标判定、词错被当"需求
+      到头"、SKILL.md 还写"server also penalizes/retires"（把 agent 决策外包给服务端批）。
+      本次：决策循环改 **交付目标驱动**（§0 目标检查：本月 delivered vs 承诺 → 未达成
+      必须 act 换方向，唯一停止 = 方向穷尽后 report_exhausted）；新增 §2 健康数据语义表
+      （每个返回字段的含义 + agent 该决定的动作）；全 irrelevant → retire → **从 sd
+      重生成词面**（sd_gen/kw_init）而非放弃；服务端零决策措辞（无 server penalize/无
+      F2-wait）。后端同步 A1.5：F3/F2/decide_kw 自动退役停用、consume_feedback 只聚合。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）
