@@ -28,7 +28,7 @@ EXAMPLE OUTPUT (a tool that finds customers on Reddit):
 {"supply_side": "watches Reddit for people already asking for the kind of product you sell and surfaces them as ranked leads", "demand_side": "Indie founders and first-time SaaS/app builders who have a product and are looking for their first customers on Reddit — early-stage, no big ad budget, no sales team. Not: established companies with working acquisition systems", "core_friction": "manually searching Reddit for people who want what I built is slow and noisy — most threads off-target, the few high-intent ones get buried", "demand_pain": "I spent a weekend manually scrolling r/startups and r/SaaS looking for anyone asking for a tool like mine — mostly noise. I looked at GummySearch and Syften but they are too expensive before I have revenue. I want something that watches Reddit for me and surfaces only the threads where someone is actually asking for what I built"}
 Reply ONLY with a JSON object (no markdown), keys exactly: supply_side, demand_side, core_friction, demand_pain. Values are concise plain-text (no bullets). Use the same language as the product description (English if the description is English, Chinese if Chinese).
 
-`user` (inject — replace `<product>` with the subscription's product text):
+`user` (assemble with the subscription's product text — nothing here is literal):
 
 PRODUCT:
-<product>
+[product text from vibe_list_subs]

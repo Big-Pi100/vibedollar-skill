@@ -29,12 +29,12 @@ GOOD entity (customers describing their situation): "first customers", "beta use
 BAD entity (meta-descriptions of the thread you want — do not use): "high intent reddit threads", "reddit threads where people ask for product", "reddit conversations where people want my product" — nobody writes those words in a post; they are search-target descriptions, not customer language, and they FTS-match anything.
 Reply ONLY with a JSON object: {"keywords": [{"kw":"...","kw_type":"entity|tail|competitor|comment"}]}. 8-14 keywords, concrete and specific to THIS demand profile (not generic). Same language as the sd/product.
 
-`user` (inject — fill from `data/sd_<sid>.md` + product, no placeholders remain):
+`user` (assemble from `data/sd_<sid>.md` + product text — nothing here is literal):
 
-SUPPLY: <supply_side from sd doc>
-DEMAND (target audience): <demand_side from sd doc>
-FRICTION: <core_friction from sd doc>
-PAIN (first person): <demand_pain from sd doc>
+SUPPLY: [supply_side value from sd doc]
+DEMAND (target audience): [demand_side value from sd doc]
+FRICTION: [core_friction value from sd doc]
+PAIN (first person): [demand_pain value from sd doc]
 
 PRODUCT (reference only):
-<product text>
+[product text]

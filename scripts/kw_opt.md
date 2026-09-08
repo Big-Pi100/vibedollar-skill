@@ -29,14 +29,14 @@ You are a keyword optimizer for Reddit demand discovery. Given a product, its su
 "weak" = CURRENT keywords that are clearly underperforming: near-zero hits/pooled, OR umbrella/category words that mostly pool generic chatter unrelated to the demand profile (even if pooled>0, flag them as weak when their wording is a category umbrella, not the pain language), OR words whose delivered leads are mostly marked invalid or rejected.
 Reply ONLY with a JSON object: {"add":[{"kw":"...","kw_type":"entity|tail|competitor|comment"}], "weak":["kw1","kw2"]}. max 5 add, max 3 weak. Same language as the sd/product.
 
-`user` (inject — fill from `data/sd_<sid>.md` + product + vibe_keywords rows, no placeholders remain):
+`user` (assemble from `data/sd_<sid>.md` + product + vibe_keywords rows — nothing here is literal):
 
-SUPPLY: <supply_side from sd doc>
-DEMAND (target audience): <demand_side from sd doc>
-PAIN (first person): <demand_pain from sd doc>
+SUPPLY: [supply_side value from sd doc]
+DEMAND (target audience): [demand_side value from sd doc]
+PAIN (first person): [demand_pain value from sd doc]
 
 PRODUCT (reference only):
-<product text>
+[product text]
 
 CURRENT KEYWORDS:
-<rows — one per line: kw | type= | query= | hit= | pooled= | avgScore= | delivered= | invalid= | rejected= | invalidSample="...">
+[rows — one per line: kw | type= | query= | hit= | pooled= | avgScore= | delivered= | invalid= | rejected= | invalidSample="..."]

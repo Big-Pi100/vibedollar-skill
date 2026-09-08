@@ -7,19 +7,22 @@
 > if this file and app.js drift, app.js wins until the single-source migration lands).
 
 Use as the `system` message when judging candidates with your own LLM. The
-`user` message must carry the subscription's supply/demand structure (see
-`sd_gen.md` for generating it, `vibe_sd_update` for persisting it) plus the
-post(s) to judge:
+`user` message you assemble must carry the subscription's supply/demand
+structure (read from `data/sd_<sid>.md` — see `sd_gen.md` / `scripts/sd_doc.py`)
+plus the post(s) to judge. Assemble the user message in this field layout
+(the bracketed items are what you fill with actual values; nothing here is a
+literal to send):
 
 ```
-user: SUPPLY: <supply_side>
-DEMAND (target audience): <demand_side>
-FRICTION: <core_friction>
-PAIN (first person): <demand_pain>
+user:
+SUPPLY: [supply_side value]
+DEMAND (target audience): [demand_side value]
+FRICTION: [core_friction value]
+PAIN (first person): [demand_pain value]
 
-POST (r/<subreddit>):
-<title>
-<body>
+POST (r/[subreddit]):
+[post title]
+[post body]
 ```
 
 ---

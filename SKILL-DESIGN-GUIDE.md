@@ -201,6 +201,13 @@ SKILL.md 回答三个问题：
       模板零占位符；kw_init/kw_opt sys 补 tail 形态硬约束（2-4 词名词短语，禁
       "at home nails"/"kit hard to use" 场景句 —— 345 噪声实证）；SKILL.md/zh 资产表
       重写为 sd 文档化流程。judge_prompt/score_batch 保持 sd_json 注入（后端权威）。
+- [x] **A2.7. 模板 user 块去注入记号（2026-09-08，占位符复查）**：全仓扫描占位符 —
+      上一轮把 `{xxx}` 换成 `<xxx>` 但给 LLM 的模板 user 块仍留尖括号记号
+      （eng_sys_core/sd_gen/kw_init/kw_opt），agent 可能把字面 `<supply_side>` 发出去。
+      本次：4 个模板 user 块统一为**字段布局说明**（`SUPPLY: [supply_side value]` —
+      方括号 = 组装提示，非字面量），并注明"nothing here is literal"；README/billing
+      的 `<key>`（API 文档参数记号）与 python f-string 属正常保留。复查后 LLM 模板
+      user 块零尖括号待填记号。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）
