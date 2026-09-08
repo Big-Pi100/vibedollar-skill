@@ -169,6 +169,12 @@ SKILL.md 回答三个问题：
       判据③；决策表 6 行；verify 门控 + 策略切换纪律（无时钟冷却）；审计日志要求。
       替换旧 "Delivery-health tuning"（gap 驱动已过时）+ "Supply-side decisions" 两节；
       EN 248→306 行（3157→3505 词），ZH 247→301 行，双语各 15 节仍对齐。
+- [x] **A2.3. row-1 判据歧义修正（2026-09-08，子 agent 干净上下文实测反馈）**：
+      `n_rejected` 是跨评分者累计，非"你的评分"专属 → row-1 / Plan-A 补仲裁规则：
+      `invalid_sample` 显示跨主题垃圾 = 噪声词可 retire；本领域内合理却被拒 = 疑似误判
+      → `vibe_recover_lead` 恢复，不凭它 retire。决策表 row-1 同步改
+      "0 delivered + ≥2 rejected, invalid_sample off-topic"。
+      （后端字段化建议另记 vibedollar docs/agent-loop-tool-gaps-record-20260908.md）
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

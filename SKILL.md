@@ -113,13 +113,19 @@ vibe_subs(sid)           → which subreddits actually contribute candidates
 
 **A. Scoring feedback is the strongest signal — act on it now, don't wait for the server's daily batch.**
 If your last scoring round produced `irrelevant` verdicts for a word with **0 delivered**
-(n_rejected ≥ 2 from your own scores, `invalid_sample` shows what junk it pulls) → that
-word is a noise generator → **retire it immediately**:
+(n_rejected ≥ 2 and `invalid_sample` shows off-topic junk it pulls) → that word is a
+noise generator → **retire it immediately**:
 
 ```
 vibe_keyword_remove(subscription_id, kw, force=true)   # auto word, orchestrator action
 vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
 ```
+
+`n_rejected` is **cumulative across scorers** (anyone who scored this subscription), not
+just your own verdicts — when you can't tell whose rejects they are, let `invalid_sample`
+arbitrate: clearly off-topic junk (email-marketing noise, food recipes, unrelated pain)
+confirms a noise generator; a plausible in-scene post that was rejected suggests a
+misjudgment — recover it, don't retire the word on that evidence.
 
 The server also penalizes it (consume_feedback −3/irrelevant → F2 retire at avg ≤ −6),
 but only on its **daily** batch — you saw the noise this round; retire it this round.
@@ -142,7 +148,7 @@ Decision table:
 
 | Observed | Action |
 |---|---|
-| word: 0 delivered + ≥2 of your irrelevant | `vibe_keyword_remove` force + `vibe_opt_log` (immediate) |
+| word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_remove` force + `vibe_opt_log` (immediate) |
 | NEW30 words hitting, stock low | expand: `vibe_keyword_add_batch` (probe-verified words only) |
 | NEW30 swept (F3 retires), collecting_ok | stop expanding → corpus exploration (stage B) / honest report |
 | `collecting_ok=false` | alert (backend intake down — expanding useless) |

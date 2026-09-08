@@ -106,13 +106,18 @@ vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
 
 **A. 评分反馈是最强信号 —— 当轮行动，别等服务端的每日批。**
 若你上一轮评分给某词产出 `irrelevant` 且该词 **0 delivered**
-（n_rejected ≥ 2 来自你的评分，`invalid_sample` 显示它拉进的是什么垃圾）→ 该词是
+（n_rejected ≥ 2 且 `invalid_sample` 显示它拉进的是跨主题垃圾）→ 该词是
 噪声制造机 → **立即退役**：
 
 ```
 vibe_keyword_remove(subscription_id, kw, force=true)   # auto 词, 编排器动作
 vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
 ```
+
+`n_rejected` 是**跨评分者累计**（任何评过该订阅的人），不只有你自己的判定——分不清
+是谁的拒绝时，让 `invalid_sample` 仲裁：明显跨主题垃圾（邮件营销噪声、食谱、无关痛点）
+证实噪声制造机；而一条本领域内合理却被拒的帖 → 更像误判——恢复它（vibe_recover_lead），
+不要凭它退役这个词。
 
 服务端也会惩罚它（consume_feedback 每条 irrelevant −3 → F2 到 avg ≤ −6 退役），
 但那在**每日批**上——你当轮就看到了噪声，就当轮退役它。
@@ -133,7 +138,7 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 
 | 观察到 | 动作 |
 |---|---|
-| 词: 0 delivered + ≥2 条你的 irrelevant | `vibe_keyword_remove` force + `vibe_opt_log`（立即）|
+| 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题垃圾 | `vibe_keyword_remove` force + `vibe_opt_log`（立即）|
 | NEW30 词有命中、存量低 | 扩: `vibe_keyword_add_batch`（只用 probe 验证过的词）|
 | NEW30 扫净（被 F3 退）、collecting_ok | 停扩 → 语料探索（阶段 B）/ 如实报告 |
 | `collecting_ok=false` | alert（后端采集停 —— 扩词无用）|
