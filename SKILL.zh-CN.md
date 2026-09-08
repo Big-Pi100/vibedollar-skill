@@ -5,7 +5,7 @@ description: "vibedollar 帮助独立开发者找到第一批客户。基于你�
 
 # vibedollar — 帮你找到正在等你的客户
 
-vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的帖子和评论，作为评分后的**潜在客户线索**。分工：vibedollar 运行数据服务（Reddit 采集、候选匹配入池、状态层——词表 / 供需判定口径 / 回收 / 健康）；**宿主 agent 决定什么算好客户**——用自带 LLM key 评分候选，并驱动调优（见下文**交付健康管理**与**供给侧决策**）。
+vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的帖子和评论，作为评分后的**潜在客户线索**。分工：vibedollar 运行数据服务（Reddit 采集、候选匹配入池、状态层——词表 / 供需判定口径 / 回收 / 健康）；**宿主 agent 决定什么算好客户**——用自带 LLM key 评分候选，并驱动调优（见下文**Agent 决策循环**）。
 
 > **数据源说明**：线索 = **采集时刻公开可见的帖子**的记录。帖子之后可能被平台或作者删除，但历史记录仍是有效的需求信号；作者是可通过 Reddit DM 或其公开联系方式触达的真实个人。使用线索请遵守 Reddit 平台条款与适用法律。
 
@@ -45,7 +45,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_register` | `email` | 注册第 1 步: 发送 6 位邮箱验证码 | 免费 | 无需 |
 | `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
 | `vibe_balance` | `（无）` | 查余额/tier/配额余量（key 走 Header） | 免费 | Header |
-| `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按健康缺口扩/停——见"交付健康管理"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（候选免费） | Header |
+| `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按决策循环扩/停——见"Agent 决策循环"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（候选免费） | Header |
 | `vibe_leads` | `subscription_id, limit` | **领取候选线索**（免费）：返回候选（含系统参考分），供你评分。评分通过才计费。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。响应含 `posts`（新候选）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（先评完 pending 才解锁下一批）。见下方"待处理候选" | **免费** | Header |
 | `vibe_submit_score` | `scores` | **评分回传**：对候选评分，`relevant` 才计入交付（扣 1 配额/条），`irrelevant` 回灌优化 | 通过才扣档位额度 | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
@@ -262,6 +262,24 @@ python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidenc
 > 交还）。脚本把逐条判真并行化并返回干净 JSON —— 你仍是决策者，脚本替你干重复体力活，
 > 比你每次现场手写循环快得多。
 
+## 判真与调优 prompt 资产（运行时按需加载）
+
+评分判真与词表调优的 LLM 模板在 `scripts/*.md`。它们是 **prompt 资产**：加载对应文件，
+用自己的 LLM key 按其 `sys`/`user`（填 `{占位符}`）调用，解析 JSON，再经工具持久化。
+宿主 agent 仍是决策引擎 —— 文件永不自行运行。
+
+| 资产 | 何时加载 | 产出 → 持久化 |
+|---|---|---|
+| `scripts/sd_gen.md` | 订阅无 sd（缺 supply_side/demand_side/demand_pain）—— 首次建立或重建后 | 供需四段 → `vibe_sd_update` |
+| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd | 初始词表 → `vibe_keyword_add_batch`（source=auto）|
+| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd + 现词 | `{add, weak}` → add 走 `vibe_keyword_add_batch`; weak 按决策表守卫 |
+| `scripts/judge_prompt.md` | `score_batch.py` 默认判真模板（profile 可编辑、契约固定）| 逐条 verdict → `vibe_submit_score` |
+| `scripts/eng_sys_core.md` | **只读**评分核心（计费契约）。原样引用，禁止编辑 | judge 对齐参考 |
+
+**顺序重要**：先 sd 后词。`sd_gen.md` 产出需求侧画像（买家语言）——`kw_init`/`kw_opt`
+从它推导词、评分把它注入为 `[SUPPLY/DEMAND]`；sd 为空 = 判真与扩词只靠产品文案，
+这正是泛词与 0 命中清扫的起点。
+
 ## 订阅模式（持续监控，不用反复调用）
 
 ```
@@ -280,7 +298,7 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 **适用场景**：
 - 产品定位已确定，希望**持续获取**新出现的潜在客户，而不是想起来才查一次
-- 词表不用手工维护——订阅产品描述即可；当交付落后于承诺线时，由**你的 agent** 读健康工具扩/停词（见"交付健康管理"）
+- 词表不用手工维护——订阅产品描述即可；当交付落后于承诺线时，由**你的 agent** 读健康工具扩/停词（见"Agent 决策循环"）
 - **评分通过才消耗配额**（按效果付费），订阅本身不额外收费
 - **先处理再取下一批**：已领取的候选需全部评分（相关/不相关都算）后，才能领取下一批；未处理完时再次领取会返回**待处理候选列表（含 id）**——直接用这些 id 评分即可解锁下一批（id 丢了也能找回，不会锁死订阅）。长期未评分的候选（7 天）会自动过期释放。
 

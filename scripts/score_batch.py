@@ -184,10 +184,26 @@ def main() -> None:
     r = mc.call("vibe_list_subs")
     data = r.get("data", r)
     product = ""
+    sd_json_raw = ""
     for s in (data.get("subscriptions", []) if isinstance(data, dict) else []):
         if int(s.get("id") or 0) == args.sub:
             product = str(s.get("product") or "")
+            sd_json_raw = str(s.get("sd_json") or "")
             break
+    # 供需四段注入判真标准 (对齐前端 engCallLLM: system 尾部 [SUPPLY/DEMAND] —
+    # sd 是评分判定口径; 缺失时降级为仅 product, 建议先跑 sd_gen.md)
+    try:
+        sdj = json.loads(sd_json_raw) if sd_json_raw else {}
+        if sdj and isinstance(sdj, dict) and (
+                sdj.get("demand_side") or sdj.get("demand_pain")
+                or sdj.get("supply_side")):
+            prompt += "\n\n[SUPPLY/DEMAND STRUCTURE]\nproduct: " + product + \
+                "\nsupply side: " + str(sdj.get("supply_side") or "") + \
+                "\ndemand side (target audience): " + str(sdj.get("demand_side") or "") + \
+                "\ncore friction: " + str(sdj.get("core_friction") or "") + \
+                "\ndemand pain (first person): " + str(sdj.get("demand_pain") or "")
+    except Exception:  # noqa: BLE001 — sd 注入失败不影响判真 (降级纯 product)
+        pass
     rr = mc.call("vibe_leads", {"subscription_id": args.sub, "limit": args.limit})
     d = rr.get("data", rr)
     posts = d.get("posts", []) if isinstance(d, dict) else []

@@ -69,7 +69,7 @@ MCP 客户端配置示例（**关键：在 headers 里配 `Authorization: Bearer
 
 ### 连接后首次流程
 连接 → `vibe_register` → 把 key 配进 header → 调数据工具（Reddit 采集/匹配/状态是
-vibedollar 的；判真与词表调优是你的 —— 见 SKILL.md **交付健康管理**）。
+vibedollar 的；判真与词表调优是你的 —— 见 SKILL.md **Agent 决策循环**）。
 
 ### 协议（本地脚本用，如 scripts/mcp.py）
 MCP Streamable HTTP：`POST {url}/mcp`，headers `Accept: application/json,

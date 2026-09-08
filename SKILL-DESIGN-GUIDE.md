@@ -175,6 +175,15 @@ SKILL.md 回答三个问题：
       → `vibe_recover_lead` 恢复，不凭它 retire。决策表 row-1 同步改
       "0 delivered + ≥2 rejected, invalid_sample off-topic"。
       （后端字段化建议另记 vibedollar docs/agent-loop-tool-gaps-record-20260908.md）
+- [x] **A2.4. 打磨 prompt 资产化（2026-09-08，用户指正）**：sdGen/kwInit/kwOpt/ENG_SYS_CORE
+      全活在前端 `site/js/app.js` orchPrompts()，v2 §8.2 "prompt 资产统一放
+      vibedollar-skill/scripts/*.md 单源免漂移" 只做了裁决未执行 → skill 无供需生成/扩词
+      模板，判真也不注入 sd（前端带 [SUPPLY/DEMAND]，skill score_batch 只拼 product）。
+      本次：资产化 `scripts/sd_gen.md` / `kw_init.md` / `kw_opt.md` /
+      `eng_sys_core.md`（只读 — 计费契约）；judge_prompt.md 对齐 ENG_SYS_CORE（炫耀帖/
+      成熟卖家排除 0-29，契约段不可改）；score_batch.py 从 vibe_list_subs 读 sd_json 注入
+      system；SKILL.md/zh 新增 "Setup & tuning prompts" 资产表（顺序：sd → kw → judge），
+      修复旧节名交叉引用；前端单源迁移仍待做（app.js 与 scripts/*.md 并存，阶段 C 收口）。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

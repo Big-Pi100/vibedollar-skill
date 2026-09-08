@@ -268,6 +268,26 @@ Import by other local tools: `from mcp import MCPClient`. Not called directly by
 > returns clean JSON — you stay the decider, the script does the grunt work faster
 > than you could by hand-writing the loop each time.
 
+## Setup & tuning prompts (assets — load the file when you run that step)
+
+The scoring/judging and keyword-tuning LLM templates live in `scripts/*.md`. They are
+**prompt assets**: load the relevant file, call your own LLM with its `sys`/`user`
+content (fill the `{placeholders}`), parse the JSON, then persist via the tools. The
+host agent stays the decision engine — the files never self-run.
+
+| Asset | When to load | Produces → persist via |
+|---|---|---|
+| `scripts/sd_gen.md` | Subscription has no sd (no supply_side/demand_side/demand_pain) — first setup or after a rebuild | supply/demand four fields → `vibe_sd_update` |
+| `scripts/kw_init.md` | Keyword face is empty (initial setup) — needs sd present first | initial keyword list → `vibe_keyword_add_batch` (source=auto) |
+| `scripts/kw_opt.md` | Decision loop says expand / after a retire sweep — needs sd + current words | `{add, weak}` → add via `vibe_keyword_add_batch`; weak per decision-table guards |
+| `scripts/judge_prompt.md` | Default judge template for `score_batch.py` (editable profile, fixed contract) | per-candidate verdicts → `vibe_submit_score` |
+| `scripts/eng_sys_core.md` | **READ-ONLY** scoring core (billing-bound contract). Reference verbatim; never edit | reference for judge alignment |
+
+**Order matters**: sd first, then keywords. `sd_gen.md` makes the demand-side profile
+(the buyer language) that `kw_init`/`kw_opt` derive words from and that scoring injects
+as `[SUPPLY/DEMAND]` — an empty sd means judging/keywords run on product text alone,
+which is exactly how generic words and 0-hit sweeps start.
+
 ## Subscription mode (continuous monitoring)
 
 ```
@@ -282,7 +302,7 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 ```
 
 - For a defined product that needs **continuous** new prospects, not ad-hoc searches
-- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when delivery runs behind the commitment line, **you** (your agent) expand/retire keywords via the health tools — see **Delivery-health tuning** below
+- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when delivery runs behind the commitment line, **you** (your agent) expand/retire keywords via the health tools — see **Agent decision loop** above
 - **Paid on pass only** (pay-per-outcome); subscription itself is free
 - **Score the batch to unlock the next**: claimed candidates must all be scored (relevant or not) before the next claim; claiming early returns the pending list with ids (ids recoverable, never locks your subscription). Candidates un-scored for 7 days auto-expire.
 
