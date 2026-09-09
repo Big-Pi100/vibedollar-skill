@@ -124,7 +124,14 @@ vibe_supply_status(sid)  → corpus intake trend / catalog age / arctic.limited
 vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → which subreddits actually contribute candidates
+vibe_sub_list_update(sid, subs=[], mode="list")  → your current sub list (v2.2: your explicit search face)
 ```
+
+**v2.2 (2026-09-09) — your search face is your sub list.** Matching now runs **only
+inside the subs you listed** (`vibe_sub_list_update`), never the whole corpus. So the
+loop's supply side is: *keep the list healthy* — subs you've proven deliver stay;
+subs you've never scored relevant on are noise; subs you haven't listed aren't
+searched at all. Before expanding words, check your list:
 
 #### 2. Health-data semantics (what each returned number means → what you decide)
 
@@ -174,26 +181,28 @@ demand. Regenerate from the supply/demand profile: sd missing → `sd_gen.md` �
 `vibe_keyword_add_batch`. Only after a regenerated face also fails (new words hit=0 or
 all-irrelevant again) do you move to corpus exploration or report.
 
-Decision table (goal-driven):
+Decision table (goal-driven, v2.2 sub-anchored — 2026-09-09):
 
 | Observed | Action |
 |---|---|
 | Goal met / exceeded | `wait` (fast loop digests) |
 | Goal not met, stock(new+sent)>0 | score the pool (`score_batch.py`) — results feed this table next round |
+| **sub list empty** | pick your search face: `vibe_sub_catalog` (A: subs with real deliveries — in-corpus, searchable now; B/C: niche candidates, may need pull) → `vibe_sub_list_update(subs, mode="replace")` → server bulk-fetches `needs_pull` subs automatically |
+| **list subs all silent** (`pipeline_recent` matched=0 several rounds, corpus growing) | widen the list — the demand lives in subs you haven't listed: `vibe_sub_catalog(query=<product/niche words>)` → add candidates (B/C may need a one-time fetch, ~min/sub) |
 | word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_remove` force + `vibe_opt_log` |
 | face cleared after retires, goal still short | **regenerate**: sd_gen (if sd missing) → kw_init/kw_opt → `vibe_keyword_add_batch` |
-| new words hit=0 in pool sweeps | check `pipeline_recent` (word-search covers the WHOLE corpus) — if the pool search itself matched nothing across rounds, then probe specific subs / replace / widen; **a probe-0 on a few chosen subs is NOT proof the phrase is absent** (Snag: "free furniture" probed 0 in 5 lifestyle subs but the whole-corpus word-search hit 21 incl. r/vancouver) — probe verifies *targeted* subs, word-search is the corpus-wide signal |
+| new words hit=0 across rounds, list healthy | the phrase is absent in your listed subs' corpus → `vibe_search_probe` a targeted sub (pure-fetch + local match, ~2s) to verify phrasing; replace if 0; a probe-0 on chosen subs is NOT proof it's absent elsewhere — widen the list instead (v2.2: matching is list-scoped; **word-search leg retired 2026-09-09**) |
 | NEW30 hitting, goal short | expand: `vibe_keyword_add_batch` (probe-verified) |
-| NEW30 swept, collecting_ok | corpus boundary thin → expand_sub/widen_pool (stage B); until then probe + record |
+| NEW30 swept, collecting_ok | corpus boundary thin → widen your sub list (stage B), probe + record meanwhile |
 | `collecting_ok=false` | alert (intake down — expanding useless) |
 | `arctic.limited` | pause supply actions — physical wait, not a cooldown |
 
 **Exhausted (only legal stop)** — delivery still short AND you have already tried, in
-order, with verification at each step: score → retire noise → regenerate face from sd →
-probe → expand_sub/widen_pool (where tools exist). Then report honestly what you tried
-and why the ceiling is real (market wording / corpus boundary), and log it. **No silent
-stops**: every round ends with "continue toward goal" or "exhausted, here is the
-evidence".
+order, with verification at each step: score → retire noise → widen/refresh your sub
+list (catalog A/B/C) → regenerate face from sd → probe → report. Then report honestly
+what you tried and why the ceiling is real (market wording / corpus boundary), and log
+it. **No silent stops**: every round ends with "continue toward goal" or "exhausted,
+here is the evidence".
 
 #### 4. Act
 

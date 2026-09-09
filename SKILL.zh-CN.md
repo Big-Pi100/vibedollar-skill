@@ -116,7 +116,13 @@ vibe_supply_status(sid)  → 语料入库趋势 / 名录新鲜度 / arctic.limit
 vibe_keywords(sid, all)  → 每词: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
+vibe_sub_list_update(sid, subs=[], mode="list")  → 你当前的 sub 清单（v2.2：你的显式搜索面）
 ```
+
+**v2.2（2026-09-09）——搜索面 = 你的 sub 清单。** 匹配现在**只在你列出的 sub
+语料内跑**（`vibe_sub_list_update`），不再全语料。循环的供给侧变成：*把清单养
+健康*——交付过的 sub 留下；从未评过 relevant 的 sub 是噪声；没列进清单的 sub
+根本不会被搜。扩词前先看清单：
 
 #### 2. 健康数据语义（每个数字代表什么 → 你该决定什么）
 
@@ -162,22 +168,24 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 `vibe_keyword_add_batch`。**只有重生成的词面也失败**（新词又 0 命中或全 irrelevant）
 才转向语料探索或报告。
 
-决策表（目标驱动）：
+决策表（目标驱动，v2.2 sub 锚点 —— 2026-09-09）：
 
 | 观察到 | 动作 |
 |---|---|
 | 目标达成 / 超额 | `wait`（快环消化）|
 | 目标未达成、stock(new+sent)>0 | 评池（`score_batch.py`）——结果喂下轮本表 |
+| **sub 清单空** | 定搜索面：`vibe_sub_catalog`（A：真实交付过的 sub——库内已有货立即可搜；B/C：垂直/名录候选——可能需取货）→ `vibe_sub_list_update(subs, mode="replace")` → 服务器自动批量取货 needs_pull sub |
+| **清单 sub 全静默**（`pipeline_recent` 多轮 matched=0 且语料在长）| 扩清单——需求住在你没列的 sub 里：`vibe_sub_catalog(query=<产品/领域词>)` → 加候选（B/C 可能需一次性取货，~分钟/sub）|
 | 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题 | `vibe_keyword_remove` force + `vibe_opt_log` |
 | 退役后词面清空、目标仍缺 | **重生成**：sd_gen（sd 缺）→ kw_init/kw_opt → `vibe_keyword_add_batch` |
-| 新词池级 sweep hit=0 | 查 `pipeline_recent`（词搜覆盖**全语料**）——池搜多轮都 0 才 probe 指定 sub / 换词 / 扩 sub；**probe 在几个选定 sub 得 0 ≠ 短语不存在**（Snag："free furniture" 在 5 个 lifestyle sub probe 0，但全池词搜 hit 21 含 r/vancouver）——probe 验目标 sub，词搜才是全语料信号 |
+| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → `vibe_search_probe` 目标 sub（纯 fetch + 本地匹配，~2s）验表达；0 就换词；**probe 在选定 sub 得 0 ≠ 别处没有——扩清单**（v2.2：匹配限定清单；词搜腿 2026-09-09 退役）|
 | NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_add_batch`（probe 验证过的词）|
-| NEW30 扫净、collecting_ok | 语料边界窄 → expand_sub/widen_pool（阶段 B）；之前 probe + 记录 |
+| NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间 probe + 记录 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
 | `arctic.limited` | 暂停供给动作 —— 物理等待，非冷却 |
 
 **穷尽（唯一合法停止）** —— 交付仍缺 且 你已依序尝试并逐步验证：评分 → retire 噪声 →
-从 sd 重生成词面 → probe → expand_sub/widen_pool（工具可用处）。然后诚实报告试过
+扩/刷新 sub 清单（catalog A/B/C）→ 从 sd 重生成词面 → probe → 报告。然后诚实报告试过
 什么、为什么上限真实（市场表达 / 语料边界），并记录。**不许静默停**：每轮以
 "继续朝目标"或"穷尽 + 证据"收尾。
 
