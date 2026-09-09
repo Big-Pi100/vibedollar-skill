@@ -79,8 +79,10 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_subs` | `subscription_id` | **来源 sub 命中统计**（各 sub 入池/状态分布）——哪些 subreddit 真在贡献。注意与 `vibe_list_subs`（你的订阅列表）区分 | 免费 | Header |
 | `vibe_supply_status` | `subscription_id` | **语料供给状态快照（零 LLM，2026-09-07）**：拉取池规模 / 储备分层 / **近 7 天 post_store 入帖趋势**（语料是否还在增长）/ 名录新鲜度（总量 + 最后更新）/ ArcticShift 限流态（共享熔断，跨进程）。用于区分：*词面耗尽*（应扩词）vs *语料边界窄*（应扩 sub）vs *名录旧*（catalog 需月度刷新）vs *采集停* vs *限流中*（2026-09-09：词搜腿字段已移除——词全语料匹配看下方 `pipeline_recent`，池外定向探测用 `vibe_search_probe`） | 免费 | Header |
 | `vibe_search_probe` | `subscription_id`, `query`, `subreddits`, `limit`(≤5) | **池外定向搜索探测（ArcticShift，2026-09-07）**：扩词前先在目标 sub 内搜这个词——即时验证"这个词在那边到底能不能搜出帖子"（防盲扩）。命中的帖幂等入库共享语料；**不入你的 lead_pool**（匹配仍由词驱动）。与 `sub_pull`（只覆盖池内 sub）互补 | 免费 | Header |
+| `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove) | **维护本订阅的 sub 清单——它的显式搜索面（v2.2 sub 锚点，2026-09-09）**：匹配只在清单 sub 语料内跑。每条返回 `in_pool`（库内可立即搜，帖+评论）或 `needs_pull`（服务器将批量取货）。决策循环见"sub 锚点搜索"节 | 免费 | Header |
+| `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数——价值口径是评分相关，非 raw 命中 | 免费 | Header |
 
-> 费用说明：上面 13 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
+> 费用说明：上面 15 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
 
 ### Agent 决策循环（每订阅、每轮 —— v2.1 交付目标驱动）
 
