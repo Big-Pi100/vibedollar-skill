@@ -1,6 +1,6 @@
 ---
 name: vibedollar
-description: "vibedollar helps indie founders find their first customers. Describe your product and it continuously monitors Reddit for potential-customer leads (posts and comments). Your agent judges relevance with its own LLM; pay only for leads scored relevant. Remote-hosted, zero setup. Starter 39/mo, Pro 79/mo; wallet top-up available."
+description: "vibedollar helps indie founders find their first customers. Describe your product and it continuously monitors Reddit for potential-customer leads (posts and comments). A lead is billed when you claim it; scoring it with your own LLM is free. Remote-hosted, zero setup. Free 1,000 leads/mo; Starter $19/mo (5,000); Pro $79/mo (30,000); wallet top-up available."
 ---
 
 # vibedollar | find your first customers on Reddit
@@ -40,9 +40,9 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 ## Quick start
 
 1. **Connect** (remote-hosted, no local setup): add endpoint `https://mcp.vibedollar.net/mcp` to your MCP client (FastMCP HTTP transport).
-2. **Register (first time only)**: `vibe_register(email)` sends a 6-digit code; `vibe_verify(email, code)` returns the api_key (also emailed). The key unlocks after a Starter/Pro upgrade or wallet top-up. Full registration, unlock, payment and activation flow: `references/billing.md`.
+2. **Register (first time only)**: `vibe_register(email)` sends a 6-digit code; `vibe_verify(email, code)` returns the api_key (also emailed). The free tier already includes 1,000 claimed leads/month (1,000/day); purchase Starter/Pro or top up the wallet for more. Full registration, unlock, payment and activation flow: `references/billing.md`.
 3. **Configure auth header**: `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization). After that, data tools don't need `api_key` as a parameter.
-4. **Check balance/quota**: `vibe_balance()` (key read from header).
+4. **Check balance/allowance**: `vibe_balance()` (key read from header) — returns the `claim_quota` usage block.
 5. **Web self-service** also available: `https://vibedollar.net/account.html` (register/verify/pay).
 
 ## Tools
@@ -51,10 +51,10 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 |------|--------|-------------|------|------|
 | `vibe_register` | `email` | Step 1: send 6-digit verification code | Free | None |
 | `vibe_verify` | `email, code` | Step 2: verify code, return api_key (also emailed) | Free | None |
-| `vibe_balance` | — | Balance / tier / quota remaining (key via header) | Free | Header |
+| `vibe_balance` | — | Balance / tier / monthly claim allowance used + daily cap (key via header) | Free | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(optional), `track_type`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). **Product description must be complete (40+ chars)**: name + one-line positioning + target users + website URL. Short descriptions produce generic keywords and low-relevance candidates; subscriptions with short descriptions are rejected. | `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts. `track_type` (internal use: outreach/seo/hot_content) | Free (candidates free) | Header |
-| `vibe_leads` | `subscription_id, limit` | **Claim candidates (free)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Billed only on pass. **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new candidates), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (score pending items first to unlock). See **Working with pending candidates** below | **Free** | Header |
-| `vibe_submit_score` | `scores` | **Score candidates**: `relevant` = 1 delivered (1 quota), `irrelevant` = feedback for tuning | Billed on pass | Header |
+| `vibe_leads` | `subscription_id, limit` | **Claim leads (billed per lead claimed)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Returns a `billing` block (batch size, free/billable split, charge, month usage, daily cap). **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new leads), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (when 50 unscored pendings accumulate, score them to continue; see **Working with pending candidates**) | **Billed per lead claimed** | Header |
+| `vibe_submit_score` | `scores` | **Score claimed leads (free)**: `relevant` = moved to delivered list, `irrelevant` = feedback for tuning. Scoring never affects billing | **Free** | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score, and we tune the standard to match your judgment. Use it when a candidate's reference score surprises you; it also flags where your scoring may be drifting, so the pipeline stays aligned with your real definition of a good lead | Free | Header |
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
@@ -77,7 +77,7 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 | `vibe_keyword_add_batch` | `subscription_id`, `keywords`(list of `{kw, kw_type}`), `source`(auto default) | **Add N keywords in ONE call** (same per-word semantics as `vibe_keyword_add`) — use this for init/expand lists of several words instead of looping, to stay inside the per-account rate window (free 5 / starter 10 / pro 20 per 60s). Per-word failures never fail the batch; returns `{added, total, results}` | Free | Header |
 | `vibe_keyword_remove` | `subscription_id`, `kw`, `force`(false default) | **Retire a keyword** (status → removed, stops matching). Only manual words by default; `force=true` is for the orchestrator to retire weak auto words — don't use force manually | Free | Header |
 | `vibe_sd_update` | `subscription_id`, `supply_side`, `demand_side`, `core_friction`, `demand_pain` | **Set the supply/demand judgement scope** (four fields, persisted server-side). This is the official judging context — it is injected into your scoring engine as [SUPPLY/DEMAND] on every call. Empty fields keep the previous value; it is never overwritten by the backend after you edit it | Free | Header |
-| `vibe_sub_health` | `subscription_id` | **Delivery health, zero LLM**: quota / commitment line (2 × quota ÷ 30) / today's pooled / stock (new+sent) / gap flag / collecting_ok / last optimization event. Read this to decide whether to expand keywords | Free | Header |
+| `vibe_sub_health` | `subscription_id` | **Supply health + delivery assessment, zero LLM**: `assessment` (can the current search face fill the monthly claim allowance: `projected_items_month` vs `commitment_remaining`, `gap_reason`, `supply_per_day`, `daily_need`) / stock (new+sent) / gap flag / collecting_ok / last optimization event. Read this first: when `gap_reason=supply_ceiling`, widening the **sub list** beats touching keywords | Free | Header |
 | `vibe_opt_log` | `subscription_id`, `outcome`, `reason`, `n_new_kw`, `n_replaced` | **Record a keyword optimization event** (persisted to the optimization history shown in health) — call it after you expand/retire, so the loop is auditable | Free | Header |
 | `vibe_rejected` | `subscription_id`, `limit` | **Recycle history**: candidates your engine marked irrelevant (with reason/score), persisted across sessions | Free | Header |
 | `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **Export customer data with attribution (2026-09-08, zero LLM)**: delivered customers / rejected / new candidates, each with kw + kw_type + last score/reason (from your scoring feedback) + outcome/marked_at follow-up state + optional body. The authoritative store is the backend PG (delivered_log/lead_pool/scoring_feedback) — this tool surfaces it over MCP so you don't touch the DB. Use for outreach lists, outcome analysis, or feeding downstream (interviews/SEO) work | Free | Header |
@@ -106,20 +106,22 @@ goal check → perceive → plan (one action) → act → verify → back to goa
 
 #### 0. Goal check (before anything — the loop's engine)
 
-Delivery goal = this month's delivered count vs the commitment (see `vibe_sub_health`:
-quota, and the monthly accumulated delivered). Every round asks:
+Goal = can the current search face fill the customer's monthly claim allowance this month
+(see `vibe_sub_health.assessment`: `projected_items_month` vs `commitment_remaining`,
+plus `gap_reason`). Every round asks:
 
-- **Goal met / exceeded** → `wait` (fast loop digests; no supply action needed)
-- **Goal not met** → the task is NOT done. Pick the next action from the decision table
+- **`committed_ok`** → `wait` (fast loop digests; no supply action needed)
+- **`shortfall`** → the task is NOT done. Pick the next action from the decision table
   below, act, verify, and **return to the goal check**. You may only stop (report
-  exhausted) after trying every available direction and verifying none improved delivery.
+  exhausted) after trying every available direction and verifying none improved supply.
   **Never end a round silently after scoring** — "scored 15, all irrelevant" is a signal
   to change direction, not a completed task.
 
 #### 1. Perceive (read tools, zero LLM)
 
 ```
-vibe_sub_health(sid)     → quota / delivered_month / delivered_total / stock / gap / collecting_ok / last_opt
+vibe_sub_health(sid)     → assessment (projected_items_month / commitment_remaining / gap_reason /
+                           supply_per_day / daily_need / backlog stock) + stock / gap / collecting_ok / last_opt
 vibe_supply_status(sid)  → corpus intake trend / catalog age / arctic.limited
 vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
@@ -139,7 +141,8 @@ The server only *reports* these; **you** act on them (v2.1 — server makes zero
 
 | Data | What it means | Your decision |
 |---|---|---|
-| `delivered_month` vs quota | delivery progress vs goal (this month) | **goal check**: met → wait; not met → act (this drives everything) |
+| `assessment.gap_reason` | why supply can't fill the allowance: `supply_ceiling` (face too narrow / vertical thin) · `word_face` (relevant rate < 15%) · `capacity` (need exceeds the daily cap) · `collecting` · `no_data` · `ok` | **supply_ceiling → widen the sub list** (add subs; this is the usual fix) · `word_face` → retire/regenerate words · `capacity` → nothing to fix on supply (it's the daily throttle) · `collecting` → alert, wait for intake |
+| `projected_items_month` vs `commitment_remaining` | can the face fill the monthly claim allowance (items, matching the billed unit) | **goal check**: `committed_ok` → wait; `shortfall` → act (this drives everything) |
 | `hit_count` = 0 | the phrase hasn't matched yet in corpus — **not conclusive on round one** (2026-09-08 Snag: "declutter home" q1=0 then q2 hit — search intake is incremental, a word can surface once its post arrives) | don't retire on a single 0-hit round: keep observing until qc≥3; if still 0 after several rounds with the corpus growing, probe targeted subs, replace the phrasing, or retire (F3-like: sustained 0-hit across rounds with fresh corpus = phrase absent) |
 | `hit_count` > 0 but all your scores `irrelevant` | the phrase exists but **matches noise** — it's a wrong word, not proof demand is exhausted | retire the word, then **regenerate the word face from sd** (`sd_gen.md` if sd missing → `kw_init.md` → `vibe_keyword_add_batch`) — wrong words are fixed by regenerating, not by giving up |
 | `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` off-topic | noise generator | `vibe_keyword_remove` force + `vibe_opt_log` (see Plan A) |
@@ -243,33 +246,39 @@ core infrastructure, not a post-hoc patch.
 
 ```
 vibe_leads(subscription_id=12, limit=10)
-    → candidates: [{"id": 1, "title": "...", "url": "...", "score": system_ref, ...}, ...]
+    → leads: [{"id": 1, "title": "...", "url": "...", "score": system_ref, ...}, ...]
+      billing: {"claimed_batch": 10, "free_items": 10, "charge_usd": 0.0,
+                "claimed_this_month": 10, "claimed_quota": 5000,
+                "daily_used": 10, "daily_cap": 1000}
     (limit above tier cap is clamped: free 20 / Starter 30 / Pro 50)
 
 vibe_submit_score(scores=[
     {"id": 1, "verdict": "relevant",   "score": 90, "reason": "directly asking for a solution"},
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "unrelated"},
 ])
-    → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}
+    → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}   # scoring is free
 ```
 
 Rules:
-- **Candidates free**: `vibe_leads` costs nothing
-- **Pay on pass**: `verdict="relevant"` → 1 quota, added to delivered list (`vibe_delivered`)
-- **Also return `irrelevant`**: that's how the state layer learns your standard — every `irrelevant` verdict downgrades the keyword that produced that candidate (pure SQL, server-side). **Your scoring quality drives keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile). Careless or bulk-scored feedback is detected by the consistency guard and weighted down.
-- **Each candidate is scored once per claim; `irrelevant` verdicts land in the recycle pool (`vibe_rejected`)** — if you later decide one was misjudged (e.g. after opening the post), recover it with `vibe_recover_lead` and re-score. `relevant` is final (billed).
-- **Score everything you claim**: claiming a batch moves candidates to `pending` and pauses the subscription until they are scored. A `locked` response with a `pending` list is **normal flow, not an error**: score every pending candidate (relevant or irrelevant) and the next batch unlocks. Never leave claimed candidates unscored.
-- **Save every returned field**: persist the full record per candidate (id/title/url/subreddit/score, and body when present). `id` is required later for `vibe_get_delivered`; don't keep only titles.
+- **Billed per lead claimed**: `vibe_leads` returns a `billing` block; within the monthly allowance it is $0, beyond it the extra is deducted from wallet credit ($5/1,000 Starter, $3.50/1,000 Pro). Telling the user what a claim costs is your job.
+- **Scoring is free**: `verdict="relevant"` moves the lead to the delivered list (`vibe_delivered`); unlike the old model, scoring never consumes allowance.
+- **Also return `irrelevant`**: that's how the state layer learns your standard — every `irrelevant` verdict downgrades the keyword that produced that lead (pure SQL, server-side). **Your scoring quality drives keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile). Careless or bulk-scored feedback is detected by the consistency guard and weighted down.
+- **Daily cap**: Free/Starter 1,000, Pro 3,000 claimed leads/day; when the cap is hit, `vibe_leads` returns `source_status: daily_cap` with "resumes at 00:00" — the leads stay reserved and nothing is lost. This is a throttle, not an allowance: do **not** suggest a top-up for it.
+- **Each lead is scored once per claim; `irrelevant` verdicts land in the recycle pool (`vibe_rejected`)** — if you later decide one was misjudged (e.g. after opening the post), recover it with `vibe_recover_lead` and re-score.
+- **Score what you claim**: claims accumulate as `pending` (up to 50 unscored). A `locked` response with a `pending` list is **normal flow, not an error**: score the pending leads (relevant or irrelevant) and claiming continues. Never leave claimed leads unscored for long.
+- **Save every returned field**: persist the full record per lead (id/title/url/subreddit/score, and body when present). `id` is required later for `vibe_get_delivered`; don't keep only titles.
 - The candidate `score` is a system reference; your judgment wins
 
 ## Working with pending candidates (`locked` is normal)
 
-The scoring question for every candidate is always: **is the author of this post a potential customer of the subscribed product?** Judge on topic (does it sit in the problem area the product solves) and signal strength. Answer `relevant` when yes, `irrelevant` when no (irrelevant still teaches the system and costs nothing).
+The scoring question for every candidate is always: **is the author of this post a potential customer of the subscribed product?** Judge on topic (does it sit in the problem area the product solves) and signal strength. Answer `relevant` when yes, `irrelevant` when no (irrelevant still teaches the system; scoring costs nothing).
+
+Note the separation of concerns: **claiming is what costs money, scoring is free**. Claim only what you can actually work with — a claimed-but-ignored lead still counts against the allowance.
 
 Standard loop:
 1. `vibe_subscribe(product)` with a **complete description** (name + positioning + target users + website, 40+ chars) → get `subscription_id`. A short description (product name only) is rejected — it would generate generic keywords and low-relevance candidates.
-2. `vibe_leads(subscription_id, limit)` → save the **entire returned record** for each candidate. Don't drop fields.
-3. Score **all** pending candidates with `vibe_submit_score` (verdict `relevant` or `irrelevant`), this unlocks the subscription for the next batch.
+2. `vibe_leads(subscription_id, limit)` → save the **entire returned record** for each lead (including the `billing` block). Don't drop fields.
+3. Score the pending leads with `vibe_submit_score` (verdict `relevant` or `irrelevant`). Scoring is free and does not unlock billing — it keeps the feedback loop and the pending queue healthy (the queue pauses at 50 unscored).
 4. For leads scored `relevant`, `vibe_get_delivered(lead_id)` returns the full post body for outreach.
 
 ## Local script tools (batch executors — call when the action is mechanical)
@@ -308,8 +317,9 @@ read it, then decide next (score another sub, expand keywords, wait).
 
 - **Judgment is yours**: edit `scripts/judge_prompt.md` (plain template) to define what a
   good customer looks like for your market. `--threshold` sets the relevant cut.
-- **Costs**: candidates free; `relevant` verdicts count against your vibedollar quota
-  (pay-on-pass). The judging LLM calls are billed to **your** key.
+- **Costs**: a lead is billed when claimed (within the monthly allowance it is $0; beyond it
+  $5/1,000 Starter or $3.50/1,000 Pro from wallet). Scoring is free — the judging LLM calls
+  are billed to **your** key.
 - **Failure-safe**: a candidate whose LLM judgment fails is left pending — retried next
   run, never lost. `vibe_leads` returns `locked` with pending ids until they're scored;
   scoring everything you claimed unlocks the next batch.
@@ -375,9 +385,9 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 ```
 
 - For a defined product that needs **continuous** new prospects, not ad-hoc searches
-- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when delivery runs behind the commitment line, **you** (your agent) expand/retire keywords via the health tools — see **Agent decision loop** above
+- No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when the face cannot fill the customer's allowance (`assessment.status=shortfall` in `vibe_sub_health`), **you** (your agent) widen the sub list / expand-retire keywords via the health tools — see **Agent decision loop** above
 - **Paid on pass only** (pay-per-outcome); subscription itself is free
-- **Score the batch to unlock the next**: claimed candidates must all be scored (relevant or not) before the next claim; claiming early returns the pending list with ids (ids recoverable, never locks your subscription). Candidates un-scored for 7 days auto-expire.
+- **Score what you claim**: claimed leads stay `pending` until scored — after 50 unscored pendings, `vibe_leads` returns `locked` with the pending list (ids recoverable, your subscription is never stuck). Scoring them (relevant **or** irrelevant) resumes claiming. Leads un-scored for 7 days auto-expire.
 
 Cancel with `vibe_unsubscribe` (accumulated leads kept).
 
@@ -391,7 +401,7 @@ Read them when the user asks how to turn leads into conversations/customers/cont
 ## Agent usage tips
 
 - **Lost API key?** Guide recovery: `vibe_recover_key(email)` → `vibe_recover_verify(email, code)` — or point to https://vibedollar.net/account.html → "Lost your API key? Recover it". No re-registration needed.
-- **Watch the `quota` block**: every response carries `quota: {scope, used, limit}` — proactively suggest an upgrade (Starter/Pro) before exhaustion.
+- **Watch the `claim_quota` block**: `vibe_balance()` returns `claim_quota {month_used, month_limit, over_price_per_1k, daily_used, daily_cap, wallet_usd}` — proactively tell the user where they stand (allowance used, daily cap, wallet) instead of letting them discover a charge.
 - **Registration & payment flow**: `references/billing.md` (agent does the full flow; the only user actions are providing the email/code and scanning a QR / clicking a link).
 - **Typical workflow**: `vibe_subscribe` → `vibe_leads` → your agent scores with its own LLM → `vibe_submit_score` → passed leads in delivered list (validate demand + find first customers).
 
@@ -402,6 +412,6 @@ client connection config live in `references/` — read them only when needed:
 
 - **Pricing & payment**: read `references/billing.md` when the user asks about price,
   upgrading, topping up, or after payment (confirm activation). Quick checks: call
-  `vibe_balance()` for current quota/tier — the response carries `quota: {scope, used, limit}`.
+  `vibe_balance()` for the current tier and `claim_quota` usage (month used/limit, daily cap, wallet).
 - **MCP client config**: read `references/mcp-config.md` on first connect or when moving
   to another client (endpoint URL, `Authorization: Bearer <key>` header setup).

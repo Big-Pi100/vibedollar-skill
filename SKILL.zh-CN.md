@@ -1,6 +1,6 @@
 ---
 name: vibedollar
-description: "vibedollar 帮助独立开发者找到第一批客户。基于你的产品描述，持续抓取 Reddit 上正在抱怨或求方案的潜在客户线索（帖子与评论），支持订阅持续监控。你的 agent 用自己的 LLM 判断相关性，评分通过才计费（按效果付费）。远程托管免部署。付费解锁：Starter 39/mo 或 Pro 79/mo；也可自由充值钱包额度。"
+description: "vibedollar 帮助独立开发者找到第一批客户。基于你的产品描述，持续抓取 Reddit 上正在抱怨或求方案的潜在客户线索（帖子与评论），支持订阅持续监控。线索在你**首次领取**时计费；用你自己的 LLM 评分是免费的。远程托管免部署。Free 1,000 条/月；Starter $19/mo（5,000 条）；Pro $79/mo（30,000 条）；也可自由充值钱包额度。"
 ---
 
 # vibedollar — 帮你找到正在等你的客户
@@ -46,8 +46,8 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
 | `vibe_balance` | `（无）` | 查余额/tier/配额余量（key 走 Header） | 免费 | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按决策循环扩/停——见"Agent 决策循环"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（候选免费） | Header |
-| `vibe_leads` | `subscription_id, limit` | **领取候选线索**（免费）：返回候选（含系统参考分），供你评分。评分通过才计费。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。响应含 `posts`（新候选）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（先评完 pending 才解锁下一批）。见下方"待处理候选" | **免费** | Header |
-| `vibe_submit_score` | `scores` | **评分回传**：对候选评分，`relevant` 才计入交付（扣 1 配额/条），`irrelevant` 回灌优化 | 通过才扣档位额度 | Header |
+| `vibe_leads` | `subscription_id, limit` | **领取线索（按领取条数计费）**：返回线索（含系统参考分）+ **`billing` 记账块**（本批条数、免费/计费拆分、扣费、本月用量、每日上限）。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（未评分 pending 累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。见下方"待处理候选" | **按领取计费** | Header |
+| `vibe_submit_score` | `scores` | **评分回传（免费）**：`relevant` 进交付列表，`irrelevant` 回灌优化。**评分不影响计费** | **免费** | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
 | `vibe_set_notify` | `enabled` | 邮件提醒开关：候选积压时是否发邮件通知你（默认开启，可关闭）| 免费 | Header |
 | `vibe_list_subs` | `（无）` | 查看我的订阅列表及候选线索积累状态 | 免费 | Header |
@@ -82,7 +82,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove) | **维护本订阅的 sub 清单——它的显式搜索面（v2.2 sub 锚点，2026-09-09）**：匹配只在清单 sub 语料内跑。每条返回 `in_pool`（库内可立即搜，帖+评论）或 `needs_pull`（服务器将批量取货）。决策循环见"sub 锚点搜索"节 | 免费 | Header |
 | `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数——价值口径是评分相关，非 raw 命中 | 免费 | Header |
 
-> 费用说明：上面 15 个是读写状态操作——候选仍免费，仍只在 `vibe_submit_score` 判 `relevant` 时按效果计费（若未来有任一收费，最终计费口径会单独确认）。
+> 费用说明：上面 15 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
 
 ### Agent 决策循环（每订阅、每轮 —— v2.1 交付目标驱动）
 
@@ -99,11 +99,11 @@ vibedollar 是**数据/状态层 —— 服务端零决策**。它采集 Reddit�
 
 #### 0. 目标检查（每轮最先 —— 循环的引擎）
 
-交付目标 = 本月 delivered 累计 vs 承诺量（见 `vibe_sub_health`：quota 与月度累计
-delivered）。每轮先问：
+目标 = 当前搜索面能否填满客户的月领取额度（见 `vibe_sub_health.assessment`：
+`projected_items_month` vs `commitment_remaining`，以及 `gap_reason`）。每轮先问：
 
-- **目标达成 / 超额** → `wait`（快环消化即可，无供给动作）
-- **目标未达成** → 任务**没完成**。从下方决策表选下一个动作，执行、verify、
+- **`committed_ok`** → `wait`（快环消化即可，无供给动作）
+- **`shortfall`** → 任务**没完成**。从下方决策表选下一个动作，执行、verify、
   **回到目标检查**。只有把每个可用方向都试过且验证无改善后，才允许停
   （report exhausted）。**评分完静默收尾 = 禁止**——"评了 15 条全 irrelevant"
   是换方向的信号，不是任务完成。
@@ -111,7 +111,8 @@ delivered）。每轮先问：
 #### 1. Perceive（读工具，零 LLM）
 
 ```
-vibe_sub_health(sid)     → quota / delivered_month / delivered_total / stock / gap / collecting_ok / last_opt
+vibe_sub_health(sid)     → assessment（projected_items_month / commitment_remaining / gap_reason /
+                           supply_per_day / daily_need / 存量）+ stock / gap / collecting_ok / last_opt
 vibe_supply_status(sid)  → 语料入库趋势 / 名录新鲜度 / arctic.limited
 vibe_keywords(sid, all)  → 每词: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
