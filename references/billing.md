@@ -32,7 +32,7 @@
    | Mainland China | **WeChat Pay** (CNY) | Starter ¥99/mo / Pro ¥399/mo / Top-up ¥1–¥1000 |
 3. **Generate payment entry**:
    - **Creem (global)**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"ok": true, "url": "<payment link>"}` → send the url (top-up: user enters $1–$200 on the Creem page). **Never put api_key in URLs**.
-   - **WeChat (CN)**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → render as QR → user scans (top-up: add `"amount_cents": <CNY×100>`, e.g. ¥36 → 3600).
+   - **WeChat (CN)**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → render as QR → user scans (top-up: add `"amount_cents": <CNY×100>`, e.g. CNY 100 → 10000; CNY 1 paid = CNY 1 credit in the CNY wallet).
 4. **User pays → confirm activation**: poll `GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` or re-check `vibe_balance()`: tier/credit auto-updates via WeChat callback / Creem webhook, no manual step.
 5. **Tell the user what they get**: e.g. "Starter is live: 5,000 claimed leads this month, 1,000/day, then $5 per 1,000 extra from your wallet."
 
