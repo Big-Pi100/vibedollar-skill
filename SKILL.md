@@ -34,7 +34,7 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 |----------|-----|
 | Cold-start acquisition | `vibe_subscribe` → continuous tracking, leads accumulate, click into the post and reach the prospect |
 | Validate a product idea | Subscribe, then look at accumulated leads: N strong-demand signals → worth building |
-| Ongoing acquisition | `vibe_subscribe` → `vibe_leads` (free) → score → paid only on `relevant` |
+| Ongoing acquisition | `vibe_subscribe` → `vibe_leads` (billed when claimed) → score (free) → relevant leads land in the delivered list |
 | Proof for investors/team | Accumulated leads (that you scored) are ready-made demand validation |
 
 ## Quick start
@@ -81,14 +81,14 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 | `vibe_opt_log` | `subscription_id`, `outcome`, `reason`, `n_new_kw`, `n_replaced` | **Record a keyword optimization event** (persisted to the optimization history shown in health) — call it after you expand/retire, so the loop is auditable | Free | Header |
 | `vibe_rejected` | `subscription_id`, `limit` | **Recycle history**: candidates your engine marked irrelevant (with reason/score), persisted across sessions | Free | Header |
 | `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **Export customer data with attribution (2026-09-08, zero LLM)**: delivered customers / rejected / new candidates, each with kw + kw_type + last score/reason (from your scoring feedback) + outcome/marked_at follow-up state + optional body. The authoritative store is the backend PG (delivered_log/lead_pool/scoring_feedback) — this tool surfaces it over MCP so you don't touch the DB. Use for outreach lists, outcome analysis, or feeding downstream (interviews/SEO) work | Free | Header |
-| `vibe_recover_lead` | `lead_id` | **Recover a misjudged lead** from recycle back to the scoring queue — re-score it (no double billing on pass) | Free | Header |
+| `vibe_recover_lead` | `lead_id` | **Recover a misjudged lead** from recycle back to the scoring queue — re-score it (no double billing; the lead was already billed when first claimed) | Free | Header |
 | `vibe_subs` | `subscription_id` | **Source subreddit hit stats** (pooled per sub, by status) — which subreddits actually contribute candidates. Note: this is *source stats*, distinct from `vibe_list_subs` (your subscriptions) | Free | Header |
 | `vibe_supply_status` | `subscription_id` | **Corpus supply snapshot (zero LLM, 2026-09-07)**: sub pull pool size / reserve depth tiers / **7-day post_store intake trend** (is the corpus still growing?) / catalog freshness (total + last updated) / ArcticShift rate-limit state (shared circuit, cross-process). Read this to tell apart: *keywords exhausted* (expand) vs *corpus boundary thin* (widen subs) vs *registry stale* (catalog needs monthly refresh) vs *collection down* vs *rate-limited*. (2026-09-09: the old word-search-leg field was removed — word corpus matching is read via `pipeline_recent` below; out-of-pool probing is `vibe_search_probe`) | Free | Header |
 | `vibe_search_probe` | `subscription_id`, `query`, `subreddits`, `limit`(≤5) | **Out-of-pool directed search probe (ArcticShift, 2026-09-07)**: search a keyword/phrase *inside target subreddits* before expanding it — verifies "does this phrase actually surface posts out there?" (instant feedback, no blind expansion). Found posts are upserted into the shared corpus (idempotent); **not** added to your lead pool (matching stays keyword-driven). Complements `sub_pull` (which only covers in-pool subs) | Free | Header |
 | `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove) | **Maintain this subscription's sub list — its explicit search face (v2.2 sub-anchored, 2026-09-09)**: matching runs only inside list subs. Each returned sub tagged `in_pool` (corpus searchable now, posts+comments) or `needs_pull` (server will bulk-fetch it). See "sub-anchored search" section for the decision loop | Free | Header |
 | `vibe_sub_catalog` | `query`(optional), `limit` | **Candidate subs before you pick a list (v2.2, 2026-09-09)**: no query → A relevance face (subs with real `relevant` deliveries, delivered DESC — in-corpus, searchable now); with a product/niche query → B/C lexical candidates from the registry (may need pull). Each tagged `stock`(in_pool/needs_pull), `tier`(deep/shallow), `delivered` count — value semantics are scoring-relevant, not raw hits | Free | Header |
 
-> Cost note: the fifteen tools above are read/write state operations — candidates stay free; you still pay only on `relevant` verdicts via `vibe_submit_score`. (Final billing口径 confirmed separately if any of these ever charges.)
+> Cost note: the fifteen tools above are read/write state operations — **a lead is billed when first claimed** (Free 1,000/mo · Starter 5,000/mo, then $5 per 1,000 · Pro 30,000/mo, then $3.50 per 1,000); **scoring, re-reading and exporting are free**; daily-cap overflow carries to the next day.
 
 ### Agent decision loop (per subscription, per round — v2.1 delivery-driven)
 
@@ -379,14 +379,17 @@ vibe_subscribe(product="team wiki tool for small teams")
 vibe_list_subs()
     → {"ok": true, "data": {"subscriptions": [{"id": 12, "product": "...", "new_leads": 7}]}}
 vibe_leads(subscription_id=12, limit=10)
-    → {"ok": true, "data": {"posts": [{"id": 1, "title": "...", "url": "...", "subreddit": "...", "score": 90}], "count": 7}}
+    → {"ok": true, "data": {"posts": [{"id": 1, "title": "...", "url": "...", "subreddit": "...", "score": 90}], "count": 7},
+       "billing": {"claimed_batch": 7, "free_items": 7, "billable_items": 0, "charge_usd": 0.0,
+                   "claimed_this_month": 1207, "claimed_quota": 5000, "over_price_per_1k": 5.0,
+                   "daily_used": 87, "daily_cap": 1000, "wallet_usd": 0.0}}
 vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason": "..."}])
     → {"ok": true, "passed": 1, "quota_used": 1, ...}
 ```
 
 - For a defined product that needs **continuous** new prospects, not ad-hoc searches
 - No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when the face cannot fill the customer's allowance (`assessment.status=shortfall` in `vibe_sub_health`), **you** (your agent) widen the sub list / expand-retire keywords via the health tools — see **Agent decision loop** above
-- **Paid on pass only** (pay-per-outcome); subscription itself is free
+- **A lead is billed when claimed; scoring is free**; the subscription itself costs nothing extra
 - **Score what you claim**: claimed leads stay `pending` until scored — after 50 unscored pendings, `vibe_leads` returns `locked` with the pending list (ids recoverable, your subscription is never stuck). Scoring them (relevant **or** irrelevant) resumes claiming. Leads un-scored for 7 days auto-expire.
 
 Cancel with `vibe_unsubscribe` (accumulated leads kept).

@@ -234,6 +234,22 @@ SKILL.md 回答三个问题：
       truncated 信号; sd_gen sys 加每段 ≤800 硬约束; sd_doc write/fetch 加超限警告 +
       本地比后端长漂移检测; opt_log reason 120→800/outcome→80, submit_score reason
       300→800 (进 invalid_sample 仲裁依据)。实测 900 字 → truncated 提示 + 存 800。
+- [x] **A2.11. 计费口径改为 claim（2026-09-10，服务端可核验性裁决）**：旧口径"评分
+      relevant 才计费（pay-per-outcome）"在服务端**无法核验**——评分是用户 agent 在自己
+      LLM 上做的，判真标准不可审计，绕过即免费。新口径 = **按账号合计的"首次领取候选条目"
+      计费**（`usage_log.leads_used`，服务端计量）。本轮 skill 侧同步：
+      **SKILL.md / SKILL.zh-CN.md**（工具表 `vibe_leads`/`vibe_submit_score`/`vibe_balance`/
+      `vibe_sub_health`、规则块"领取即计费 / 评分免费"、订阅模式示例带 `billing` 块 +
+      "**Paid on pass only** → billed when claimed" 修正、pending 段"claiming costs money,
+      scoring is free"、Agent tips 改盯 `claim_quota`、脚本 `费用` 行）；
+      **§2 健康数据语义表** 删 `delivered_month vs quota`、改
+      `assessment.gap_reason` + `projected_items_month vs commitment_remaining`（条目口径 =
+      计费单位）；**README(.zh-CN)** / **references/billing(.zh-CN)** 档位与钱包文案改写；
+      **references/use-cases(.zh-CN)** 数据源行加注"计费点在领取"。定价：Free 1,000/月
+      (+1,000/日) · Starter $19 含 5,000 · Pro $79 含 30,000 · 超出 $5/$3.5 每千条（钱包）·
+      日上限超出顺延次日；公平使用入库上限 free 5k / starter 25k / pro 50k 条/日（条款级，
+      不计费）。sub/keyword 额度已取消（技术上限仍在：sub 清单 ≤100、词表 top-30 / 评论词
+      top-15）。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

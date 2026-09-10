@@ -54,7 +54,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
    ```
    Your API key is also emailed to you. Unlock lead allowance: subscribe Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). Free tier already includes 1,000 claimed leads/month. New users get a **$1 Welcome Credit**.
 3. **Configure auth**: put the key in your MCP client request header — `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization headers).
-4. **Check balance/quota**: `vibe_balance()` (key read from header automatically).
+4. **Check balance/allowance**: `vibe_balance()` (key read from header automatically).
 5. **Web self-service** also available: `https://vibedollar.net/account.html` (register / verify / pay).
 
 ---

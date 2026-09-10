@@ -26,7 +26,8 @@ Use it to:
 ## ② First 100 customers (cold start, from discovery to outreach)
 
 ```
-Source: scored-relevant delivered leads (vibe_delivered, authors reachable)
+Source: scored-relevant delivered leads (vibe_delivered, authors reachable).
+Billing happens when a lead is claimed, not when it is scored — judging is free.
 Use it to:
   - Priority list: sort by score/reason: "directly asking for a solution"
     authors get contacted first
