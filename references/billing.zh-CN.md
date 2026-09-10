@@ -7,9 +7,9 @@
 
 | 档位 | 价格 | **每月可领取线索**（首次领取时计费） | 每日上限 | 限速 |
 |------|------|--------------------------------------|----------|------|
-| **Free** | 注册即用 | **1,000 条/月** —— 想多快用完都行 | 1,000 条/日 | 30 req/min |
-| **Starter** | **$19/mo** | **5,000 条/月**，超出按 **$5/千条** | 1,000 条/日 | 60 req/min |
-| **Pro** | **$79/mo** | **30,000 条/月**，超出按 **$3.50/千条** | 3,000 条/日 | 120 req/min |
+| **Free** | 注册即用 | **1,000 条/月** —— 想多快用完都行 | 1,000 条/日 | 5 req/min |
+| **Starter** | **$19/mo** | **5,000 条/月**，超出按 **$5/千条** | 1,000 条/日 | 10 req/min |
+| **Pro** | **$79/mo** | **30,000 条/月**，超出按 **$3.50/千条** | 3,000 条/日 | 20 req/min |
 | **Wallet Top-up** | **自由金额**（Creem $1~$200 / 微信 ¥1~¥1000，任意次数） | 用于**超出月额度后**的领取 | — | — |
 
 - **计费单位 = 你领取的线索**：1 个帖子或 1 条评论 = 1 线索（发帖人/评论者都是潜在客户），**首次领取时计费**；**评分、重复查看、导出全部免费**（服务端按领取记账，可核验）。
@@ -31,12 +31,12 @@
 ### 步骤 2：按用户位置选择支付渠道
 | 用户位置 | 渠道 | 价格 |
 |---------|------|------|
-| 海外（默认） | **Creem**（美元卡）| Starter $19/mo / Pro $79/mo / Welcome Credit $1.00 / Wallet Top-up $1~$200（Pay What You Want） |
-| 中国大陆 | **微信支付**（人民币）| Starter ¥136.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Wallet Top-up ¥1~¥1000 |
+| 海外（默认） | **Creem**（美元卡）| Starter $19/mo / Pro $79/mo / Wallet Top-up $1~$200（Pay What You Want） |
+| 中国大陆 | **微信支付**（人民币）| Starter ¥136.8/mo / Pro ¥568.8/mo / Wallet Top-up ¥1~¥1000 |
 
 ### 步骤 3：生成支付入口
-- **Creem（海外）**：调 `POST https://mcp.vibedollar.net/creem/checkout`（body: `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}`）→ 返回 `{"ok": true, "url": "<支付链接>"}` → 把 `url` 发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）。**不要把 api_key 放进 URL**（GET 直链已下线：api_key 进 URL 会落入访问日志与浏览器历史）
-- **微信（国内）**：调 `POST https://mcp.vibedollar.net/pay/native`（body: `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}`）→ 返回 `code_url` → **把 code_url 生成二维码**（或提示用户用微信扫一扫）→ 发给用户扫码（充值 `tier: "topup"` 时 body 需加 `"amount_cents": <人民币×100>`，如 ¥36 → 3600）
+- **Creem（海外）**：调 `POST https://mcp.vibedollar.net/creem/checkout`（body: `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}`）→ 返回 `{"ok": true, "url": "<支付链接>"}` → 把 `url` 发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）。**不要把 api_key 放进 URL**（GET 直链已下线：api_key 进 URL 会落入访问日志与浏览器历史）
+- **微信（国内）**：调 `POST https://mcp.vibedollar.net/pay/native`（body: `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}`）→ 返回 `code_url` → **把 code_url 生成二维码**（或提示用户用微信扫一扫）→ 发给用户扫码（充值 `tier: "topup"` 时 body 需加 `"amount_cents": <人民币×100>`，如 ¥36 → 3600）
 
 ### 步骤 4：用户扫码付款 → 确认开通
 - 用户扫码付款后，轮询订单状态：`GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` 或再次调 `vibe_balance()` 确认 tier/credit 已更新

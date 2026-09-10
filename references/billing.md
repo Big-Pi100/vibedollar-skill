@@ -7,9 +7,9 @@
 
 | Tier | Price | **Claimed leads / month** (billed on first claim) | Daily cap | Rate limit |
 |------|-------|---------------------------------------------------|-----------|------------|
-| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 30 req/min |
-| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 60 req/min |
-| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 120 req/min |
+| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 5 req/min |
+| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 10 req/min |
+| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 20 req/min |
 | **Wallet top-up** | Any amount (Creem $1–$200 / WeChat ¥1–¥1000) | Covers leads beyond your monthly allowance | — | — |
 
 - **Billing unit = a lead you claim.** A lead (1 post or 1 comment — poster/commenter are both prospects) is billed the **first time you claim it**. Scoring it, re-reading it, or exporting it is **free**.

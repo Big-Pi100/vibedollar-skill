@@ -40,7 +40,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
 | `vibe_mark_leads` | Mark lead outcome (valid / invalid / contacted) | Free |
 | `vibe_recover_key` / `vibe_recover_verify` | Lost your API key? Recover it via email verification | Free |
 
-**Billing**: a lead is billed when you **first claim it** (Free 1,000/mo · Starter 5,000/mo then $5 per 1,000 · Pro 30,000/mo then $3.50 per 1,000). Scoring, re-reading and exporting are free. Daily delivery caps (Free/Starter 1,000, Pro 3,000) carry over to the next day. New users get a **$1 Welcome Credit** (once per person).
+**Billing**: a lead is billed when you **first claim it** (Free 1,000/mo · Starter 5,000/mo then $5 per 1,000 · Pro 30,000/mo then $3.50 per 1,000). Scoring, re-reading and exporting are free. Daily delivery caps (Free/Starter 1,000, Pro 3,000) carry over to the next day.
 
 ---
 
@@ -52,7 +52,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
    vibe_register(email="you@example.com")     # sends a 6-digit code
    vibe_verify(email="you@example.com", code="123456")   # returns api_key
    ```
-   Your API key is also emailed to you. Unlock lead allowance: subscribe Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). Free tier already includes 1,000 claimed leads/month. New users get a **$1 Welcome Credit**.
+   Your API key is also emailed to you. Unlock lead allowance: subscribe Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). Free tier already includes 1,000 claimed leads/month.
 3. **Configure auth**: put the key in your MCP client request header — `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization headers).
 4. **Check balance/allowance**: `vibe_balance()` (key read from header automatically).
 5. **Web self-service** also available: `https://vibedollar.net/account.html` (register / verify / pay).
@@ -92,15 +92,15 @@ Rules:
 
 | Tier | Price | **Claimed leads / month** (billed on first claim) | Daily cap | Rate limit |
 |------|-------|---------------------------------------------------|-----------|------------|
-| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 30 req/min |
-| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 60 req/min |
-| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 120 req/min |
+| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 5 req/min |
+| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 10 req/min |
+| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 20 req/min |
 | **Wallet top-up** | Any amount (Creem $1–$200 / WeChat ¥1–¥1000) | Covers leads beyond your monthly allowance | — | — |
 
 - **Billing unit = a lead you claim**: 1 post or 1 comment = 1 lead (both author and commenter are prospects), billed the **first time you claim it**. **Scoring, re-reading and exporting are free** — the server meters claims, so there is nothing to self-report.
 - **Daily delivery cap**: Free/Starter 1,000 leads/day, Pro 3,000/day. Anything beyond the cap **carries over to the next day — nothing is lost** and nothing is billed twice.
 - **Beyond the monthly allowance**: extra leads deduct **$5/1,000** (Starter) or **$3.50/1,000** (Pro) from wallet credit; insufficient wallet pauses delivery and the leads stay reserved. Free has no overage — upgrade when the 1,000 is used up.
-- **Sign-up gives 1,000 free leads/month** (1,000/day) — enough to run the full subscribe → claim → score → deliver loop. $1 Welcome Credit for new users (once).
+- **Sign-up gives 1,000 free leads/month** (1,000/day) — enough to run the full subscribe → claim → score → deliver loop.
 - **No usage-inducement**: how many subreddits or keywords you track is your call; a bigger plan is never needed just to unlock more.
 - **Upgrade**: Creem (global) or WeChat Pay (CN) at `mcp.vibedollar.net` — auto-activation after payment. **Annual 20% off** (coming soon). **No trial**.
 
@@ -114,11 +114,11 @@ The only user action is **scanning a QR code / clicking a link**. You (the agent
 2. **Pick channel by user location**:
    | Location | Channel | Price |
    |----------|---------|-------|
-   | Global (default) | **Creem** (USD card) | Starter $19/mo / Pro $79/mo / Welcome Credit $1 / Top-up $1–$200 |
-   | Mainland China | **WeChat Pay** (CNY) | Starter ¥136.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Top-up ¥1–¥1000 |
+   | Global (default) | **Creem** (USD card) | Starter $19/mo / Pro $79/mo / Top-up $1–$200 |
+   | Mainland China | **WeChat Pay** (CNY) | Starter ¥136.8/mo / Pro ¥568.8/mo / Top-up ¥1–¥1000 |
 3. **Generate payment entry**:
-   - **Creem**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}` → `{"url": "<payment link>"}` → send the url. **Never put api_key in URLs**.
-   - **WeChat**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}` → `code_url` → render as QR → user scans. For top-up add `"amount_cents": <CNY×100>`.
+   - **Creem**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"url": "<payment link>"}` → send the url. **Never put api_key in URLs**.
+   - **WeChat**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → render as QR → user scans. For top-up add `"amount_cents": <CNY×100>`.
 4. **Confirm activation**: poll `GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` or re-check `vibe_balance()` — tier/credit auto-updates via webhook/callback.
 
 Troubleshooting:

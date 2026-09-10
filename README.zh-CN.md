@@ -37,7 +37,7 @@
 | `vibe_mark_leads` | 标记线索结果（valid/contacted） | 免费 |
 | `vibe_recover_key` / `vibe_recover_verify` | 找回 API key（邮箱验证后发到邮箱）| 免费 |
 
-**计费说明**：线索在**首次领取**时计费（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**。每日交付上限（Free/Starter 1,000、Pro 3,000）超出部分顺延次日，永不丢失。另有 **$1 Welcome Credit** 新客福利（每人限一次）。
+**计费说明**：线索在**首次领取**时计费（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**。每日交付上限（Free/Starter 1,000、Pro 3,000）超出部分顺延次日，永不丢失。
 
 ---
 
@@ -49,7 +49,7 @@
    vibe_register(email="you@example.com")   # 发送 6 位邮箱验证码
    vibe_verify(email="you@example.com", code="123456")  # 验证码验证, 返回 api_key
    ```
-   API key 同时通过邮件发送到你的邮箱。解锁领取额度：订阅 Starter/Pro，或自由充值钱包（微信 ¥1~¥1000 / Creem $1~$200）。Free 档本身已含每月 1,000 条。另有 **$1 Welcome Credit** 新客福利。
+   API key 同时通过邮件发送到你的邮箱。解锁领取额度：订阅 Starter/Pro，或自由充值钱包（微信 ¥1~¥1000 / Creem $1~$200）。Free 档本身已含每月 1,000 条。
 3. **配置鉴权 Header**：`Authorization: Bearer <key>`（部分客户端不支持自定义 Authorization 时用 `Api-Key: <key>`）
 4. **查余额/额度**：`vibe_balance()`（key 自动从请求头读取，返回 `claim_quota` 用量块）
 5. **网页自助注册**：`https://vibedollar.net/account.html`（注册/验证/支付全流程）
@@ -89,9 +89,9 @@ vibe_submit_score(scores=[
 
 | 档位 | 价格 | **每月可领取线索**（首次领取时计费） | 每日上限 | 限速 |
 |:-----|:-----|:--------------------------------------|:---------|:-----|
-| **Free** | 注册即用 | **1,000 条/月** —— 想多快用完都行 | 1,000 条/日 | 30 req/min |
-| **Starter** | **$19/mo** | **5,000 条/月**，超出按 **$5/千条** | 1,000 条/日 | 60 req/min |
-| **Pro** | **$79/mo** | **30,000 条/月**，超出按 **$3.50/千条** | 3,000 条/日 | 120 req/min |
+| **Free** | 注册即用 | **1,000 条/月** —— 想多快用完都行 | 1,000 条/日 | 5 req/min |
+| **Starter** | **$19/mo** | **5,000 条/月**，超出按 **$5/千条** | 1,000 条/日 | 10 req/min |
+| **Pro** | **$79/mo** | **30,000 条/月**，超出按 **$3.50/千条** | 3,000 条/日 | 20 req/min |
 | **钱包充值** | 自由金额（Creem $1~$200 / 微信 ¥1~¥1000） | 用于**超出月额度后**的领取 | — | — |
 
 - **计费单位 = 你领取的线索**：1 个帖子或 1 条评论 = 1 线索（发帖人/评论者都是潜在客户），**首次领取时计费**；评分、重复查看、导出免费。
@@ -111,11 +111,11 @@ vibe_submit_score(scores=[
 2. **按用户位置选择支付渠道**：
    | 用户位置 | 渠道 | 价格 |
    |---------|------|------|
-   | 海外（默认）| **Creem**（美元卡）| Starter $19/mo / Pro $79/mo / Welcome Credit $1 / Top-up $1~$200 |
-   | 中国大陆 | **微信支付**（人民币）| Starter ¥136.8/mo / Pro ¥568.8/mo / Welcome Credit ¥0.01 / Top-up ¥1~¥1000 |
+   | 海外（默认）| **Creem**（美元卡）| Starter $19/mo / Pro $79/mo / Top-up $1~$200 |
+   | 中国大陆 | **微信支付**（人民币）| Starter ¥136.8/mo / Pro ¥568.8/mo / Top-up ¥1~¥1000 |
 3. **生成支付入口**：
-   - **Creem**：`POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|welcome_credit|topup", "email": "..."}` → `{"url": "<支付链接>"}` → 发链接给用户。**不要把 api_key 放进 URL**。
-   - **微信**：`POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|welcome_credit|topup"}` → `code_url` → 生成二维码给用户扫。充值需加 `"amount_cents": <人民币×100>`。
+   - **Creem**：`POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"url": "<支付链接>"}` → 发链接给用户。**不要把 api_key 放进 URL**。
+   - **微信**：`POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → 生成二维码给用户扫。充值需加 `"amount_cents": <人民币×100>`。
 4. **用户付款 → 确认开通**：轮询 `GET https://mcp.vibedollar.net/pay/orders/<out_trade_no>` 或重查 `vibe_balance()`——微信回调/Creem webhook 自动置 tier/加 credit。确认话术按新口径说清（"Starter 已开通：本月 5,000 条领取额度、每日 1,000 条，超出按 $5/千条从钱包扣"）。
 
 常见情况：
