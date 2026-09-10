@@ -32,7 +32,7 @@
 | 用户位置 | 渠道 | 价格 |
 |---------|------|------|
 | 海外（默认） | **Creem**（美元卡）| Starter $19/mo / Pro $79/mo / Wallet Top-up $1~$200（Pay What You Want） |
-| 中国大陆 | **微信支付**（人民币）| Starter ¥136.8/mo / Pro ¥568.8/mo / Wallet Top-up ¥1~¥1000 |
+| 中国大陆 | **微信支付**（人民币）| Starter ¥99/mo / Pro ¥399/mo / Wallet Top-up ¥1~¥1000 |
 
 ### 步骤 3：生成支付入口
 - **Creem（海外）**：调 `POST https://mcp.vibedollar.net/creem/checkout`（body: `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}`）→ 返回 `{"ok": true, "url": "<支付链接>"}` → 把 `url` 发给用户（充值 `plan=topup` 时，用户会在 Creem 页面自行输入金额 $1~$200）。**不要把 api_key 放进 URL**（GET 直链已下线：api_key 进 URL 会落入访问日志与浏览器历史）

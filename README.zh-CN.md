@@ -112,7 +112,7 @@ vibe_submit_score(scores=[
    | 用户位置 | 渠道 | 价格 |
    |---------|------|------|
    | 海外（默认）| **Creem**（美元卡）| Starter $19/mo / Pro $79/mo / Top-up $1~$200 |
-   | 中国大陆 | **微信支付**（人民币）| Starter ¥136.8/mo / Pro ¥568.8/mo / Top-up ¥1~¥1000 |
+   | 中国大陆 | **微信支付**（人民币）| Starter ¥99/mo / Pro ¥399/mo / Top-up ¥1~¥1000 |
 3. **生成支付入口**：
    - **Creem**：`POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"url": "<支付链接>"}` → 发链接给用户。**不要把 api_key 放进 URL**。
    - **微信**：`POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → 生成二维码给用户扫。充值需加 `"amount_cents": <人民币×100>`。

@@ -28,7 +28,7 @@
    | Location | Channel | Price |
    |----------|---------|-------|
    | Global (default) | **Creem** (USD card) | Starter $19/mo / Pro $79/mo / Top-up $1–$200 (Pay What You Want) |
-   | Mainland China | **WeChat Pay** (CNY) | Starter ¥136.8/mo / Pro ¥568.8/mo / Top-up ¥1–¥1000 |
+   | Mainland China | **WeChat Pay** (CNY) | Starter ¥99/mo / Pro ¥399/mo / Top-up ¥1–¥1000 |
 3. **Generate payment entry**:
    - **Creem (global)**: `POST https://mcp.vibedollar.net/creem/checkout` `{"api_key": "<key>", "plan": "starter|pro|topup", "email": "..."}` → `{"ok": true, "url": "<payment link>"}` → send the url (top-up: user enters $1–$200 on the Creem page). **Never put api_key in URLs**.
    - **WeChat (CN)**: `POST https://mcp.vibedollar.net/pay/native` `{"api_key": "<key>", "email": "...", "tier": "starter|pro|topup"}` → `code_url` → render as QR → user scans (top-up: add `"amount_cents": <CNY×100>`, e.g. ¥36 → 3600).
