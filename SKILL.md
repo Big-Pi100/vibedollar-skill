@@ -51,7 +51,8 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 |------|--------|-------------|------|------|
 | `vibe_register` | `email` | Step 1: send 6-digit verification code | Free | None |
 | `vibe_verify` | `email, code` | Step 2: verify code, return api_key (also emailed) | Free | None |
-| `vibe_balance` | — | Balance / tier / monthly claim allowance used + daily cap (key via header) | Free | Header |
+| `vibe_balance` | — | Balance / tier / **two wallets** (`wallets{usd,cny}`) / settlement currency / monthly claim allowance used + daily cap (key via header) | Free | Header |
+| `vibe_set_currency` | `currency` (`usd` \| `cny` \| empty = auto) | Pick the **settlement currency**: which wallet overage is charged from (USD wallet $5/$3.50 per 1,000 · CNY wallet ¥25/¥18 per 1,000) | Free | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(optional), `track_type`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). **Product description must be complete (40+ chars)**: name + one-line positioning + target users + website URL. Short descriptions produce generic keywords and low-relevance candidates; subscriptions with short descriptions are rejected. | `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts. `track_type` (internal use: outreach/seo/hot_content) | Free (candidates free) | Header |
 | `vibe_leads` | `subscription_id, limit` | **Claim leads (billed per lead claimed)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Returns a `billing` block (batch size, free/billable split, charge, month usage, daily cap). **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new leads), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (when 50 unscored pendings accumulate, score them to continue; see **Working with pending candidates**) | **Billed per lead claimed** | Header |
 | `vibe_submit_score` | `scores` | **Score claimed leads (free)**: `relevant` = moved to delivered list, `irrelevant` = feedback for tuning. Scoring never affects billing | **Free** | Header |
@@ -247,7 +248,7 @@ core infrastructure, not a post-hoc patch.
 ```
 vibe_leads(subscription_id=12, limit=10)
     → leads: [{"id": 1, "title": "...", "url": "...", "score": system_ref, ...}, ...]
-      billing: {"claimed_batch": 10, "free_items": 10, "charge_usd": 0.0,
+      billing: {"claimed_batch": 10, "free_items": 10, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                 "claimed_this_month": 10, "claimed_quota": 5000,
                 "daily_used": 10, "daily_cap": 1000}
     (limit above tier cap is clamped: free 20 / Starter 30 / Pro 50)
@@ -260,7 +261,7 @@ vibe_submit_score(scores=[
 ```
 
 Rules:
-- **Billed per lead claimed**: `vibe_leads` returns a `billing` block; within the monthly allowance it is $0, beyond it the extra is deducted from wallet credit ($5/1,000 Starter, $3.50/1,000 Pro). Telling the user what a claim costs is your job.
+- **Billed per lead claimed**: `vibe_leads` returns a `billing` block; within the monthly allowance it is $0, beyond it the extra is deducted from the wallet of the account's **settlement currency** — USD wallet `$5/1,000` (Starter) / `$3.50/1,000` (Pro), or CNY wallet `¥25/1,000` / `¥18/1,000`. The two wallets are funded separately (Creem tops up USD, WeChat tops up CNY at ¥1 = ¥1) and the user can switch with `vibe_set_currency`. Telling the user what a claim costs is your job.
 - **Scoring is free**: `verdict="relevant"` moves the lead to the delivered list (`vibe_delivered`); unlike the old model, scoring never consumes allowance.
 - **Also return `irrelevant`**: that's how the state layer learns your standard — every `irrelevant` verdict downgrades the keyword that produced that lead (pure SQL, server-side). **Your scoring quality drives keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile). Careless or bulk-scored feedback is detected by the consistency guard and weighted down.
 - **Daily cap**: Free/Starter 1,000, Pro 3,000 claimed leads/day; when the cap is hit, `vibe_leads` returns `source_status: daily_cap` with "resumes at 00:00" — the leads stay reserved and nothing is lost. This is a throttle, not an allowance: do **not** suggest a top-up for it.
@@ -380,9 +381,9 @@ vibe_list_subs()
     → {"ok": true, "data": {"subscriptions": [{"id": 12, "product": "...", "new_leads": 7}]}}
 vibe_leads(subscription_id=12, limit=10)
     → {"ok": true, "data": {"posts": [{"id": 1, "title": "...", "url": "...", "subreddit": "...", "score": 90}], "count": 7},
-       "billing": {"claimed_batch": 7, "free_items": 7, "billable_items": 0, "charge_usd": 0.0,
+       "billing": {"claimed_batch": 7, "free_items": 7, "billable_items": 0, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                    "claimed_this_month": 1207, "claimed_quota": 5000, "over_price_per_1k": 5.0,
-                   "daily_used": 87, "daily_cap": 1000, "wallet_usd": 0.0}}
+                   "daily_used": 87, "daily_cap": 1000, "wallet": 0.0, "wallet": 0.0, "wallet_usd": 0.0}}
 vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason": "..."}])
     → {"ok": true, "passed": 1, "quota_used": 1, ...}
 ```
@@ -404,7 +405,7 @@ Read them when the user asks how to turn leads into conversations/customers/cont
 ## Agent usage tips
 
 - **Lost API key?** Guide recovery: `vibe_recover_key(email)` → `vibe_recover_verify(email, code)` — or point to https://vibedollar.net/account.html → "Lost your API key? Recover it". No re-registration needed.
-- **Watch the `claim_quota` block**: `vibe_balance()` returns `claim_quota {month_used, month_limit, over_price_per_1k, daily_used, daily_cap, wallet_usd}` — proactively tell the user where they stand (allowance used, daily cap, wallet) instead of letting them discover a charge.
+- **Watch the `claim_quota` block**: `vibe_balance()` returns `claim_quota {month_used, month_limit, currency, over_price_per_1k, daily_used, daily_cap, wallet, wallet_usd}` plus `wallets{usd,cny}` and `settlement_currency` — proactively tell the user where they stand (allowance used, daily cap, which wallet overage comes from) instead of letting them discover a charge. If they fund the other currency, point them at `vibe_set_currency`.
 - **Registration & payment flow**: `references/billing.md` (agent does the full flow; the only user actions are providing the email/code and scanning a QR / clicking a link).
 - **Typical workflow**: `vibe_subscribe` → `vibe_leads` → your agent scores with its own LLM → `vibe_submit_score` → passed leads in delivered list (validate demand + find first customers).
 

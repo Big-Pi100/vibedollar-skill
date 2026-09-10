@@ -44,7 +44,8 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 |------|------|------|------|------|
 | `vibe_register` | `email` | 注册第 1 步: 发送 6 位邮箱验证码 | 免费 | 无需 |
 | `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
-| `vibe_balance` | `（无）` | 查余额/tier/`claim_quota` 领取额度（key 走 Header） | 免费 | Header |
+| `vibe_balance` | `（无）` | 查余额/tier/**双钱包**（`wallets{usd,cny}`）/结算币种/`claim_quota` 领取额度（key 走 Header） | 免费 | Header |
+| `vibe_set_currency` | `currency`（`usd` \| `cny` \| 空=自动） | 选**结算币种**：决定超量从哪个钱包扣（美元钱包 $5/$3.5 每千条 · 人民币钱包 ¥25/¥18 每千条） | 免费 | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按决策循环扩/停——见"Agent 决策循环"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（订阅本身不收费；线索在领取时计费） | Header |
 | `vibe_leads` | `subscription_id, limit` | **领取线索（按领取条数计费）**：返回线索（含系统参考分）+ **`billing` 记账块**（本批条数、免费/计费拆分、扣费、本月用量、每日上限）。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（未评分 pending 累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。见下方"待处理候选" | **按领取计费** | Header |
 | `vibe_submit_score` | `scores` | **评分回传（免费）**：`relevant` 进交付列表，`irrelevant` 回灌优化。**评分不影响计费** | **免费** | Header |
@@ -236,7 +237,7 @@ vibe_submit_score(scores=[
 ```
 
 规则：
-- **领取即计费**：`vibe_leads` 返回 `billing` 块；在月额度内为 $0，超出部分从钱包余额扣（Starter $5/千条、Pro $3.50/千条）。**告诉用户一次领取花多少是你的职责**。
+- **领取即计费**：`vibe_leads` 返回 `billing` 块；在月额度内为 $0，超出部分从**结算币种对应的钱包**扣 —— 美元钱包 `$5/千条`（Starter）/ `$3.50/千条`（Pro），或人民币钱包 `¥25/千条` / `¥18/千条`。两个钱包分开充值（Creem 充美元、微信充人民币 ¥1=¥1），用户可用 `vibe_set_currency` 切换。**告诉用户一次领取花多少是你的职责**。
 - **评分免费**：`vibe_submit_score` 无论如何判定都不产生费用；`relevant` 进交付列表（`vibe_delivered` 可查）。
 - **不相关也请回传**（`irrelevant`）：这是状态层学习你评价标准的方式——每次 `irrelevant`
   会降权产生该候选的词（服务端纯 SQL 状态迁移，不做 LLM）。**你的评分质量驱动词表质量**：
@@ -358,9 +359,9 @@ vibe_list_subs()                                          # 查看订阅状态 +
     ↓
 vibe_leads(subscription_id=12, limit=10)                  # 领取候选（按领取计费，秒回）
     → {"ok": true, "data": {"posts": [{"id": 1, "title": "...", "url": "...", "subreddit": "...", "score": 90}], "count": 7},
-       "billing": {"claimed_batch": 7, "free_items": 7, "billable_items": 0, "charge_usd": 0.0,
+       "billing": {"claimed_batch": 7, "free_items": 7, "billable_items": 0, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                    "claimed_this_month": 1207, "claimed_quota": 5000, "over_price_per_1k": 5.0,
-                   "daily_used": 87, "daily_cap": 1000, "wallet_usd": 0.0}}
+                   "daily_used": 87, "daily_cap": 1000, "wallet": 0.0, "wallet": 0.0, "wallet_usd": 0.0}}
     ↓ 你的 agent 评分后回传（评分免费）
 vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason": "..."}])
     → {"ok": true, "passed": 1, "quota_used": 1, ...}
@@ -384,7 +385,7 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 - **丢了 API key？** 引导找回：`vibe_recover_key(email)` → `vibe_recover_verify(email, code)`
   （或引导打开 https://vibedollar.net/account.html → "Lost your API key? Recover it"），无需重新注册。
-- **盯住 `claim_quota` 块**：`vibe_balance()` 返回 `claim_quota {month_used, month_limit, over_price_per_1k, daily_used, daily_cap, wallet_usd}` —— 主动告诉用户当前状态（额度用了多少、每日上限、钱包余额），别等他自己发现被扣费。
+- **盯住 `claim_quota` 块**：`vibe_balance()` 返回 `claim_quota {month_used, month_limit, currency, over_price_per_1k, daily_used, daily_cap, wallet, wallet_usd}`，以及 `wallets{usd,cny}` 与 `settlement_currency` —— 主动告诉用户当前状态（额度用了多少、每日上限、超量从哪个钱包扣），别等他自己发现被扣费；若他充的是另一个币种，引导他用 `vibe_set_currency`。
 - **注册与支付流程**：见 `references/billing.zh-CN.md`（agent 完成全流程；用户的唯一动作是提供邮箱/验证码、扫码或点链接）。
 - **典型工作流**：`vibe_subscribe`（订阅产品，后台持续抓取）→ `vibe_leads` 领候选（此时计费）→ 你的 agent 用自己的 LLM 评分（免费）→ `vibe_submit_score` 回传 → 相关线索进交付列表（验证需求 + 找到第一批客户）。
 

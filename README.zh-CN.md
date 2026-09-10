@@ -64,7 +64,7 @@ vibe_subscribe(product="team wiki tool for small teams")
 vibe_list_subs()                          # 查看订阅状态 + 待领取数
 vibe_leads(subscription_id=12, limit=10)  # 领取 10 条（按领取计费）
     → {"id": 1, "title": "...", "url": "...", "score": 90, "reason": "...", ...,
-       "billing": {"claimed_batch": 10, "free_items": 10, "charge_usd": 0.0,
+       "billing": {"claimed_batch": 10, "free_items": 10, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                    "claimed_this_month": 10, "claimed_quota": 5000,
                    "daily_used": 10, "daily_cap": 1000}}
 vibe_submit_score(scores=[
