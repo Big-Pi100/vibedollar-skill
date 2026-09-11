@@ -85,6 +85,7 @@ Rules:
 - The `score` field is a system reference score — your judgment wins
 - **Daily cap**: Free/Starter 1,000, Pro 3,000 claimed leads/day; beyond the cap delivery resumes automatically next day (nothing lost)
 - Unprocessed claimed leads come back with ids (never lock your subscription); leads older than 7 days auto-expire
+- **Someone else may be judging in parallel**: the web app (https://vibedollar.net/app.html → **To score**) claims and judges on the same tools and the same gate — manual verdicts arrive as `score: 60` (relevant) / `1` (irrelevant), **whoever claims first judges**, and a lead already judged there is rejected as already-scored, so skip that id instead of retrying. The pending queue (50 unscored) is shared between your agent and the web app: either end scoring it unlocks the next batch.
 
 ---
 
