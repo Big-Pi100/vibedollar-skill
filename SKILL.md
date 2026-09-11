@@ -84,10 +84,10 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 | `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **Export customer data with attribution (2026-09-08, zero LLM)**: delivered customers / rejected / new candidates, each with kw + kw_type + last score/reason (from your scoring feedback) + outcome/marked_at follow-up state + optional body. The authoritative store is the backend PG (delivered_log/lead_pool/scoring_feedback) — this tool surfaces it over MCP so you don't touch the DB. Use for outreach lists, outcome analysis, or feeding downstream (interviews/SEO) work | Free | Header |
 | `vibe_recover_lead` | `lead_ids` (list) | **Recover misjudged leads** from recycle back to the scoring queue — re-score them (no double billing; the leads were already billed when first claimed) | Free | Header |
 | `vibe_subs` | `subscription_id` | **Source subreddit hit stats** (pooled per sub, by status) — which subreddits actually contribute candidates. Note: this is *source stats*, distinct from `vibe_list_subs` (your subscriptions) | Free | Header |
-| `vibe_supply_status` | `subscription_id` | **Corpus supply snapshot (zero LLM, 2026-09-07)**: sub pull pool size / reserve depth tiers / **7-day post_store intake trend** (is the corpus still growing?) / catalog freshness (total + last updated) / ArcticShift rate-limit state (shared circuit, cross-process). Read this to tell apart: *keywords exhausted* (expand) vs *corpus boundary thin* (widen subs) vs *registry stale* (catalog needs monthly refresh) vs *collection down* vs *rate-limited*. (2026-09-09: the old word-search-leg field was removed — word corpus matching is read via `pipeline_recent` below; out-of-pool probing is `vibe_search_probe`) | Free | Header |
-| `vibe_search_probe` | `subscription_id`, `query`, `subreddits`, `limit`(≤5) | **Out-of-pool directed search probe (ArcticShift, 2026-09-07)**: search a keyword/phrase *inside target subreddits* before expanding it — verifies "does this phrase actually surface posts out there?" (instant feedback, no blind expansion). Found posts are upserted into the shared corpus (idempotent); **not** added to your lead pool (matching stays keyword-driven). Complements `sub_pull` (which only covers in-pool subs) | Free | Header |
-| `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove) | **Maintain this subscription's sub list — its explicit search face (v2.2 sub-anchored, 2026-09-09)**: matching runs only inside list subs. Each returned sub tagged `in_pool` (corpus searchable now, posts+comments) or `needs_pull` (server will bulk-fetch it). See "sub-anchored search" section for the decision loop | Free | Header |
-| `vibe_sub_catalog` | `query`(optional), `limit` | **Candidate subs before you pick a list (v2.2, 2026-09-09)**: no query → A relevance face (subs with real `relevant` deliveries, delivered DESC — in-corpus, searchable now); with a product/niche query → B/C lexical candidates from the registry (may need pull). Each tagged `stock`(in_pool/needs_pull), `tier`(deep/shallow), `delivered` count — value semantics are scoring-relevant, not raw hits | Free | Header |
+| `vibe_supply_status` | `subscription_id` | **Corpus supply snapshot (zero LLM, 2026-09-07)**: sub pull pool size / reserve depth tiers / **7-day post_store intake trend** (is the corpus still growing?) / catalog freshness (total + last updated) / ArcticShift rate-limit state (shared circuit, cross-process). Read this to tell apart: *keywords exhausted* (expand) vs *corpus boundary thin* (widen subs) vs *registry stale* (catalog needs monthly refresh) vs *collection down* vs *rate-limited*. (2026-09-09: the old word-search-leg field was removed — word corpus matching is read via `pipeline_recent` below) | Free | Header |
+| `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove/list) | **Maintain this subscription's sub list — its explicit search face (v2.2 sub-anchored, 2026-09-09)**: matching runs only inside list subs. Each returned sub tagged `in_pool` (corpus searchable now, posts+comments) or `needs_pull` (server will bulk-fetch it). **This is also the only way to acquire corpus you don't have**: adding a sub queues it for the server's pull worker — there is no agent-side fetch tool (the old `vibe_search_probe` was retired 2026-09-11) | Free | Header |
+| `vibe_sub_catalog` | `query`(optional), `limit` | **Candidate subs before you pick a list (v2.2, 2026-09-09)**: no query → A relevance face (subs with real `relevant` deliveries, delivered DESC — in-corpus, searchable now); with a product/niche query → B/C lexical candidates from the registry (may need pull). Each tagged `stock`(in_pool/needs_pull), `tier`(deep/shallow), `delivered` count, plus **`description`** (sub blurb, 2026-09-11) | Free | Header |
+| `vibe_sub_search` | `query`(optional), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **Full directory search (2026-09-11)**: all ~27.5k usable subs matched on **name or description** (terms OR'd), paginated. Each item: `description`, `subscribers`, `num_posts`, `posts_90d` + `volume_measured`, `stock`(in_pool/needs_pull), `tier`, `delivered`, `listed` (already in some subscription's list). Use it to *find* subs precisely; then add them with `vibe_sub_list_update` | Free | Header |
 
 > Cost note: the fifteen tools above are read/write state operations — **a lead is billed when first claimed** (Free 1,000/mo · Starter 5,000/mo, then $5 per 1,000 · Pro 30,000/mo, then $3.50 per 1,000); **scoring, re-reading and exporting are free**; daily-cap overflow carries to the next day.
 
@@ -195,9 +195,9 @@ Decision table (goal-driven, v2.2 sub-anchored — 2026-09-09):
 | **list subs all silent** (`pipeline_recent` matched=0 several rounds, corpus growing) | widen the list — the demand lives in subs you haven't listed: `vibe_sub_catalog(query=<product/niche words>)` → add candidates (B/C may need a one-time fetch, ~min/sub) |
 | word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_remove` force + `vibe_opt_log` |
 | face cleared after retires, goal still short | **regenerate**: sd_gen (if sd missing) → kw_init/kw_opt → `vibe_keyword_add_batch` |
-| new words hit=0 across rounds, list healthy | the phrase is absent in your listed subs' corpus → `vibe_search_probe` a targeted sub (pure-fetch + local match, ~2s) to verify phrasing; replace if 0; a probe-0 on chosen subs is NOT proof it's absent elsewhere — widen the list instead (v2.2: matching is list-scoped; **word-search leg retired 2026-09-09**) |
-| NEW30 hitting, goal short | expand: `vibe_keyword_add_batch` (probe-verified) |
-| NEW30 swept, collecting_ok | corpus boundary thin → widen your sub list (stage B), probe + record meanwhile |
+| new words hit=0 across rounds, list healthy | the phrase is absent in your listed subs' corpus → **widen or replace the face**: `vibe_sub_search`/`vibe_sub_catalog` for candidate subs → `vibe_sub_list_update` to add them (the server queues the pull) → judge the phrasing from `vibe_keywords` hit stats next round. There is no agent-side probe any more (`vibe_search_probe` retired 2026-09-11: pulls go only through the sub list) |
+| NEW30 hitting, goal short | expand: `vibe_keyword_add_batch` |
+| NEW30 swept, collecting_ok | corpus boundary thin → widen your sub list (stage B), record the attempt meanwhile |
 | `collecting_ok=false` | alert (intake down — expanding useless) |
 | `arctic.limited` | pause supply actions — physical wait, not a cooldown |
 
@@ -227,12 +227,12 @@ Check the expect against the new perceive, then **return to the goal check**:
 **Discipline** (no time cooldowns / daily caps — v2 §5.3):
 - one direction action per round (convergence discipline, not throttling)
 - verify-gated, not clock-gated: act → see the result → decide next
-- **probe before you expand**: `vibe_search_probe(query, [subs])` gives instant feedback
-  on whether a phrase surfaces posts in *chosen* subs — never blind-expand and wait for
-  pipeline stats. But a probe-0 is **sub-scoped**: it proves nothing about the whole
-  corpus (the pool word-search does); use probe to pick between candidate phrasings or
-  to check a specific niche sub, and use `pipeline_recent`/hit_count as the corpus-wide
-  truth before retiring a word on "0 hit".
+- **widen the face, don't probe it**: corpus only ever arrives through the sub list —
+  `vibe_sub_search` / `vibe_sub_catalog` to pick subs, `vibe_sub_list_update` to add them
+  (the server queues the fetch), then read `vibe_keywords` hit stats and `pipeline_recent`
+  next round. The old `vibe_search_probe` (an agent-triggered synchronous fetch) was
+  retired 2026-09-11, so "0 hit" can only be read as *inside your listed subs* — to test
+  a phrase elsewhere, add that sub and wait one pipeline round.
 - the only hard wait is the ArcticShift rate limit, surfaced via `vibe_supply_status`
 
 #### 6. Audit log (per round)

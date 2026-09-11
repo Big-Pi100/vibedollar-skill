@@ -78,10 +78,10 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **导出客户数据（2026-09-08，零 LLM）**：已交付客户 / 回收 / 候选，每条带 kw + kw_type + 最近评分 score/reason（你的评分反馈）+ outcome/marked_at 跟进状态 + 可选正文。权威存储在 PG（delivered_log/lead_pool/scoring_feedback）——本工具经 MCP 暴露给你，不用碰数据库。用于触达名单、产出分析、下游（访谈/SEO）素材 | 免费 | Header |
 | `vibe_recover_lead` | `lead_ids`（列表） | **恢复误判线索**：从回收池回到待评分队列，可重新评分（领取时已计费，不重复扣费）| 免费 | Header |
 | `vibe_subs` | `subscription_id` | **来源 sub 命中统计**（各 sub 入池/状态分布）——哪些 subreddit 真在贡献。注意与 `vibe_list_subs`（你的订阅列表）区分 | 免费 | Header |
-| `vibe_supply_status` | `subscription_id` | **语料供给状态快照（零 LLM，2026-09-07）**：拉取池规模 / 储备分层 / **近 7 天 post_store 入帖趋势**（语料是否还在增长）/ 名录新鲜度（总量 + 最后更新）/ ArcticShift 限流态（共享熔断，跨进程）。用于区分：*词面耗尽*（应扩词）vs *语料边界窄*（应扩 sub）vs *名录旧*（catalog 需月度刷新）vs *采集停* vs *限流中*（2026-09-09：词搜腿字段已移除——词全语料匹配看下方 `pipeline_recent`，池外定向探测用 `vibe_search_probe`） | 免费 | Header |
-| `vibe_search_probe` | `subscription_id`, `query`, `subreddits`, `limit`(≤5) | **池外定向搜索探测（ArcticShift，2026-09-07）**：扩词前先在目标 sub 内搜这个词——即时验证"这个词在那边到底能不能搜出帖子"（防盲扩）。命中的帖幂等入库共享语料；**不入你的 lead_pool**（匹配仍由词驱动）。与 `sub_pull`（只覆盖池内 sub）互补 | 免费 | Header |
-| `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove) | **维护本订阅的 sub 清单——它的显式搜索面（v2.2 sub 锚点，2026-09-09）**：匹配只在清单 sub 语料内跑。每条返回 `in_pool`（库内可立即搜，帖+评论）或 `needs_pull`（服务器将批量取货）。决策循环见"sub 锚点搜索"节 | 免费 | Header |
-| `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数——价值口径是评分相关，非 raw 命中 | 免费 | Header |
+| `vibe_supply_status` | `subscription_id` | **语料供给状态快照（零 LLM，2026-09-07）**：拉取池规模 / 储备分层 / **近 7 天 post_store 入帖趋势**（语料是否还在增长）/ 名录新鲜度（总量 + 最后更新）/ ArcticShift 限流态（共享熔断，跨进程）。用于区分：*词面耗尽*（应扩词）vs *语料边界窄*（应扩 sub）vs *名录旧*（catalog 需月度刷新）vs *采集停* vs *限流中*（2026-09-09：词搜腿字段已移除——词全语料匹配看下方 `pipeline_recent`） | 免费 | Header |
+| `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove/list) | **维护本订阅的 sub 清单——它的显式搜索面（v2.2 sub 锚点，2026-09-09）**：匹配只在清单 sub 语料内跑。每条返回 `in_pool`（库内可立即搜，帖+评论）或 `needs_pull`（服务器将批量取货）。**这也是获取你没有的语料的唯一途径**：加 sub 即入服务端取货队列；agent 侧没有拉取工具（原 `vibe_search_probe` 已于 2026-09-11 下线） | 免费 | Header |
+| `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数，以及 **`description`**（sub 简介，2026-09-11 起返回） | 免费 | Header |
+| `vibe_sub_search` | `query`(可选), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **全量目录检索（2026-09-11 新增）**：2.7 万可用 sub 按**名称或简介**匹配（多词 OR 并集）+ 分页。每条：`description`、`subscribers`、`num_posts`、`posts_90d` + `volume_measured`、`stock`(in_pool/needs_pull)、`tier`、`delivered`、`listed`（已被某订阅清单引用）。用来**精准找 sub**，再用 `vibe_sub_list_update` 加入 | 免费 | Header |
 
 > 费用说明：上面 15 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
 
@@ -181,9 +181,9 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 | **清单 sub 全静默**（`pipeline_recent` 多轮 matched=0 且语料在长）| 扩清单——需求住在你没列的 sub 里：`vibe_sub_catalog(query=<产品/领域词>)` → 加候选（B/C 可能需一次性取货，~分钟/sub）|
 | 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题 | `vibe_keyword_remove` force + `vibe_opt_log` |
 | 退役后词面清空、目标仍缺 | **重生成**：sd_gen（sd 缺）→ kw_init/kw_opt → `vibe_keyword_add_batch` |
-| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → `vibe_search_probe` 目标 sub（纯 fetch + 本地匹配，~2s）验表达；0 就换词；**probe 在选定 sub 得 0 ≠ 别处没有——扩清单**（v2.2：匹配限定清单；词搜腿 2026-09-09 退役）|
-| NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_add_batch`（probe 验证过的词）|
-| NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间 probe + 记录 |
+| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → **扩/换搜索面**：`vibe_sub_search` / `vibe_sub_catalog` 找候选 sub → `vibe_sub_list_update` 加入（服务端排队取货）→ 下一轮从 `vibe_keywords` 命中统计判断表达好坏。**已无 agent 侧 probe**（`vibe_search_probe` 2026-09-11 下线：语料只经 sub 清单进来）|
+| NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_add_batch` |
+| NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间记录尝试 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
 | `arctic.limited` | 暂停供给动作 —— 物理等待，非冷却 |
 
@@ -208,10 +208,10 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 **纪律**（无时间冷却 / 每日次数 —— v2 §5.3）：
 - 每轮一个方向性动作（收敛纪律，非节流）
 - verify 门控而非时钟门控：act → 看结果 → 决定下一步
-- **扩词前先 probe**：`vibe_search_probe(query, [subs])` 秒级验证这词在**选定的 sub** 有没有帖——
-  绝不盲扩后等 pipeline 统计。但 **probe 0 是 sub 级结论**：证明不了全语料（那是池级词搜的
-  事）；probe 用于在候选表达间选型或查特定 niche sub，"0 命中退役"以 `pipeline_recent`/
-  hit_count（全语料）为准。
+- **扩面而不是探面**：语料只经 sub 清单进来 —— `vibe_sub_search` / `vibe_sub_catalog` 挑 sub，
+  `vibe_sub_list_update` 加入（服务端排队取货），下一轮从 `vibe_keywords` 命中统计与
+  `pipeline_recent` 读结果。原 `vibe_search_probe`（agent 触发的同步拉取）已于 2026-09-11 下线，
+  所以 "0 命中" 只能读作*在你清单 sub 之内*；要验证别处就把那个 sub 加进清单，等一轮管线。
 - 唯一硬等待是 ArcticShift 物理限流，经 `vibe_supply_status` 感知
 
 #### 6. 审计日志（每轮）
