@@ -34,7 +34,7 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 |----------|-----|
 | Cold-start acquisition | `vibe_subscribe` → continuous tracking, leads accumulate, click into the post and reach the prospect |
 | Validate a product idea | Subscribe, then look at accumulated leads: N strong-demand signals → worth building |
-| Ongoing acquisition | `vibe_subscribe` → `vibe_leads` (billed when claimed) → score (free) → relevant leads land in the delivered list |
+| Ongoing acquisition | `vibe_subscribe` → `vibe_leads` (billed on first claim) → score (free) → relevant leads land in the delivered list |
 | Proof for investors/team | Accumulated leads (that you scored) are ready-made demand validation |
 
 ## Quick start
@@ -54,8 +54,8 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 | `vibe_balance` | — | Balance / tier / **two wallets** (`wallets{usd,cny}`) / settlement currency / monthly claim allowance used + daily cap (key via header) | Free | Header |
 | `vibe_set_currency` | `currency` (`usd` \| `cny` \| empty = auto) | Pick the **settlement currency**: which wallet overage is charged from (USD wallet $5/$3.50 per 1,000 · CNY wallet ¥25/¥18 per 1,000) | Free | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(optional), `track_type`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). **Product description must be complete (40+ chars)**: name + one-line positioning + target users + website URL. Short descriptions produce generic keywords and low-relevance candidates; subscriptions with short descriptions are rejected. | `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts. `track_type` (internal use: outreach/seo/hot_content) | Free (candidates free) | Header |
-| `vibe_leads` | `subscription_id, limit` | **Claim leads (billed per lead claimed)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Returns a `billing` block (batch size, free/billable split, charge, month usage, daily cap). **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new leads), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (when 50 unscored pendings accumulate, score them to continue; see **Working with pending candidates**) | **Billed per lead claimed** | Header |
-| `vibe_submit_score` | `scores` | **Score claimed leads (free)**: `relevant` = moved to delivered list, `irrelevant` = feedback for tuning. Scoring never affects billing | **Free** | Header |
+| `vibe_leads` | `subscription_id, limit, source` | **Claim leads (billed on first claim)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Returns a `billing` block (batch size, free/billable split, `billable_items` / `takeover_items`, charge, month usage, daily cap). **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new leads), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (when 50 unscored **agent** pendings accumulate, score them to continue; see **Working with pending candidates**). `source` (**2026-09-11**): `agent` (default) or `web` — the web app claims with `source='web'`; its unscored items do **not** count toward your 50-item gate, and you can take them back yourself (free — the first claim was already billed). With `source='web'` you get your own unscored items back instead of new ones (no billing) | **Billed on first claim** (either end) | Header |
+| `vibe_submit_score` | `scores, override` | **Score claimed leads (free)**: `relevant` = moved to delivered list, `irrelevant` = feedback for tuning. Scoring never affects billing. `override=true` (**2026-09-11**) accepts items already judged `delivered`/`rejected` and lets your verdict win (a flipped relevant→irrelevant **retracts** the delivery record, so the monthly delivered count goes back down); the response reports `overridden`. Use it when the human overruled you in the web app — plain submissions still reject already-scored ids | **Free** | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score, and we tune the standard to match your judgment. Use it when a candidate's reference score surprises you; it also flags where your scoring may be drifting, so the pipeline stays aligned with your real definition of a good lead | Free | Header |
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
@@ -263,13 +263,14 @@ vibe_submit_score(scores=[
 ```
 
 Rules:
-- **Billed per lead claimed**: `vibe_leads` returns a `billing` block; within the monthly allowance it is $0, beyond it the extra is deducted from the wallet of the account's **settlement currency** — USD wallet `$5/1,000` (Starter) / `$3.50/1,000` (Pro), or CNY wallet `¥25/1,000` / `¥18/1,000`. The two wallets are funded separately (Creem tops up USD, WeChat tops up CNY at ¥1 = ¥1) and the user can switch with `vibe_set_currency`. Telling the user what a claim costs is your job.
+- **Billed on the first claim**: `vibe_leads` returns a `billing` block; whichever end claims a lead first pays, the other end reclaims it free; within the monthly allowance it is $0, beyond it the extra is deducted from the wallet of the account's **settlement currency** — USD wallet `$5/1,000` (Starter) / `$3.50/1,000` (Pro), or CNY wallet `¥25/1,000` / `¥18/1,000`. The two wallets are funded separately (Creem tops up USD, WeChat tops up CNY at ¥1 = ¥1) and the user can switch with `vibe_set_currency`. Telling the user what a claim costs is your job.
 - **Scoring is free**: `verdict="relevant"` moves the lead to the delivered list (`vibe_delivered`); unlike the old model, scoring never consumes allowance.
 - **Also return `irrelevant`**: that's how the state layer learns your standard — every `irrelevant` verdict downgrades the keyword that produced that lead (pure SQL, server-side). **Your scoring quality drives keyword quality**: score honestly and thoroughly (read the full body, judge on your real buyer profile). Careless or bulk-scored feedback is detected by the consistency guard and weighted down.
 - **Daily cap**: Free/Starter 1,000, Pro 3,000 claimed leads/day; when the cap is hit, `vibe_leads` returns `source_status: daily_cap` with "resumes at 00:00" — the leads stay reserved and nothing is lost. This is a throttle, not an allowance: do **not** suggest a top-up for it.
 - **Each lead is scored once per claim; `irrelevant` verdicts land in the recycle pool (`vibe_rejected`)** — if you later decide one was misjudged (e.g. after opening the post), recover it with `vibe_recover_lead` and re-score.
-- **Score what you claim**: claims accumulate as `pending` (up to 50 unscored). A `locked` response with a `pending` list is **normal flow, not an error**: score the pending leads (relevant or irrelevant) and claiming continues. Never leave claimed leads unscored for long.
-- **The web app is a peer on this same contract, not a separate world**: the user can claim and judge by hand at https://vibedollar.net/app.html — same tools, same gate, one verdict per lead. Manual verdicts arrive as `score: 60` (relevant) and `score: 1` (irrelevant), so a human judgement is distinguishable from yours. **Whoever claims first judges**: if that end already judged a lead, `vibe_submit_score` rejects that id with `该候选已评分处理过 (不可重复评分)` — **skip that id, submit the rest, don't retry and don't treat it as a failure**. Likewise `尚未领取` means it was never claimed (claim it first), and `已过期` means it sat unscored for 7 days: billing already happened, the lead is gone and is never re-delivered — which is why claiming you won't score is worse than not claiming.
+- **Score what you claim**: your claims accumulate as `pending` (up to 50 unscored **agent** pendings). A `locked` response with a `pending` list is **normal flow, not an error**: score the pending leads (relevant or irrelevant) and claiming continues. Never leave claimed leads unscored for long.
+- **The web app is a peer on this same contract, not a separate world**: the user can claim and judge by hand at https://vibedollar.net/app.html — same tools, one verdict per lead. Manual verdicts arrive as `score: 60` (relevant) and `score: 1` (irrelevant), so a human judgement is distinguishable from yours. **The human wins on conflicts** (2026-09-11): verdicts submitted from the web app carry `override=true`, so they rewrite a `delivered`/`rejected` lead you already judged. Conversely, if a lead was judged by that end, your plain (non-override) submission is rejected with `该候选已评分处理过 (不可重复评分)` — **skip that id, submit the rest, don't retry and don't treat it as a failure**.
+- **Shared pool, split gate** (2026-09-11): leads the user claimed in the web app but never judged stay claimable by you — a later `vibe_leads` hands them to you (they are **free**: billing happened on the first claim by either end) and they **never expire**, so nothing rots in the user's hands. Only *your* claims expire: `已过期` means one of your claims sat unscored for 7 days — billing already happened and the lead is never re-delivered, which is why claiming what you won't score is worse than not claiming.
 - **Save every returned field**: persist the full record per lead (id/title/url/subreddit/score, and body when present). `id` is required later for `vibe_get_delivered`; don't keep only titles.
 - The candidate `score` is a system reference; your judgment wins
 
@@ -279,7 +280,7 @@ The scoring question for every candidate is always: **is the author of this post
 
 Note the separation of concerns: **claiming is what costs money, scoring is free**. Claim only what you can actually work with — a claimed-but-ignored lead still counts against the allowance.
 
-Note also that the pending list is **shared**: the web app (`app.html` → **To score**) shows the user the same 50-item gate, and whichever end clears it unlocks the next batch.
+Note also that the pending list is **shared**: the web app (`app.html` → **To score**) shows the user their own unscored claims, and leads the user never judged come back to you on the next `vibe_leads` (free, and they don't count against your 50-item gate). Whichever end judges first wins, and a web verdict can override yours.
 
 Standard loop:
 1. `vibe_subscribe(product)` with a **complete description** (name + positioning + target users + website, 40+ chars) → get `subscription_id`. A short description (product name only) is rejected — it would generate generic keywords and low-relevance candidates.
@@ -323,7 +324,7 @@ read it, then decide next (score another sub, expand keywords, wait).
 
 - **Judgment is yours**: edit `scripts/judge_prompt.md` (plain template) to define what a
   good customer looks like for your market. `--threshold` sets the relevant cut.
-- **Costs**: a lead is billed when claimed (within the monthly allowance it is $0; beyond it
+- **Costs**: a lead is billed on its first claim (within the monthly allowance it is $0; beyond it
   $5/1,000 Starter or $3.50/1,000 Pro from wallet). Scoring is free — the judging LLM calls
   are billed to **your** key.
 - **Failure-safe**: a candidate whose LLM judgment fails is left pending — retried next
@@ -395,8 +396,8 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 - For a defined product that needs **continuous** new prospects, not ad-hoc searches
 - No keyword/source maintenance by hand: describe the product, we collect + match into the pool; when the face cannot fill the customer's allowance (`assessment.status=shortfall` in `vibe_sub_health`), **you** (your agent) widen the sub list / expand-retire keywords via the health tools — see **Agent decision loop** above
-- **A lead is billed when claimed; scoring is free**; the subscription itself costs nothing extra
-- **Score what you claim**: claimed leads stay `pending` until scored — after 50 unscored pendings, `vibe_leads` returns `locked` with the pending list (ids recoverable, your subscription is never stuck). Scoring them (relevant **or** irrelevant) resumes claiming. Leads un-scored for 7 days auto-expire.
+- **A lead is billed on its first claim (by either end); scoring is free**; the subscription itself costs nothing extra
+- **Score what you claim**: your claimed leads stay `pending` until scored — after 50 unscored agent pendings, `vibe_leads` returns `locked` with the pending list (ids recoverable, your subscription is never stuck). Scoring them (relevant **or** irrelevant) resumes claiming. Your un-scored claims auto-expire after 7 days; leads the user claimed in the web app never expire and come back to you for free.
 
 Cancel with `vibe_unsubscribe` (accumulated leads kept).
 
