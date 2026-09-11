@@ -267,6 +267,7 @@ Rules:
 - **Daily cap**: Free/Starter 1,000, Pro 3,000 claimed leads/day; when the cap is hit, `vibe_leads` returns `source_status: daily_cap` with "resumes at 00:00" — the leads stay reserved and nothing is lost. This is a throttle, not an allowance: do **not** suggest a top-up for it.
 - **Each lead is scored once per claim; `irrelevant` verdicts land in the recycle pool (`vibe_rejected`)** — if you later decide one was misjudged (e.g. after opening the post), recover it with `vibe_recover_lead` and re-score.
 - **Score what you claim**: claims accumulate as `pending` (up to 50 unscored). A `locked` response with a `pending` list is **normal flow, not an error**: score the pending leads (relevant or irrelevant) and claiming continues. Never leave claimed leads unscored for long.
+- **The web app is a peer on this same contract, not a separate world**: the user can claim and judge by hand at https://vibedollar.net/app.html — same tools, same gate, one verdict per lead. Manual verdicts arrive as `score: 60` (relevant) and `score: 1` (irrelevant), so a human judgement is distinguishable from yours. **Whoever claims first judges**: if that end already judged a lead, `vibe_submit_score` rejects that id with `该候选已评分处理过 (不可重复评分)` — **skip that id, submit the rest, don't retry and don't treat it as a failure**. Likewise `尚未领取` means it was never claimed (claim it first), and `已过期` means it sat unscored for 7 days: billing already happened, the lead is gone and is never re-delivered — which is why claiming you won't score is worse than not claiming.
 - **Save every returned field**: persist the full record per lead (id/title/url/subreddit/score, and body when present). `id` is required later for `vibe_get_delivered`; don't keep only titles.
 - The candidate `score` is a system reference; your judgment wins
 
@@ -275,6 +276,8 @@ Rules:
 The scoring question for every candidate is always: **is the author of this post a potential customer of the subscribed product?** Judge on topic (does it sit in the problem area the product solves) and signal strength. Answer `relevant` when yes, `irrelevant` when no (irrelevant still teaches the system; scoring costs nothing).
 
 Note the separation of concerns: **claiming is what costs money, scoring is free**. Claim only what you can actually work with — a claimed-but-ignored lead still counts against the allowance.
+
+Note also that the pending list is **shared**: the web app (`app.html` → **To score**) shows the user the same 50-item gate, and whichever end clears it unlocks the next batch.
 
 Standard loop:
 1. `vibe_subscribe(product)` with a **complete description** (name + positioning + target users + website, 40+ chars) → get `subscription_id`. A short description (product name only) is rejected — it would generate generic keywords and low-relevance candidates.
