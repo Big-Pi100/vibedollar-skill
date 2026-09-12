@@ -68,12 +68,12 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | 工具 | 参数 | 作用 | 费用 | 鉴权 |
 |------|------|------|------|------|
 | `vibe_keywords` | `subscription_id`, `status`(可选: all/active/monitor/removed/retire) | **词表 + 命中统计**（query/hit/pooled/avg-score/source）：当前靠哪些词在匹配、每个词表现如何——扩/停前先读它 | 免费 | Header |
-| `vibe_keyword_add` | `subscription_id, kw, kw_type`(tail/entity/competitor/comment), `source`(manual 默认 / auto) | **加词扩召回**。`source=manual`（默认）= 你的词、受保护不会被自动停；`source=auto` = 编排器加的词（未来弱了可被停）。同词覆盖 auto 词 = 你接管（变 manual）| 免费 | Header |
-| `vibe_keyword_add_batch` | `subscription_id, keywords`(list of `{kw, kw_type}`), `source`(默认 auto) | **一次调用加 N 词**（逐条语义同 `vibe_keyword_add`）——初始词/扩词列表请用批量而非循环，留在账号限流窗内（free 5 / starter 10 / pro 20 每 60s）。单词失败不影响整批；返回 `{added, total, results}` | 免费 | Header |
-| `vibe_keyword_remove` | `subscription_id, kw, force`(默认 false) | **停用词**（→ removed 不再匹配）。默认只停 manual 词；`force=true` 仅供编排器停 auto 弱词——手动勿用 | 免费 | Header |
+| `vibe_keyword_add` | `subscription_id, kw, kw_type`(tail/entity/competitor/comment), `source`(manual 默认 / auto), `note`(可选) | **加词扩召回**。`source=manual`（默认）= 你的词、受保护不会被自动停；`source=auto` = 编排器加的词（未来弱了可被停）。同词覆盖 auto 词 = 你接管（变 manual）。**每次真实变更自动写词级变更日志**（谁/何时/哪个词/做了什么），`note` 记理由 | 免费 | Header |
+| `vibe_keyword_add_batch` | `subscription_id, keywords`(list of `{kw, kw_type}`), `source`(默认 auto), `note`(可选) | **一次调用加 N 词**（逐条语义同 `vibe_keyword_add`）——初始词/扩词列表请用批量而非循环，留在账号限流窗内（free 5 / starter 10 / pro 20 每 60s）。单词失败不影响整批；返回 `{added, total, batch_id, results}`。同批共享一个 `batch_id`，日志里可整批归组 | 免费 | Header |
+| `vibe_keyword_remove` | `subscription_id, kw, force`(默认 false), `note`(可选) | **停用词**（→ removed 不再匹配）。默认只停 manual 词；`force=true` 仅供编排器停 auto 弱词——手动勿用。**建议传 `note`**：这是"为什么停这个词"唯一按词留痕的地方 | 免费 | Header |
 | `vibe_sd_update` | `subscription_id, supply_side, demand_side, core_friction, demand_pain` | **设供需判定口径**（四段，服务端持久化）——这是评分引擎的官方判定上下文，每次评分注入为 [SUPPLY/DEMAND]。空字段保留旧值；你编辑后后端永不覆盖 | 免费 | Header |
 | `vibe_sub_health` | `subscription_id` | **供给健康 + 交付评估（零 LLM）**：`assessment`（当前搜索面能否填满月领取额度：`projected_items_month` vs `commitment_remaining`、`gap_reason`、`supply_per_day`、`daily_need`）/ 候选存量(new+sent) / 缺口 / 采集是否足量 / 上次优化。**先读它**：`gap_reason=supply_ceiling` 时扩 **sub 清单**比动词更有效 | 免费 | Header |
-| `vibe_opt_log` | `subscription_id, outcome, reason, n_new_kw, n_replaced` | **记录一次扩词/优化事件**（写入优化历史，健康页可见）——扩/停后调用，闭环可审计 | 免费 | Header |
+| `vibe_opt_log` | `subscription_id, outcome, reason, n_new_kw, n_replaced` | **记录一次扩词/优化事件**（按次：outcome + reason ≤800 字，写入优化历史，健康页的"上次优化"读它）——扩/停后调用，闭环可审计。注意分工：**按词的变更流水由 `vibe_keyword_*` 自动记录**（`kw_change_log`，无需你手动写）；本工具记的是**决策叙事**（为什么这么调） | 免费 | Header |
 | `vibe_rejected` | `subscription_id, limit` | **回收历史**：引擎判不相关的候选（含理由分），跨会话持久 | 免费 | Header |
 | `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **导出客户数据（2026-09-08，零 LLM）**：已交付客户 / 回收 / 候选，每条带 kw + kw_type + 最近评分 score/reason（你的评分反馈）+ outcome/marked_at 跟进状态 + 可选正文。权威存储在 PG（delivered_log/lead_pool/scoring_feedback）——本工具经 MCP 暴露给你，不用碰数据库。用于触达名单、产出分析、下游（访谈/SEO）素材 | 免费 | Header |
 | `vibe_recover_lead` | `lead_ids`（列表） | **恢复误判线索**：从回收池回到待评分队列，可重新评分（领取时已计费，不重复扣费）| 免费 | Header |
@@ -196,7 +196,9 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 
 #### 4. Act
 
-执行**一个**动作。加/停词后调 `vibe_opt_log(...)`（健康页可审计）。写下 **expect**：
+执行**一个**动作。加/停词**本身会自动留痕**（`kw_change_log`，按词记谁/何时/哪个词/做了什么，
+你只需要传 `note` 写理由）；再调 `vibe_opt_log(...)` 记录这一次的**决策叙事**（健康页可审计）。
+写下 **expect**：
 动作若有效，下一轮应看到什么（如"重生成的词一轮内命中" / "退役词停止入池垃圾" /
 "delivered 增 N"）？
 
