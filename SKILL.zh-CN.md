@@ -74,6 +74,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_sd_update` | `subscription_id, supply_side, demand_side, core_friction, demand_pain` | **设供需判定口径**（四段，服务端持久化）——这是评分引擎的官方判定上下文，每次评分注入为 [SUPPLY/DEMAND]。空字段保留旧值；你编辑后后端永不覆盖 | 免费 | Header |
 | `vibe_sub_health` | `subscription_id` | **供给健康 + 交付评估（零 LLM）**：`assessment`（当前搜索面能否填满月领取额度：`projected_items_month` vs `commitment_remaining`、`gap_reason`、`supply_per_day`、`daily_need`）/ 候选存量(new+sent) / 缺口 / 采集是否足量 / 上次优化。**先读它**：`gap_reason=supply_ceiling` 时扩 **sub 清单**比动词更有效 | 免费 | Header |
 | `vibe_opt_log` | `subscription_id, outcome, reason, n_new_kw, n_replaced` | **记录一次扩词/优化事件**（按次：outcome + reason ≤800 字，写入优化历史，健康页的"上次优化"读它）——扩/停后调用，闭环可审计。注意分工：**按词的变更流水由 `vibe_keyword_*` 自动记录**（`kw_change_log`，无需你手动写）；本工具记的是**决策叙事**（为什么这么调） | 免费 | Header |
+| `vibe_kw_history` | `subscription_id, limit`(默认 30, 上限 200) | **变更历史（按词 + 按次，时间倒序）**：`kind=kw` 是词级变更（哪时/哪个词/新增|复活|更新|停用/来源/批次），`kind=opt` 是你自己记的按次决策（outcome/reason）。**回顾"我上一轮对这个订阅做过什么"用这个**——按词的操作无需你补记，工具会自动留痕 | 免费 | Header |
 | `vibe_rejected` | `subscription_id, limit` | **回收历史**：引擎判不相关的候选（含理由分），跨会话持久 | 免费 | Header |
 | `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **导出客户数据（2026-09-08，零 LLM）**：已交付客户 / 回收 / 候选，每条带 kw + kw_type + 最近评分 score/reason（你的评分反馈）+ outcome/marked_at 跟进状态 + 可选正文。权威存储在 PG（delivered_log/lead_pool/scoring_feedback）——本工具经 MCP 暴露给你，不用碰数据库。用于触达名单、产出分析、下游（访谈/SEO）素材 | 免费 | Header |
 | `vibe_recover_lead` | `lead_ids`（列表） | **恢复误判线索**：从回收池回到待评分队列，可重新评分（领取时已计费，不重复扣费）| 免费 | Header |
@@ -83,7 +84,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数，以及 **`description`**（sub 简介，2026-09-11 起返回） | 免费 | Header |
 | `vibe_sub_search` | `query`(可选), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **全量目录检索（2026-09-11 新增）**：2.7 万可用 sub 按**名称或简介**匹配（多词 OR 并集）+ 分页。每条：`description`、`subscribers`、`num_posts`、`posts_90d` + `volume_measured`、`stock`(in_pool/needs_pull)、`tier`、`delivered`、`listed`（已被某订阅清单引用）。用来**精准找 sub**，再用 `vibe_sub_list_update` 加入 | 免费 | Header |
 
-> 费用说明：上面 15 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
+> 费用说明：上面 16 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
 >
 > 限流是**每账号三个独立桶**（2026-09-11），读不会再吃掉你的管道预算：**读**（delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance…）free·starter·pro = **120 · 240 · 480** 次/分钟；**管道**（`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`）= **10 · 20 · 40**；**写**（subscribe / keyword_* / sd_update / mark_leads / sub_list_update…）= **5 · 10 · 20**。所以一轮感知（5 次读）很便宜 —— 节奏要压在管道桶与写桶上。
 
