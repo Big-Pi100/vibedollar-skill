@@ -7,9 +7,9 @@
 
 | Tier | Price | **Claimed leads / month** (billed on first claim) | Daily cap | Rate limit (write / pipeline / read) |
 |------|-------|---------------------------------------------------|-----------|------------|
-| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 15 / 10 / 120 req/min |
-| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 30 / 20 / 240 req/min |
-| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 60 / 40 / 480 req/min |
+| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 15 / 30 / 120 req/min |
+| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 30 / 60 / 240 req/min |
+| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 60 / 120 / 480 req/min |
 | **Wallet top-up** | Any amount (Creem $1–$200 / WeChat ¥1–¥1000) | Covers leads beyond your monthly allowance | — | — |
 
 - **Billing unit = a lead you claim.** A lead (1 post or 1 comment — poster/commenter are both prospects) is billed the **first time you claim it**. Scoring it, re-reading it, or exporting it is **free**.
@@ -18,6 +18,12 @@
 - **Two wallets (2026-09-10)**: a **USD wallet** (funded via Creem, paid $1 = $1 credit) and a **CNY wallet** (funded via WeChat, paid CNY 1 = CNY 1 credit — no FX conversion). `vibe_balance()` returns both balances plus `settlement_currency`; `vibe_set_currency(currency='usd'|'cny'|'')` chooses it (empty = auto: whichever wallet holds credit, else the subscription channel).
 - **Fair use (not billed)**: we cap the amount we pull/match for an account per day (Free 5,000 / Starter 25,000 / Pro 50,000 items). This is invisible in normal use and only prevents extreme configurations; anything over simply spills to the next day.
 - **No usage-inducement**: how many subreddits or keywords you track is entirely your call — we do not sell allowance you don't need, and a bigger plan is never required just to "unlock" more.
+- **Reading your rate budget**: every **successful** response carries the bucket this call used —
+  `"rate": {"bucket":"write|pipeline|read", "tier", "limit", "used", "remaining", "window_s":60}`
+  (`used` **includes this call**; the three buckets are counted independently, so `remaining` is per-bucket).
+  `pipeline` counts **calls**, not scores: one `vibe_submit_score(scores=[...])` with up to 100 entries = **1** token.
+  On limit you get `{"ok":false,"code":"rate_limited","bucket","limit","used","retry_after_s","hint"}` —
+  sleep `retry_after_s`, then retry **once** (batching is the better fix).
 - **Upgrade (Starter/Pro)**: Creem (global) or WeChat Pay (CN) at `mcp.vibedollar.net`; auto-activation after payment. **Annual 20% off** (coming soon). **No trial**.
 
 ## Payment & activation (agent workflow)

@@ -94,9 +94,9 @@ Rules:
 
 | Tier | Price | **Claimed leads / month** (billed on first claim) | Daily cap | Rate limit (write / pipeline / read) |
 |------|-------|---------------------------------------------------|-----------|------------|
-| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 15 / 10 / 120 req/min |
-| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 30 / 20 / 240 req/min |
-| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 60 / 40 / 480 req/min |
+| **Free** | $0 (sign-up) | **1,000/mo** — use them as fast as you like | 1,000/day | 15 / 30 / 120 req/min |
+| **Starter** | **$19/mo** | **5,000/mo**, then **$5 per 1,000** extra | 1,000/day | 30 / 60 / 240 req/min |
+| **Pro** | **$79/mo** | **30,000/mo**, then **$3.50 per 1,000** extra | 3,000/day | 60 / 120 / 480 req/min |
 | **Wallet top-up** | Any amount (Creem $1–$200 / WeChat ¥1–¥1000) | Covers leads beyond your monthly allowance | — | — |
 
 - **Billing unit = a lead you claim**: 1 post or 1 comment = 1 lead (both author and commenter are prospects), billed the **first time you claim it**. **Scoring, re-reading and exporting are free** — the server meters claims, so there is nothing to self-report.
