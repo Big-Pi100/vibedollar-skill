@@ -75,6 +75,7 @@ vibe_submit_score(scores=[
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "unrelated"},
 ])
     → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}  # scoring is free
+      # BATCH IT: put the whole batch here (up to 100 items) -> N verdicts = ONE pipeline call (1 token).
 ```
 
 Rules:

@@ -86,7 +86,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 > 费用说明：上面 16 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
 >
-> 限流是**每账号三个独立桶**（2026-09-11），读不会再吃掉你的管道预算：**读**（delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance…）free·starter·pro = **120 · 240 · 480** 次/分钟；**管道**（`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`）= **10 · 20 · 40**；**写**（subscribe / keyword_* / sd_update / mark_leads / sub_list_update…）= **5 · 10 · 20**。所以一轮感知（5 次读）很便宜 —— 节奏要压在管道桶与写桶上。
+> 限流是**每账号三个独立桶**（2026-09-11），读不会再吃掉你的管道预算：**读**（delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance…）free·starter·pro = **120 · 240 · 480** 次/分钟；**管道**（`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`）= **10 · 20 · 40**；**写**（subscribe / keyword_* / sd_update / mark_leads / sub_list_update…）= **15 · 30 · 60**。所以一轮感知（5 次读）很便宜 —— 节奏要压在写桶上。**桶按「调用」计数，不按条目数**：一次 `vibe_submit_score` 最多收 **100** 条，只吃 **1 个** pipeline token —— 领 N 条后**一次**回传 N 条（`vibe_leads(limit=N)` + 一次 `vibe_submit_score(scores=[…])` = **2 次** pipeline 调用，不是 N+1 次）。一次超过 100 条返回 `code=batch_too_large`，**整单不落库**。
 
 ### Agent 决策循环（每订阅、每轮 —— v2.1 交付目标驱动）
 
@@ -239,6 +239,9 @@ vibe_submit_score(scores=[
     ...
 ])
     → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}   # 评分免费 — 这两个字段是额度回显, 不是扣费
+      # batch: {"submitted": 2, "max_batch": 100, "calls": 1, "bucket": "pipeline", "bucket_tokens": 1}
+      # 整批塞进这一次调用（最多 100 条）：N 条判定 = 1 次调用 = 1 个 pipeline token
+      # 单条失败进 errors（带 index/id/code/err），不影响其余条目落库
 ```
 
 规则：
@@ -287,7 +290,7 @@ vibe_submit_score(scores=[
 1. `vibe_subscribe(product)` 用**完整描述**（名称 + 定位 + 目标用户 + 网站，40+ 字）→ 拿
    `subscription_id`。过短描述（只有产品名）会被拒——只会生成泛词与低相关候选。
 2. `vibe_leads(subscription_id, limit)` → 保存每个候选的**完整返回记录**（含 `billing` 块），别丢字段。
-3. 把**所有** pending 候选用 `vibe_submit_score` 评完（`relevant` 或 `irrelevant`）。
+3. 把**所有** pending 候选用 `vibe_submit_score` 评完（`relevant` 或 `irrelevant`）。 **一次调用评完** —— 把整个 `scores` 数组（最多 100 条）一次提交：N 条 = 1 次 pipeline 调用，不是 N 次。
    评分免费、也不会"解锁计费"——它是保持反馈闭环与 pending 队列健康（队列到 50 条未评分会暂停）。
 4. 评 `relevant` 的线索，用 `vibe_get_delivered(lead_id)` 取完整正文做触达。
 

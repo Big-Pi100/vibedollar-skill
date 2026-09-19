@@ -72,6 +72,7 @@ vibe_submit_score(scores=[
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "与产品无关"},
 ])
     → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}  # 评分免费
+      # 整批塞进来（最多 100 条）→ N 条判定 = 1 次调用 = 1 个 pipeline token
 ```
 
 规则：

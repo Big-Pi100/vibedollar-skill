@@ -92,7 +92,7 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 
 > Cost note: the fifteen tools above are read/write state operations — **a lead is billed when first claimed** (Free 1,000/mo · Starter 5,000/mo, then $5 per 1,000 · Pro 30,000/mo, then $3.50 per 1,000); **scoring, re-reading and exporting are free**; daily-cap overflow carries to the next day.
 >
-> Rate limits are **three independent buckets per account** (2026-09-11), so reads never eat your pipeline budget: **read** (delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance …) 120 · 240 · 480 req/min for free · starter · pro; **pipeline** (`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`) 10 · 20 · 40; **write** (subscribe / keyword_* / sd_update / mark_leads / sub_list_update …) 5 · 10 · 20. A per-round perceive step (5 reads) is therefore cheap — pace yourself on the pipeline and write buckets.
+> Rate limits are **three independent buckets per account** (2026-09-11), so reads never eat your pipeline budget: **read** (delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance …) 120 · 240 · 480 req/min for free · starter · pro; **pipeline** (`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`) 10 · 20 · 40; **write** (subscribe / keyword_* / sd_update / mark_leads / sub_list_update …) 15 · 30 · 60. A per-round perceive step (5 reads) is therefore cheap — pace yourself on the write bucket. **Buckets count CALLS, not items**: one `vibe_submit_score` call takes up to **100** score objects and consumes exactly **one** pipeline token — so claim N leads and return all N verdicts in a SINGLE call (`vibe_leads(limit=N)` + one `vibe_submit_score(scores=[…])` = **2** pipeline calls, not N+1). More than 100 items in one call returns `code=batch_too_large` and writes nothing.
 
 ### Agent decision loop (per subscription, per round — v2.1 delivery-driven)
 
@@ -263,6 +263,9 @@ vibe_submit_score(scores=[
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "unrelated"},
 ])
     → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}   # scoring is free
+      # batch: {"submitted": 2, "max_batch": 100, "calls": 1, "bucket": "pipeline", "bucket_tokens": 1}
+      # Put the WHOLE batch here (up to 100 items): N verdicts in ONE call = ONE pipeline token.
+      # Per-item failures land in "errors" as {"index", "id", "code", "err"} and do NOT block the rest.
 ```
 
 Rules:
@@ -289,7 +292,7 @@ Note also that the pending list is **shared**: the web app (`app.html` → **To 
 Standard loop:
 1. `vibe_subscribe(product)` with a **complete description** (name + positioning + target users + website, 40+ chars) → get `subscription_id`. A short description (product name only) is rejected — it would generate generic keywords and low-relevance candidates.
 2. `vibe_leads(subscription_id, limit)` → save the **entire returned record** for each lead (including the `billing` block). Don't drop fields.
-3. Score the pending leads with `vibe_submit_score` (verdict `relevant` or `irrelevant`). Scoring is free and does not unlock billing — it keeps the feedback loop and the pending queue healthy (the queue pauses at 50 unscored).
+3. Score the pending leads with `vibe_submit_score` (verdict `relevant` or `irrelevant`). Scoring is free and does not unlock billing — it keeps the feedback loop and the pending queue healthy (the queue pauses at 50 unscored). **Return them in ONE call** — build the whole `scores` array (up to 100 items) and submit once: N verdicts = 1 pipeline call, not N.
 4. For leads scored `relevant`, `vibe_get_delivered(lead_id)` returns the full post body for outreach.
 
 ## Local script tools (batch executors — call when the action is mechanical)
