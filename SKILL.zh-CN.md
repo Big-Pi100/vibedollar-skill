@@ -63,7 +63,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | # | 步骤 | 调用 | 回执里驱动下一步的字段 |
 |---|---|---|---|
 | ① | 目标 / 额度 | `vibe_balance` / `vibe_sub_health` | `claim_quota{month_used,month_limit,daily_used,daily_cap}`、`assessment.gap_reason` |
-| ② | 领取 | `vibe_leads(subscription_id, limit)` —— **先 `peek=true` 免费看** | `data.posts[]`、`data.pending[]`、`progress.todo.claimable_now`、`progress.next.do` |
+| ② | 领取 | `vibe_leads(subscription_id, limit)`（`peek=true` 免费看**手上的待评分**; **未领取的候选 peek 看不到** —— 没有免费的候选预览, 候选只在领取时返回） | `data.posts[]`、`data.pending[]`、`progress.todo.claimable_now`、`progress.next.do` |
 | ③ | 判定 | `vibe_submit_score(scores=[…])`（≤100 条 = 1 个 pipeline token） | `items[].delivered_id`、`progress.round.scored_now`、`progress.todo.to_score`、`progress.next.do` |
 | ④ | 触达 | `vibe_outreach_advice(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传 | `draft_prompt`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
 | ⑤ | 发出并标记 | 发出后 `vibe_outreach_sent(lead_id)` 登记 → 有真实结果后 `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.outreach.sent`（=0 时先别标结果）、`todo.to_mark` |
@@ -146,6 +146,8 @@ outreach（写草稿 → 发出 → 标记结果）
   · 候选可能**没有**系统预评分: `score: null` + `prescored: false`（此时 `score_note` 会明说「本批无系统预评分」）—— 旧文案说「含系统参考分」, 以 `score_note` 为准。
   · `vibe_delivered` 每行现在带 `has_draft` / `draft_len`（**逐行判断缺草稿不用再扇出 advice**）、`draft_skip`、`outreach_state`、`outreach_replies_n`。
   · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
+  · `vibe_delivered` 每行同时给 `id` 与 `delivered_id`（同一个值）—— 别的回执都叫 `delivered_id`, 免得喂错。
+  · `draft_check` 失败时除 `failed` 还给 `failed_detail[{k,hit,note}]` —— **命中片段**直接告诉你哪个词踩线。
   · 草稿三字段: `draft_stored` = 库里现在有没有稿（权威）; `draft_written` = **本次调用**是否写入; `draft_saved` 是 `draft_written` 的兼容别名（同值, 已弃用）。读回一条已有草稿的条目时三者是 `stored=true / written=false / saved=false` —— **不矛盾**。
   · `next.advisory: true` = 这条 next 是**供给侧建议**（回灌门）: 停词/移 sub 不在你的职责范围时, 直接按 `next.alternatives` 继续领取即可, 服务端不拦。
   · `progress` 的**路径**: `vibe_leads` 在 `data.progress`; `vibe_submit_score` 与 `vibe_outreach_advice` 在**顶层** `progress`（历史原因, 两种都按文档写的位置读）。
@@ -183,7 +185,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_balance` | `（无）` | 查余额/tier/**双钱包**（`wallets{usd,cny}`）/结算币种/`claim_quota` 领取额度（key 走 Header） | 免费 | Header |
 | `vibe_set_currency` | `currency`（`usd` \| `cny` \| 空=自动） | 选**结算币种**：决定超量从哪个钱包扣（美元钱包 $5/$3.5 每千条 · 人民币钱包 ¥25/¥18 每千条） | 免费 | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按决策循环扩/停——见"Agent 决策循环"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（订阅本身不收费；线索在领取时计费） | Header |
-| `vibe_leads` | `subscription_id, limit, source, peek` | **领取线索（按首次领取计费）**：返回线索（含系统参考分）+ **`billing` 记账块**（本批条数、免费/计费拆分、`billable_items`/`takeover_items`、扣费、本月用量、每日上限）。`peek=true` = **纯只读预览**（不领取/不计费/不改归属, 字段带 `claimed_by`）—— 先免费看清单再决定花不花钱。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。回执带 `progress`（阶段/完成程度/下一步）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（你未评分的待处理累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。`source`（**2026-09-11**）：`agent`（默认）或 `web` —— 网页端用 `source='web'` 领取，它未评分的条**不占**你的 50 条闸门，且你可以自己领回（**免费**，首领已计费）；你带 `source='web'` 时会把你自己未评的条目原样回吐给你（不放新货、不计费）。见下方"待处理候选" | **首领即计费**（两端任一端首次领取） | Header |
+| `vibe_leads` | `subscription_id, limit, source, peek` | **领取线索（按首次领取计费）**：返回线索（含系统参考分）+ **`billing` 记账块**（本批条数、免费/计费拆分、`billable_items`/`takeover_items`、扣费、本月用量、每日上限）。`peek=true` = **纯只读预览**（不领取/不计费/不改归属, 字段带 `claimed_by`）—— 看的是**手上已领未判**的清单（**不是**未领取候选; 没有免费的候选预览）。回执还回显 `requested_limit` / `limit_applied` / `limit_clamped`（超档位会被夹到 free 20 / starter 30 / pro 50）。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。回执带 `progress`（阶段/完成程度/下一步）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（你未评分的待处理累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。`source`（**2026-09-11**）：`agent`（默认）或 `web` —— 网页端用 `source='web'` 领取，它未评分的条**不占**你的 50 条闸门，且你可以自己领回（**免费**，首领已计费）；你带 `source='web'` 时会把你自己未评的条目原样回吐给你（不放新货、不计费）。见下方"待处理候选" | **首领即计费**（两端任一端首次领取） | Header |
 | `vibe_submit_score` | `scores, override` | **评分回传（免费）**：`relevant` 进交付列表，`irrelevant` 回灌优化。**评分不影响计费**。`override=true`（**2026-09-11**）受理已被判过 `delivered`/`rejected` 的条目并**以本次判定为准**（relevant→irrelevant 会**撤回**交付记录，当月交付数随之回正），响应里 `overridden` 为实际翻转条数；人在网页端推翻你的判定时用得上。不带 `override` 时仍拒收已评分条目 | **免费** | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
 | `vibe_set_notify` | `enabled` | 邮件提醒开关：候选积压时是否发邮件通知你（默认开启，可关闭）| 免费 | Header |
@@ -462,7 +464,7 @@ vibe_submit_score(scores=[
 
 ```bash
 export VIBEDOLLAR_API_KEY=...        # 你的 vibedollar key
-export LLM_API_KEY=...               # 你的 LLM key
+export LLM_API_KEY=...               # **你自己的** LLM key（脚本可选: 不用脚本也行 —— 用你自己的模型判真后 vibe_submit_score 回传）
 export LLM_BASE_URL=https://api.deepseek.com/v1
 export LLM_MODEL=deepseek-chat
 python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidence]
