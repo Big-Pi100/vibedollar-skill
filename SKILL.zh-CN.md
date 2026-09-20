@@ -146,6 +146,7 @@ outreach（写草稿 → 发出 → 标记结果）
   · 候选可能**没有**系统预评分: `score: null` + `prescored: false`（此时 `score_note` 会明说「本批无系统预评分」）—— 旧文案说「含系统参考分」, 以 `score_note` 为准。
   · `vibe_delivered` 每行现在带 `has_draft` / `draft_len`（**逐行判断缺草稿不用再扇出 advice**）、`draft_skip`、`outreach_state`、`outreach_replies_n`。
   · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
+  · `publish_verdict` = 「我这个账号在这个社区发得出去吗」(与 verdict 是两个问题)。**平台级先验 (新号/低 karma) 只是建议**（`prior.advisory=true`, `basis=platform_prior_advisory`）—— 它不是该社区归档里的规则; 实测同账号在多个社区发评论**并未被删**。会 `hold`/`no` 的只有**有证据**的情形: 账号没填 / 归档门槛抽不到数值 / 归档门槛确实不达标（`blocks: karma_block|acct_age_block`）。所以草稿写好后**可以先在小社区试水**，别被先验吓住。
   · `vibe_delivered` 每行同时给 `id` 与 `delivered_id`（同一个值）—— 别的回执都叫 `delivered_id`, 免得喂错。
   · `draft_check` 失败时除 `failed` 还给 `failed_detail[{k,hit,note}]` —— **命中片段**直接告诉你哪个词踩线。
   · 草稿三字段: `draft_stored` = 库里现在有没有稿（权威）; `draft_written` = **本次调用**是否写入; `draft_saved` 是 `draft_written` 的兼容别名（同值, 已弃用）。读回一条已有草稿的条目时三者是 `stored=true / written=false / saved=false` —— **不矛盾**。
