@@ -127,8 +127,16 @@ That is **not** the same as "running but with no material this round".
   `next.args.hint_query` (a short domain term the server extracted from the description — a hint, feel
   free to change it), and
   `stage_done=false` (the stage cannot complete).
-- **Derive anchors from the product description / the four supply-demand parts — do not guess**:
-  `vibe_sub_catalog(query=<short domain word>)` — no query → **face A**: subs with real `relevant`
+- **⚠️ Anchor words and post-search words do NOT come from the same source (the step people get
+  wrong)**: subs are split by **industry / audience / interest / topic** — so anchor words can only
+  come from `sd_json.demand_side` (**target audience profile**), e.g. `lawn care operators` /
+  `SaaS founders` / `indie hackers`. `demand_pain` is **what the author would say** (first-person pain,
+  e.g. `how do I get my first customers`) — that is the **post / comment search word**, and it must
+  **never** be used as a sub anchor (`first customers` cannot be any sub's positioning).
+  The receipt's `next.args` hands you both raw texts and their sources (`audience_profile` /
+  `demand_pain` / `anchor_words_from` / `keyword_words_from`) — **the words are yours to choose**;
+  the server only supplies the raw material.
+- **How to search the directory**: `vibe_sub_catalog(query=<audience/industry short word>)` — no query → **face A**: subs with real `relevant`
   deliveries (already in corpus, searchable the moment you add them); with query → **faces B/C**: the
   directory matched lexically on **sub name + description** (may need pulling). For the whole directory
   use `vibe_sub_search(query, sort)` (+ pagination + **relevance-first** ranking: `name_hits` (the sub

@@ -106,7 +106,14 @@ outreach（写草稿 → 发出 → 标记结果）
   所以空搜索面时 `progress.next.do` 直接指向 `vibe_sub_list_update`、`todo.face.config_missing=true`、
   `next.args.hint_query` 是服务端从产品描述/供需四段抽的**领域短词**（提示，可自行换词）、
   且 `stage_done=false`（阶段不可能走完）。
-- **锚点从产品描述 / 供需四段推，不盲猜**：`vibe_sub_catalog(query=<领域短词>)` ——
+- **⚠️ sub 锚点词与帖子搜索词不同源（最容易搞错的一步）**：sub 是按**行业 / 人群 / 兴趣 /
+  话题**区分的 —— 所以锚点词只能从 `sd_json.demand_side`（**目标人群画像**）来，例如
+  `lawn care operators` / `SaaS founders` / `indie hackers`。而 `demand_pain` 是**作者会说的话**
+  （第一人称痛点，如 `how do I get my first customers`）—— 那是**帖子 / 评论的搜索词**，
+  **绝不能**拿它当 sub 定位词（`first customers` 不可能是任何 sub 的定位）。
+  回执的 `next.args` 把两段原文与来源都给你（`audience_profile` / `demand_pain` /
+  `anchor_words_from` / `keyword_words_from`）—— **词由你自己定**，服务端只给原料。
+- **怎么搜目录**：`vibe_sub_catalog(query=<人群/行业短词>)` ——
   无 query → **A 面**：真实 `relevant` 交付过的 sub（库内已有货，加入清单立即可搜）；
   带 query → **B/C 面**：名录按 **sub 名 + 简介**词法匹配（可能需取货）。要更全用
   `vibe_sub_search(query, sort)`（全量目录 + 分页 + **相关度优先**：先 `name_hits`(名字就叫这个)
