@@ -73,10 +73,12 @@ outreach（写草稿 → 发出 → 标记结果）
 2. `vibe_outreach_advice(delivered_id=<上面那个 id>, include_body=true)` → 拿 `draft_prompt`
    （写作任务书: 正文摘录 + 四层判定 + 该社区规则要点 + 8 条硬约束 + 12 句范例）;
 3. 用**你的** LLM 按任务书写一版 **≤18 词**回复（语言看 `lang` 字段, 默认英文）。
-   ⚠️ 若回执里 `draft_allowed=false`（`verdict=dont_reply`）—— 服务端**不下发**
-   `draft_prompt`（为空）、这条**不该有草稿**, 原因在 `draft_blocked`（如 `karma_block`
-   need 10 / have 5 = 你的账号在该社区发不出去）。别硬写; 门槛补齐后再回来看这条。
-   只有你/用户明确要覆盖判定时才 `draft=` 交稿（回执会带 `draft_warn`）。
+   ⚠️ `verdict=dont_reply` 也**要写草稿** —— 分两种, 看 `draft_hold.level`:
+   · `account`（`karma_block`/`acct_age_block` 等账号门槛未达, `basis=archive_gate`）:
+     **内容能回, 只是你的号现在发不出去/会被拦** → 草稿**照写**并 `draft=` 交稿,
+     补齐门槛后再发出（回执带 `draft_warn`, 卡片显示"门槛未达, 草稿先备好"）。
+   · `content`（帖子已删/locked/社区禁回等内容级否决）: `draft_allowed=false` 且
+     `draft_prompt` 为空 —— 这种写了也没用, 不必写。
 4. 用**同一个工具** `draft=<成稿>` 回传 → 服务端按同一套规则复核（≤18 词 / 无链接 / 不推销 /
    不承诺代做）并落库; app 的线索卡片会**优先显示**这一版。
    服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写。

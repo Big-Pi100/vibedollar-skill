@@ -85,11 +85,13 @@ loop — don't skip judging and go write drafts.
    (the writing brief: body excerpt + the four-layer verdict + this community's key rules +
    8 hard constraints + 12 example lines);
 3. write a **≤18 word** reply with **your** LLM from that brief (language per the `lang` field,
-   Warning: when the reply carries `draft_allowed=false` (`verdict=dont_reply`) the server
-   **withholds** `draft_prompt` (empty) — this lead **should not get a draft**; the reason is in
-   `draft_blocked` (e.g. `karma_block` need 10 / have 5 = your account cannot post in that
-   community). Do not force one; come back once the gate is satisfied. Only submit with `draft=`
-   when you or the user explicitly override the verdict (the reply then carries `draft_warn`).
+   Note: `verdict=dont_reply` **still wants a draft** — check `draft_hold.level`:
+   * `account` (`karma_block` / `acct_age_block`, `basis=archive_gate`): the content is fine but
+     your account is below the community gate, so **write the draft anyway** and submit it with
+     `draft=`; send it once the gate clears (the reply carries `draft_warn` and the card shows
+     "gate not met — draft kept").
+   * `content` (post deleted / locked / community bans replies): `draft_allowed=false` and
+     `draft_prompt` is empty — a draft would be useless, so skip it.
    default English);
 4. send it back through the **same tool** as `draft=<finished text>` — the server re-checks it
    against the same rules (≤18 words / no link / no pitch / no promise to do the work) and stores
