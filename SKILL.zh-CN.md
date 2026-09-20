@@ -146,6 +146,7 @@ outreach（写草稿 → 发出 → 标记结果）
   · 候选可能**没有**系统预评分: `score: null` + `prescored: false`（此时 `score_note` 会明说「本批无系统预评分」）—— 旧文案说「含系统参考分」, 以 `score_note` 为准。
   · `vibe_delivered` 每行现在带 `has_draft` / `draft_len`（**逐行判断缺草稿不用再扇出 advice**）、`draft_skip`、`outreach_state`、`outreach_replies_n`。
   · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
+  · **karma 不够 / 养号**: 先调 `vibe_account_ramp(subscription_id)` —— 它把 17 个社区分成「现在就能发」/「门槛差 N」/「门槛未知」/「实测被删过」，并给目标 karma、还差多少、按 5-15 karma/天估的天数。**服务端不代养号**（不代发/不刷），养号=本人在真实对话里持续提供价值；攒到门槛后再更新 `vibe_outreach_profile`（会自动记快照，`karma_trend` 看曲线）。
   · `publish_verdict` = 「我这个账号在这个社区发得出去吗」(与 verdict 是两个问题)。**平台级先验 (新号/低 karma) 只是建议**（`prior.advisory=true`, `basis=platform_prior_advisory`）—— 它不是该社区归档里的规则; 实测同账号在多个社区发评论**并未被删**。会 `hold`/`no` 的只有**有证据**的情形: 账号没填 / 归档门槛抽不到数值 / 归档门槛确实不达标（`blocks: karma_block|acct_age_block`）。所以草稿写好后**可以先在小社区试水**，别被先验吓住。
   · `vibe_delivered` 每行同时给 `id` 与 `delivered_id`（同一个值）—— 别的回执都叫 `delivered_id`, 免得喂错。
   · `draft_check` 失败时除 `failed` 还给 `failed_detail[{k,hit,note}]` —— **命中片段**直接告诉你哪个词踩线。
@@ -194,6 +195,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_unsubscribe` | `subscription_id` | 取消订阅（已积累的线索保留） | 免费 | Header |
 | `vibe_cancel_plan`（指引） | — | **付费档位（Starter/Pro）通过支付平台取消**（Creem 客户门户 / 微信支付管理），不走本 API。取消后档位保留到当期结束再降级 free；已领取的线索保留。产品订阅用 `vibe_unsubscribe` 取消 | 免费 | Header |
 | `vibe_pool_purge` | `subscription_id`, `kw`(可选), `sub`(可选), `out_of_scope`(默认 false), `dry_run`(默认 true) | **清未领取库存**（`status='new'`，从未计费 → 删除**零账目影响**；`sent/delivered/rejected` 一律不动）。供给侧收噪声的第三个动作：**想留的词**其旧库存会垄断领取轮转，**已移出清单的 sub** 的存量行仍能被领出来 —— 这两种都只能靠它清。先 `dry_run=true` 看会删多少 + 抽样，再 `dry_run=false`；做完 `vibe_opt_log` 记一笔 | 免费 | Header |
+| `vibe_account_ramp` | `subscription_id`(可选) | **账号养号体检 + 路线（只读, 零 LLM）**：量出**门槛差多少**、**哪些社区现在就能发**、**大约多久**。逐社区判定：`postable`（无已归档门槛且本账号未被删）· `gate_unmet`（有数值门槛未达 + `gap`）· `gate_unknown`（归档只说有门槛没给数值）· `self_removed`（**本账号实测被删过**，比归档更硬）· `high_removal`。回执给 `plan{postable_now, ramp_first, target_karma, karma_gap, eta_days, steps}` 与 `next`；每次更新 `vibe_outreach_profile` 会记 karma 快照，`karma_trend` 看趋势。**边界：服务端不代养号**（不代发/不代评/不刷 karma —— 那是 spam），养号只能由本人在真实对话里做 | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(可选), `include_body`(默认 true) | **触达建议 + 写作任务书（零 LLM）**：`delivered_id` 用**交付行 id**（`vibe_delivered`/`vibe_submit_score` 回执里的 `delivered_id`，**不是**候选 `lead_id`）。回执含四层判定（`verdict` 可回/谨慎回/别回）、`rules`（该社区规则要点）、`draft_prompt`（**给 agent 的写作任务书**：正文摘录 + 硬约束 + 范例）、`progress`（触达阶段进度）。把成稿放进 `draft` 参数回传 = 交稿, 服务端按同一套规则复核并落库（`draft_check`/`draft_saved`/`draft_source`）| 免费 | Header |
