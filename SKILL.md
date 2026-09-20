@@ -151,6 +151,14 @@ loop — don't skip judging and go write drafts.
   `draft_skip` and **never block the flow** (`todo.vetoed_n` is listed separately) while the
   `drafts_missing` definition stays unchanged. The customer-facing value evidence lives in
   `vibe_delivered`'s `outreach_stats` (sent -> alive -> replied -> reply rate).
+- **`next` is only the single best action, not the whole backlog**: the reply also carries
+  `next.alternatives` (the other things owed — e.g. "46 delivered leads with no draft / 50 more you
+  can claim") — the server states the facts, the choice stays yours.
+- **Outreach backlog is counted per subscription**: `todo.outreach_scope` (`subscription 355` or
+  `account`) states the scope; when it is account-wide, `todo.outreach_by_sub` breaks the backlog
+  down per subscription (how many drafts/marks each one owes). Measured lesson: the account-wide
+  count showed 122 missing drafts while working subscription 355 and put another subscription's
+  delivered_id into `next.args`.
 - outreach-stage `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`.
 - language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,

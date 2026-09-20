@@ -127,6 +127,12 @@ outreach（写草稿 → 发出 → 标记结果）
   valid/成交仍由你判。判定"不该回"的条目（如 karma 不够）会被标 `draft_skip`, 它们
   **不会卡住流程**（`todo.vetoed_n` 单列）, 而 `drafts_missing` 口径不变。
   客户端要看的价值证据在 `vibe_delivered` 的 `outreach_stats`（已发 → 存活 → 有人回 → 回复率）。
+- **`next` 只是"当前最优的一个", 不是"只有这一件欠账"**: 回执会同时给 `next.alternatives`
+  （其余还欠着的事, 如"46 条交付没草稿 / 50 条还能领"）—— 服务端并列事实, 取舍仍是你。
+- **触达欠账按订阅统计**: `todo.outreach_scope`（`subscription 355` 或 `account`）标明口径;
+  账号口径时 `todo.outreach_by_sub` 把欠账摊到各订阅（哪个订阅欠多少草稿/多少没标）。
+  （实测教训: 账号口径会让人在 sub 355 上看到别的订阅的 122 条欠稿, 并把别人的 delivered_id
+  塞进 `next.args`。）
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
