@@ -68,7 +68,20 @@ outreach (write draft → send → mark outcome)
 
 **A stage only completes when that stage's `stage_done=true`** (intake = 0 to score **and**
 0 claimable). As long as you can still claim, you are still in the claim→judge→return inner
-loop — don't skip judging and go write drafts.
+loop — do not skip judging and go write drafts.
+
+**Two things must hit zero before you call it done (measured 2026-09-21 — do not repeat it)**:
+- `vibe_leads(peek=true)` → `data.pending[]` / `data.unjudged_total` (`pending_count_agent`
+  shares the `to_score` scope) is the **authoritative list of what you still owe**. Finishing
+  means reading it to 0 **and** seeing `progress.stage_done=true`. `drain.unclaimed_total=0`
+  alone only means nothing is left unclaimed — that is **not** the finish line.
+- ⚠️ `vibe_submit_score` `errors[]` is **per-item**: a receipt with `id=A, code=already_scored`
+  says **item A** was judged elsewhere. **Never** use it to excuse a **different** id sitting in
+  `pending` (measured: one agent treated item A's `already_scored` as proof that `pending(id=B)`
+  was unfixable, reported a counting artifact that cannot be cleared, and shipped with
+  `to_score=1` — B had simply never been judged; one `vibe_submit_score` cleared it).
+  There are only two honest reasons an item will not go through: `not_yours` / `not_claimed`,
+  or `already_scored` **where the reported id is the one in `pending`**.
 
 | # | Step | Call | Fields in the response that drive the next step |
 |---|---|---|---|

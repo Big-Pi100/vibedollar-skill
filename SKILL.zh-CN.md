@@ -58,7 +58,18 @@ outreach（写草稿 → 发出 → 标记结果）
 ```
 
 **进入下一阶段的唯一条件是本阶段 `stage_done=true`**（intake = 待评分 0 **且** 可领 0）。
-只要还能领, 就还在"领取-判定-交回"的内循环里 —— 不要跳过判定直接去写草稿。
+只要还能领, 就还在「领取-判定-交回」的内循环里 —— 不要跳过判定直接去写草稿。
+
+**收尾前必须归零的两处（2026-09-21 实测教训, 别重犯）**:
+- `vibe_leads(peek=true)` 的 `data.pending[]` / `data.unjudged_total`（`pending_count_agent` 与
+  `to_score` 同口径）= **你手上欠账的权威清单**。收尾就是把它读到 0, 并看到
+  `progress.stage_done=true`; 只看到 `drain.unclaimed_total=0`（那只说明「未领取的领完了」）**不算收尾**。
+- ⚠️ `vibe_submit_score` 的 `errors[]` 是**逐条**口径: 回执里 `id=A, code=already_scored`
+  只说明 **A 这一条**被别处判过。**永远不要**拿它解释 `pending` 里的**另一个 id**（实测: 一个 agent
+  把 A 的 `already_scored` 当成 `pending(id=B)` 收不掉的证据, 写进报告说这是「消不掉的计数伪影」,
+  于是带着 `to_score=1` 收工 —— 而 B 其实从未被判定, 补一条 `vibe_submit_score` 立刻清零）。
+  判不了的真原因只有两种: `not_yours` / `not_claimed`（不是你的 / 没领到）, 或 `already_scored`
+  **且报出的 id 就是 `pending` 那一条**。
 
 | # | 步骤 | 调用 | 回执里驱动下一步的字段 |
 |---|---|---|---|
