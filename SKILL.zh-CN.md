@@ -292,7 +292,15 @@ vibe_submit_score(scores=[
 2. `vibe_leads(subscription_id, limit)` → 保存每个候选的**完整返回记录**（含 `billing` 块），别丢字段。
 3. 把**所有** pending 候选用 `vibe_submit_score` 评完（`relevant` 或 `irrelevant`）。 **一次调用评完** —— 把整个 `scores` 数组（最多 100 条）一次提交：N 条 = 1 次 pipeline 调用，不是 N 次。
    评分免费、也不会"解锁计费"——它是保持反馈闭环与 pending 队列健康（队列到 50 条未评分会暂停）。
-4. 评 `relevant` 的线索，用 `vibe_get_delivered(lead_id)` 取完整正文做触达。
+4. 评 `relevant` 之后**立刻写触达草稿**（不做这一步 = 该线索在 app 上永远显示"暂无草稿"）：
+   a. 回执里的 `outreach_next_step.delivered_ids` 就是这几条的**交付行 id**（用它，别用候选 id）；
+   b. `vibe_outreach_advice(delivered_id=<上面的 id>, include_body=true)` → 拿 `draft_prompt`
+      （写作任务书：正文摘录 + 四层判定 + 该社区规则要点 + 8 条硬约束 + 12 句范例）；
+   c. 用**你的** LLM 按任务书写一版 **≤18 词**回复（用 `data.lang` 指示的目标语言，默认英文）；
+   d. 用**同一个工具** `draft=<成稿>` 回传 → 服务端按同一套规则复核（≤18 词 / 无链接 / 不推销 /
+      不承诺代做）并落库；app 的线索卡片会**优先显示**这一版。
+   注：服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写；
+   `vibe_get_delivered(lead_id)` 仍可用于取全文（任务书里已含正文摘录，通常不必再取）。
 
 ## 本地脚本工具（批量执行器 —— 机械动作用脚本，决策归你）
 

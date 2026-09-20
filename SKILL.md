@@ -293,7 +293,20 @@ Standard loop:
 1. `vibe_subscribe(product)` with a **complete description** (name + positioning + target users + website, 40+ chars) → get `subscription_id`. A short description (product name only) is rejected — it would generate generic keywords and low-relevance candidates.
 2. `vibe_leads(subscription_id, limit)` → save the **entire returned record** for each lead (including the `billing` block). Don't drop fields.
 3. Score the pending leads with `vibe_submit_score` (verdict `relevant` or `irrelevant`). Scoring is free and does not unlock billing — it keeps the feedback loop and the pending queue healthy (the queue pauses at 50 unscored). **Return them in ONE call** — build the whole `scores` array (up to 100 items) and submit once: N verdicts = 1 pipeline call, not N.
-4. For leads scored `relevant`, `vibe_get_delivered(lead_id)` returns the full post body for outreach.
+4. Right after scoring `relevant`, **write the outreach draft** (skip this and the lead shows
+   "no draft yet" in the app forever):
+   a. the reply carries `outreach_next_step.delivered_ids` — use those (delivery-row ids, not
+      candidate ids);
+   b. `vibe_outreach_advice(delivered_id=<id>, include_body=true)` → returns `draft_prompt`, the
+      writing brief (body excerpt + the four-layer verdict + this community's key rules +
+      8 hard constraints + 12 passing examples);
+   c. write a **<=18 word** reply with **your** LLM from that brief (in `data.lang`, default en);
+   d. send it back through the **same tool** as `draft=<text>` — the server re-checks it against
+      the same rules (<=18 words / no link / no pitch / no promise to do work) and stores it;
+      the lead card in the app then shows **your** draft first.
+   Note: the backend is zero-LLM and serves **no generic templates** (generic lines are unrelated
+   to the lead) — the draft can only come from you. `vibe_get_delivered(lead_id)` still returns the
+   full body if you want it (the brief already includes an excerpt).
 
 ## Local script tools (batch executors — call when the action is mechanical)
 
