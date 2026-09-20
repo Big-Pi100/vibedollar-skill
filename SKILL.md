@@ -53,6 +53,7 @@ have to reconstruct "where am I in the loop" yourself.
 
 ```
 intake (claim → judge → return) — inner loop
+  ├─ progress.todo.supply.gate == true     → vibe_keywords (fix words/scope first, stop claiming noise)
   ├─ progress.todo.to_score > 0            → vibe_submit_score (return what you hold first)
   ├─ to_score == 0 and claimable_now > 0   → vibe_leads (claim another batch, back to judging)
   └─ to_score == 0 and claimable_now == 0  → stage_done=true → move to outreach
@@ -116,6 +117,16 @@ loop — don't skip judging and go write drafts.
   `next.args.subscription_ids`) to find which subscriptions hold the remainder, peek each, judge,
   and submit one batch; only when **all subscriptions together** reach zero does `stage_done=true`
   (otherwise the stage can never advance).
+- **Feedback gate (the supply-side closure)**: verdicts are written back to the per-keyword
+  counters (`n_rejected` / `avg_score`) and to `scoring_feedback`; but **written back ≠ acted on** —
+  retiring a word / dropping a sub is *your* decision, and retirement only affects *future* matching:
+  rows already matched into the pool keep getting claimed (measured: after the `revenue` keyword was
+  retired, the 36 rows pooled 7 minutes earlier were still handed out). Once the evidence is enough
+  (a word/sub with >=10 judged and >=90% noise, or one batch with >=5 items and >=80% irrelevant) the
+  response sets `todo.supply.gate=true`, lists `noise_kw` / `noise_subs`, and switches `next.do` to
+  `vibe_keywords`: call `vibe_keyword_remove(kw, force=true, note=…)` (**it also purges that word's
+  unclaimed pool rows** — `pool_purged` in the reply) / `vibe_sub_list_update(subs, mode="remove")`,
+  log it with `vibe_opt_log`, then resume the inner loop.
 - outreach-stage `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`.
 - language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,
   each minding its own business.

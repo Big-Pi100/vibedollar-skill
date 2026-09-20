@@ -45,7 +45,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 ```
 intake（领取 → 判定 → 交回）—— 内循环
-  ├─ progress.todo.to_score > 0            → vibe_submit_score（先把手上的交回）
+  ├─ progress.todo.supply.gate == true     → vibe_keywords（先修词面/清单, 别再领噪声）
   ├─ to_score == 0 且 claimable_now > 0    → vibe_leads（再领一批, 回到判定）
   └─ to_score == 0 且 claimable_now == 0   → stage_done=true → 进入 outreach
 outreach（写草稿 → 发出 → 标记结果）
@@ -99,6 +99,14 @@ outreach（写草稿 → 发出 → 标记结果）
 - **`to_score` 是账号口径**（闸门只按 API key 数），而 `vibe_leads(peek=true)` 的待评分清单是
   **逐订阅**的 —— 所以用 `todo.to_score_by_sub`（或 `next.args.subscription_ids`）找出欠在哪个订阅，
   逐个 `peek` → 判定 → 一次批量交回；**所有订阅合计清零**才会 `stage_done=true`（否则阶段永远进不去）。
+- **回灌门（供给侧闭环）**: 判定会写回词级计数（`n_rejected` / `avg_score`）与 `scoring_feedback`；
+  但**回灌 ≠ 自动动作** —— 停词/移 sub 由你决定, 而且停词只影响**今后匹配**: 池里已匹配好的
+  旧货照样会被领出来（实测: `revenue` 词停用后, 停用前入池的 36 条仍被领出）。
+  证据够了（某词/sub 判过 ≥10 条且噪声率 ≥90%, 或本批 ≥5 条且 ≥80% 判无关）回执会置
+  `todo.supply.gate=true` 并给出 `noise_kw` / `noise_subs`, `next.do` 改指 `vibe_keywords`:
+  先 `vibe_keyword_remove(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
+  回执里 `pool_purged` 是条数）/ `vibe_sub_list_update(subs, mode="remove")`, 再
+  `vibe_opt_log` 记一笔, 然后回内循环继续领。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
 
