@@ -59,7 +59,10 @@ intake (claim → judge → return) — inner loop
   └─ to_score == 0 and claimable_now == 0  → stage_done=true → move to outreach
 outreach (write draft → send → mark outcome)
   ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
-  ├─ unmarked_delivered > 0    → vibe_mark_leads(outcome=valid|invalid|contacted)
+  ├─ drafts done but sent == 0 → post the draft first; after posting call vibe_outreach_sent(lead_id)
+  │                             (the server finds your comment, marks it contacted, starts the
+  │                              re-check clock; or do nothing — discovery runs every 6h by username)
+  ├─ unmarked_delivered > 0 and sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)
   └─ both are 0                → back to intake / review
 ```
 
@@ -73,7 +76,7 @@ loop — don't skip judging and go write drafts.
 | ② | Claim | `vibe_leads(subscription_id, limit)` — **`peek=true` first for a free look** | `data.posts[]`, `data.pending[]`, `progress.todo.claimable_now`, `progress.next.do` |
 | ③ | Judge | `vibe_submit_score(scores=[…])` (≤100 items = 1 pipeline token) | `items[].delivered_id`, `progress.round.scored_now`, `progress.todo.to_score`, `progress.next.do` |
 | ④ | Outreach | `vibe_outreach_advice(delivered_id, include_body=true)` → write your own ≤18 words → send it back through the same tool as `draft=` | `draft_prompt`, `draft_check`, `draft_source`, `progress.todo.drafts_missing` |
-| ⑤ | Send + mark | `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.unmarked_delivered` |
+| ⑤ | Send + mark | after posting: `vibe_outreach_sent(lead_id)` to register, then `vibe_mark_leads(lead_ids, outcome)` once a real result exists | `progress.todo.outreach.sent` (when 0, do not mark results), `todo.to_mark` |
 | ⑥ | Review / iterate | `vibe_delivered` / `vibe_keywords` / `vibe_opt_log` | back to ① |
 
 **Step ④ in detail (skip it and the lead shows "no draft yet" in the app forever)**:
@@ -159,6 +162,13 @@ loop — don't skip judging and go write drafts.
   down per subscription (how many drafts/marks each one owes). Measured lesson: the account-wide
   count showed 122 missing drafts while working subscription 355 and put another subscription's
   delivered_id into `next.args`.
+- **Field quick-reference (added after the clean-agent test, each with a measured source)**:
+  · `data.billing` (inside `data`, not top level): `billable_items` = items on their **first claim** (the billing base, including the free-within-quota ones); `charged_items` = how many actually charged the wallet; `free_items` = free within quota; `takeover_items` = already billed elsewhere and reclaimed free. All three can coexist — read `billing_note`.
+  · Candidates may have **no** system pre-score: `score: null` + `prescored: false` (then `score_note` says so explicitly). Older doc text claiming a system reference score is superseded by `score_note`.
+  · `vibe_delivered` rows now carry `has_draft` / `draft_len` (**per-row draft discovery without fanning out advice**), plus `draft_skip`, `outreach_state`, `outreach_replies_n`.
+  · `todo.to_mark.delivered_ids` returns at most 20 ids; beyond that `ids_truncated: true` + `ids_limit: 20`.
+  · The three draft flags: `draft_stored` = is a draft in the DB right now (authoritative); `draft_written` = did **this call** write one; `draft_saved` is a deprecated alias of `draft_written` (same value). Reading back a lead that already has a draft gives `stored=true / written=false / saved=false` — that is **not** a contradiction.
+  · `next.advisory: true` = this next is a **supply-side suggestion** (the feedback gate); when retiring words/subscriptions is out of your scope, just take `next.alternatives` (usually claiming) — the server does not block it.
 - outreach-stage `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`.
 - language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,
@@ -194,7 +204,8 @@ loop — don't skip judging and go write drafts.
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
 | `vibe_unsubscribe` | `subscription_id` | Cancel subscription (accumulated leads kept) | Free | Header |
 | `vibe_cancel_plan` (指引) | — | **Paid plans (Starter/Pro) cancel via the payment platform** (Creem customer portal / WeChat Pay management), not via this API. After cancellation your tier stays until the current period ends, then downgrades to free; leads already delivered are kept. Product subscriptions are cancelled with `vibe_unsubscribe`. | Free | Header |
-| `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality | Free | Header |
+| `vibe_outreach_sent` | `lead_id` (**candidate id**) | **"I posted it" registration**: the server immediately looks for your comment in that thread (one request); on a hit it registers comment id / posted time / alive state / score / reply count and, if you never marked it, **marks the outcome `contacted`**; later re-checks at T+24h/72h/7d. On a miss it records `unknown` and the per-username discovery (every 6h) keeps watching. Requires a Reddit username in the app sidebar | Free | Header |
+| `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality. Warning: this requires that you **actually posted** (`todo.outreach.sent > 0`) — with nothing sent there is no result to mark, and `next` will point at `vibe_outreach_sent` instead | Free | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(optional), `include_body`(default true) | **Outreach advice + writing brief (zero LLM)**: `delivered_id` is the **DELIVERY ROW id** (the `delivered_id` from `vibe_delivered` / `vibe_submit_score`, **not** the candidate `lead_id`). Returns the four-layer verdict (`verdict`: safe to reply / reply with care / do not reply), `rules` (this community's key rules), `draft_prompt` (**the writing brief for the agent**: body excerpt + hard constraints + examples) and `progress` (outreach-stage progress). Passing `draft=<text>` = submitting the draft: the server re-checks it with the same rules and stores it (`draft_check` / `draft_saved` / `draft_source`) | Free | Header |
 | `vibe_get_delivered` | `lead_id` | Single delivered lead detail (follow-up), including **full body** for context | Free | Header |
 | `vibe_delivered` | `limit, offset` | Delivered leads list (follow-up history) | Free | Header |

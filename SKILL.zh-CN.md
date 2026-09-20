@@ -50,7 +50,10 @@ intake（领取 → 判定 → 交回）—— 内循环
   └─ to_score == 0 且 claimable_now == 0   → stage_done=true → 进入 outreach
 outreach（写草稿 → 发出 → 标记结果）
   ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
-  ├─ unmarked_delivered > 0    → vibe_mark_leads(outcome=valid|invalid|contacted)
+  ├─ 草稿齐但 sent == 0        → 先把草稿**发出去**; 发出后 vibe_outreach_sent(lead_id) 登记
+  │                             (服务端去找你的评论, 找到即自动标 contacted + 起复查时钟;
+  │                              也可以什么都不做 —— 监控腿每 6 小时按用户名自动发现)
+  ├─ unmarked_delivered > 0 且 sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)
   └─ 两项都为 0                → 回 intake / 复盘
 ```
 
@@ -63,7 +66,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | ② | 领取 | `vibe_leads(subscription_id, limit)` —— **先 `peek=true` 免费看** | `data.posts[]`、`data.pending[]`、`progress.todo.claimable_now`、`progress.next.do` |
 | ③ | 判定 | `vibe_submit_score(scores=[…])`（≤100 条 = 1 个 pipeline token） | `items[].delivered_id`、`progress.round.scored_now`、`progress.todo.to_score`、`progress.next.do` |
 | ④ | 触达 | `vibe_outreach_advice(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传 | `draft_prompt`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
-| ⑤ | 发出并标记 | `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.unmarked_delivered` |
+| ⑤ | 发出并标记 | 发出后 `vibe_outreach_sent(lead_id)` 登记 → 有真实结果后 `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.outreach.sent`（=0 时先别标结果）、`todo.to_mark` |
 | ⑥ | 复盘 / 迭代 | `vibe_delivered` / `vibe_keywords` / `vibe_opt_log` | 回到 ① |
 
 **④ 的细节（不做这步 = 该线索在 app 上永远显示"暂无草稿"）**:
@@ -133,6 +136,13 @@ outreach（写草稿 → 发出 → 标记结果）
   账号口径时 `todo.outreach_by_sub` 把欠账摊到各订阅（哪个订阅欠多少草稿/多少没标）。
   （实测教训: 账号口径会让人在 sub 355 上看到别的订阅的 122 条欠稿, 并把别人的 delivered_id
   塞进 `next.args`。）
+- **回执字段速查（干净 agent 实测补全, 都有实测出处）**:
+  · `data.billing`（**在 `data` 里**, 不是顶层）: `billable_items` = 本次**首次领取**条目数（计费基数, 含额度内免费的）; `charged_items` = 真扣钱的条数; `free_items` = 其中免费; `takeover_items` = 他端已计费本次免费领回。三个数同时在是正常的, 看 `billing_note`。
+  · 候选可能**没有**系统预评分: `score: null` + `prescored: false`（此时 `score_note` 会明说「本批无系统预评分」）—— 旧文案说「含系统参考分」, 以 `score_note` 为准。
+  · `vibe_delivered` 每行现在带 `has_draft` / `draft_len`（**逐行判断缺草稿不用再扇出 advice**）、`draft_skip`、`outreach_state`、`outreach_replies_n`。
+  · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
+  · 草稿三字段: `draft_stored` = 库里现在有没有稿（权威）; `draft_written` = **本次调用**是否写入; `draft_saved` 是 `draft_written` 的兼容别名（同值, 已弃用）。读回一条已有草稿的条目时三者是 `stored=true / written=false / saved=false` —— **不矛盾**。
+  · `next.advisory: true` = 这条 next 是**供给侧建议**（回灌门）: 停词/移 sub 不在你的职责范围时, 直接按 `next.alternatives` 继续领取即可, 服务端不拦。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
@@ -167,7 +177,8 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_list_subs` | `（无）` | 查看我的订阅列表及候选线索积累状态 | 免费 | Header |
 | `vibe_unsubscribe` | `subscription_id` | 取消订阅（已积累的线索保留） | 免费 | Header |
 | `vibe_cancel_plan`（指引） | — | **付费档位（Starter/Pro）通过支付平台取消**（Creem 客户门户 / 微信支付管理），不走本 API。取消后档位保留到当期结束再降级 free；已领取的线索保留。产品订阅用 `vibe_unsubscribe` 取消 | 免费 | Header |
-| `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量 | 免费 | Header |
+| `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
+| `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(可选), `include_body`(默认 true) | **触达建议 + 写作任务书（零 LLM）**：`delivered_id` 用**交付行 id**（`vibe_delivered`/`vibe_submit_score` 回执里的 `delivered_id`，**不是**候选 `lead_id`）。回执含四层判定（`verdict` 可回/谨慎回/别回）、`rules`（该社区规则要点）、`draft_prompt`（**给 agent 的写作任务书**：正文摘录 + 硬约束 + 范例）、`progress`（触达阶段进度）。把成稿放进 `draft` 参数回传 = 交稿, 服务端按同一套规则复核并落库（`draft_check`/`draft_saved`/`draft_source`）| 免费 | Header |
 | `vibe_get_delivered` | `lead_id` | 单条已交付线索详情（回访用），含**完整正文** | 免费 | Header |
 | `vibe_delivered` | `limit, offset` | 已交付线索列表（回访历史客户） | 免费 | Header |
