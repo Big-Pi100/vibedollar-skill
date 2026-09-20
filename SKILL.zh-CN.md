@@ -143,6 +143,9 @@ outreach（写草稿 → 发出 → 标记结果）
   · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
   · 草稿三字段: `draft_stored` = 库里现在有没有稿（权威）; `draft_written` = **本次调用**是否写入; `draft_saved` 是 `draft_written` 的兼容别名（同值, 已弃用）。读回一条已有草稿的条目时三者是 `stored=true / written=false / saved=false` —— **不矛盾**。
   · `next.advisory: true` = 这条 next 是**供给侧建议**（回灌门）: 停词/移 sub 不在你的职责范围时, 直接按 `next.alternatives` 继续领取即可, 服务端不拦。
+  · `progress` 的**路径**: `vibe_leads` 在 `data.progress`; `vibe_submit_score` 与 `vibe_outreach_advice` 在**顶层** `progress`（历史原因, 两种都按文档写的位置读）。
+  · `vibe_leads(peek=true)` 只回**已领取未判定**的清单（`pending`）; 未领取的候选不在 peek 里（`posts=[]`, 用 `pool_stats.new` 看库存）—— 领取才会拿到候选。
+  · `vibe_outreach_sent` 找不到评论时只记 `outreach_state=unknown`（**不会**写 outcome —— 没找到评论就没有"已触达"）; 真找到才会自动标 `contacted`。
   · `progress` 只挂在**三个管道工具**上（`vibe_leads` / `vibe_submit_score` / `vibe_outreach_advice`）; 其余只读工具（`vibe_balance`/`vibe_delivered`/`vibe_sub_delivery` 等）各自返回自己的数据面, 不带 progress。
   · `next` 若超出你的职责/授权（例如停词、移 sub、替客户发布）——**换个手**: 按 `next.alternatives` 走（通常是继续领取）或交给负责人; 服务端**从不拦**你领取。`next.advisory: true` = 这条 next 是建议（供给侧回灌门）; `alternatives` 里**不会**在你还没发出任何东西时推 `vibe_mark_leads`（sent=0 时改成推 `vibe_outreach_sent`）。
   · **id 速查（实测踩过三次, 现在交付类工具两种 id 都认）**: `delivered_id`（交付行 id, 回执里的 `delivered_ids`）是 `vibe_delivered` / `vibe_get_delivered` / `vibe_outreach_advice` / `vibe_outreach_sent` / `vibe_mark_leads` 的**推荐参数**; 候选 id（`lead_pool.id`, 7 位, 回执里的 `lead_ids`）只给 `vibe_submit_score` / `vibe_recover_lead` 用 —— 但交付类工具现在也接受它（内部自动映射）, 传错不会静默失败。
