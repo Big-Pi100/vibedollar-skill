@@ -124,7 +124,14 @@ loop — don't skip judging and go write drafts.
   retired, the 36 rows pooled 7 minutes earlier were still handed out). Once the evidence is enough
   (a word/sub with >=10 judged and >=90% noise, or one batch with >=5 items and >=80% irrelevant) the
   response sets `todo.supply.gate=true`, lists `noise_kw` / `noise_subs`, and switches `next.do` to
-  `vibe_keywords`: call `vibe_keyword_remove(kw, force=true, note=…)` (**it also purges that word's
+  `vibe_keywords`. **Delivery rates and the scope's management history come with it** (not a
+  decision made for you): `todo.supply.stats.subs` / `.kw` = per sub/keyword pooled · delivered ·
+  rejected · **delivery rate** · unclaimed, plus `in_list` (still in the search scope) and
+  `list_added_at` / `list_source`; `stats.sub_history` = the add/remove/replace log for that scope
+  (who · when · why, auto-recorded like `kw_change_log` — you only pass `note`); `stats.low_yield` =
+  subs/keywords with >=5 judged and <20% delivery rate — **just the same data sorted differently, not
+  a gate**: it is yours to decide. `gate` is likewise evidence + a suggestion (`override_allowed:
+  true`) — you may simply keep claiming. When you do act: call `vibe_keyword_remove(kw, force=true, note=…)` (**it also purges that word's
   unclaimed pool rows** — `pool_purged` in the reply) / `vibe_sub_list_update(subs, mode="remove")`,
   log it with `vibe_opt_log`, then resume the inner loop.
 - outreach-stage `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`.

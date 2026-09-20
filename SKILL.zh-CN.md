@@ -104,7 +104,13 @@ outreach（写草稿 → 发出 → 标记结果）
   旧货照样会被领出来（实测: `revenue` 词停用后, 停用前入池的 36 条仍被领出）。
   证据够了（某词/sub 判过 ≥10 条且噪声率 ≥90%, 或本批 ≥5 条且 ≥80% 判无关）回执会置
   `todo.supply.gate=true` 并给出 `noise_kw` / `noise_subs`, `next.do` 改指 `vibe_keywords`:
-  先 `vibe_keyword_remove(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
+  **交付率与清单管理历史也一并给你**（不是替你决定）: `todo.supply.stats.subs` / `.kw` = 每个
+  sub / 词的入池·交付·拒绝·**交付率**·未领取 + `in_list`（是否仍在搜索面）+ `list_added_at` /
+  `list_source`; `stats.sub_history` = 该清单的 add/remove/replace 流水（谁·何时·为什么,
+  与 `kw_change_log` 同款、**自动留痕**, 你只要传 `note`）; `stats.low_yield` = 判过 ≥5 且
+  交付率 <20% 的 sub / 词 —— **这只是同一份数据的另一种排法, 不是门**: 收不收由你定。
+  `gate` 同样只是证据 + 建议（`override_allowed: true`）—— 你也可以照常领取。
+  要动手时: 先 `vibe_keyword_remove(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
   回执里 `pool_purged` 是条数）/ `vibe_sub_list_update(subs, mode="remove")`, 再
   `vibe_opt_log` 记一笔, 然后回内循环继续领。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`。
