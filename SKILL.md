@@ -124,8 +124,9 @@ That is **not** the same as "running but with no material this round".
 - Matching **runs only inside the corpus of the subs on your list** (v2.2 strict sub anchor) — an empty
   list means zero candidates no matter how good the words are. So with an empty face,
   `progress.next.do` points straight at `vibe_sub_list_update`, `todo.face.config_missing=true`,
-  `next.args.hint_query` (a short domain term the server extracted from the description — a hint, feel
-  free to change it), and
+  `next.args.audience_profile` / `demand_pain` hand you both raw texts verbatim (the server does **no**
+  term extraction and offers **no** candidate words — the anchor words are yours to derive, or just ask
+  the customer which subs to use), and
   `stage_done=false` (the stage cannot complete).
 - **⚠️ Anchor words and post-search words do NOT come from the same source (the step people get
   wrong)**: subs are split by **industry / audience / interest / topic** — so anchor words can only

@@ -104,7 +104,7 @@ outreach（写草稿 → 发出 → 标记结果）
 
 - 匹配**只在你的 sub 清单内的语料里跑**（v2.2 彻底 sub 锚点）—— 清单为空，词表再好也是 0 候选。
   所以空搜索面时 `progress.next.do` 直接指向 `vibe_sub_list_update`、`todo.face.config_missing=true`、
-  `next.args.hint_query` 是服务端从产品描述/供需四段抽的**领域短词**（提示，可自行换词）、
+  `next.args.audience_profile` / `demand_pain` 把两段原文**原样**给你（服务端**不抽词、不给候选词** —— 锚点词由你自己提，也可以直接问客户要 sub）、
   且 `stage_done=false`（阶段不可能走完）。
 - **⚠️ sub 锚点词与帖子搜索词不同源（最容易搞错的一步）**：sub 是按**行业 / 人群 / 兴趣 /
   话题**区分的 —— 所以锚点词只能从 `sd_json.demand_side`（**目标人群画像**）来，例如
