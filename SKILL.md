@@ -169,6 +169,10 @@ loop — don't skip judging and go write drafts.
   · `todo.to_mark.delivered_ids` returns at most 20 ids; beyond that `ids_truncated: true` + `ids_limit: 20`.
   · The three draft flags: `draft_stored` = is a draft in the DB right now (authoritative); `draft_written` = did **this call** write one; `draft_saved` is a deprecated alias of `draft_written` (same value). Reading back a lead that already has a draft gives `stored=true / written=false / saved=false` — that is **not** a contradiction.
   · `next.advisory: true` = this next is a **supply-side suggestion** (the feedback gate); when retiring words/subscriptions is out of your scope, just take `next.alternatives` (usually claiming) — the server does not block it.
+  · `progress` rides on **three pipeline tools only** (`vibe_leads` / `vibe_submit_score` / `vibe_outreach_advice`); other read tools (`vibe_balance` / `vibe_delivered` / `vibe_sub_delivery` …) return their own data without `progress`.
+  · If `next` needs something outside your scope (retiring a word, dropping a sub, posting on the customer's behalf), **hand it over**: take `next.alternatives` (usually claiming) or pass it to the human — the server **never blocks** claiming. `next.advisory: true` marks a suggestion (the supply-side feedback gate); `alternatives` will **not** suggest `vibe_mark_leads` while nothing has been sent (with `sent=0` it points at `vibe_outreach_sent` instead).
+  · `next.args.lead_ids` (candidate ids, 7 digits) is what `vibe_outreach_sent(lead_id)` wants; `delivered_ids` (4 digits) is only there for cross-reference. `vibe_get_delivered` accepts either id and now returns `has_draft` / `draft_len`.
+  · On `vibe_submit_score` the `unmarked_delivered` count is **account-scoped** (carries `unmarked_delivered_scope: account`); for the subscription(s) in play read `progress.todo.to_mark` (with `scope` and the id lists).
 - outreach-stage `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`.
 - language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,

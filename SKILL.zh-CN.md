@@ -143,6 +143,10 @@ outreach（写草稿 → 发出 → 标记结果）
   · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
   · 草稿三字段: `draft_stored` = 库里现在有没有稿（权威）; `draft_written` = **本次调用**是否写入; `draft_saved` 是 `draft_written` 的兼容别名（同值, 已弃用）。读回一条已有草稿的条目时三者是 `stored=true / written=false / saved=false` —— **不矛盾**。
   · `next.advisory: true` = 这条 next 是**供给侧建议**（回灌门）: 停词/移 sub 不在你的职责范围时, 直接按 `next.alternatives` 继续领取即可, 服务端不拦。
+  · `progress` 只挂在**三个管道工具**上（`vibe_leads` / `vibe_submit_score` / `vibe_outreach_advice`）; 其余只读工具（`vibe_balance`/`vibe_delivered`/`vibe_sub_delivery` 等）各自返回自己的数据面, 不带 progress。
+  · `next` 若超出你的职责/授权（例如停词、移 sub、替客户发布）——**换个手**: 按 `next.alternatives` 走（通常是继续领取）或交给负责人; 服务端**从不拦**你领取。`next.advisory: true` = 这条 next 是建议（供给侧回灌门）; `alternatives` 里**不会**在你还没发出任何东西时推 `vibe_mark_leads`（sent=0 时改成推 `vibe_outreach_sent`）。
+  · `next.args.lead_ids`（候选 id, 7 位）才是 `vibe_outreach_sent(lead_id)` 的参数; `delivered_ids`（4 位）只是对照。`vibe_get_delivered` 两种 id 都认, 并返回 `has_draft`/`draft_len`。
+  · `vibe_submit_score` 回执里的 `unmarked_delivered` 是**账号口径**（带 `unmarked_delivered_scope: account`）; 本次涉及订阅的欠账看 `progress.todo.to_mark`（带 `scope` 与 id 清单）。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
