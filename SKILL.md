@@ -45,6 +45,89 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 4. **Check balance/allowance**: `vibe_balance()` (key read from header) — returns the `claim_quota` usage block.
 5. **Web self-service** also available: `https://vibedollar.net/account.html` (register/verify/pay).
 
+## Main pipeline (one flow — every response tells you the next call)
+
+The server is the **state layer**: every response carries a `progress` block = **current
+stage + how complete it is + the next tool**. Just follow `progress.next.do` — you don't
+have to reconstruct "where am I in the loop" yourself.
+
+```
+intake (claim → judge → return) — inner loop
+  ├─ progress.todo.to_score > 0            → vibe_submit_score (return what you hold first)
+  ├─ to_score == 0 and claimable_now > 0   → vibe_leads (claim another batch, back to judging)
+  └─ to_score == 0 and claimable_now == 0  → stage_done=true → move to outreach
+outreach (write draft → send → mark outcome)
+  ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
+  ├─ unmarked_delivered > 0    → vibe_mark_leads(outcome=valid|invalid|contacted)
+  └─ both are 0                → back to intake / review
+```
+
+**A stage only completes when that stage's `stage_done=true`** (intake = 0 to score **and**
+0 claimable). As long as you can still claim, you are still in the claim→judge→return inner
+loop — don't skip judging and go write drafts.
+
+| # | Step | Call | Fields in the response that drive the next step |
+|---|---|---|---|
+| ① | Goal / allowance | `vibe_balance` / `vibe_sub_health` | `claim_quota{month_used,month_limit,daily_used,daily_cap}`, `assessment.gap_reason` |
+| ② | Claim | `vibe_leads(subscription_id, limit)` — **`peek=true` first for a free look** | `data.posts[]`, `data.pending[]`, `progress.todo.claimable_now`, `progress.next.do` |
+| ③ | Judge | `vibe_submit_score(scores=[…])` (≤100 items = 1 pipeline token) | `items[].delivered_id`, `progress.round.scored_now`, `progress.todo.to_score`, `progress.next.do` |
+| ④ | Outreach | `vibe_outreach_advice(delivered_id, include_body=true)` → write your own ≤18 words → send it back through the same tool as `draft=` | `draft_prompt`, `draft_check`, `draft_source`, `progress.todo.drafts_missing` |
+| ⑤ | Send + mark | `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.unmarked_delivered` |
+| ⑥ | Review / iterate | `vibe_delivered` / `vibe_keywords` / `vibe_opt_log` | back to ① |
+
+**Step ④ in detail (skip it and the lead shows "no draft yet" in the app forever)**:
+
+1. right after you judge `relevant`, `progress.next.args.delivered_id` in the response (the old
+   field `outreach_next_step.delivered_ids`) is this batch's **delivery-row id** (use it, not the
+   candidate id);
+2. `vibe_outreach_advice(delivered_id=<that id>, include_body=true)` → take `draft_prompt`
+   (the writing brief: body excerpt + the four-layer verdict + this community's key rules +
+   8 hard constraints + 12 example lines);
+3. write a **≤18 word** reply with **your** LLM from that brief (language per the `lang` field,
+   default English);
+4. send it back through the **same tool** as `draft=<finished text>` — the server re-checks it
+   against the same rules (≤18 words / no link / no pitch / no promise to do the work) and stores
+   it; the lead card in the app then shows **this** version first.
+   The server is zero-LLM and serves **no generic templates** (generic lines are unrelated to the
+   lead) — the draft can only come from you.
+
+### `progress` block fields (same shape in every response; absent when the tool doesn't touch that stage)
+
+```json
+"progress": {
+  "stage": "intake",              // intake(claim→judge→return) | outreach(outreach)
+  "stage_index": 1, "stage_total": 2, "stage_label": "claim → judge → return",
+  "stage_done": false,            // true = this stage is done, you may move to the next
+  "round": {"claimed_now": 2, "scored_now": 0, "delivered_now": 0},
+  "todo": {"to_score": 18, "to_score_web": 0, "claimable_now": 32,
+           "limits": {"pool_available": 57, "daily_left": 988,
+                      "quota_left": 793, "gate_left": 32, "gate_limit": 50}},
+  "summary": "this stage(claim → judge → return) this round: claimed 2 / judged 0 / delivered 0; remaining: 18 to score, 32 claimable",
+  "next": {"do": "vibe_submit_score", "why": "…", "args": {"n_items": 18}, "gate": "…"}
+}
+```
+
+- `claimable_now` = min(immediately claimable in the pool / left today / monthly allowance left +
+  wallet-affordable overage / gate left); **all four are broken out in `limits`** — see clearly
+  which term is the 0 (a full gate ≠ no supply).
+- outreach-stage `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`.
+- language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,
+  each minding its own business.
+
+### Demand-side response fields → your action (parallel to the supply-side table in §2)
+
+| Response field | Meaning | Your action |
+|---|---|---|
+| `progress.next.do` | the next tool the server computed for the current stage | **call it** (the pipeline's main driver) |
+| `progress.todo.to_score` | claimed but unjudged (gate scope, agent claims only) | >0 → `vibe_submit_score` (one batch) |
+| `progress.todo.claimable_now` | what you can really claim now (min of four terms) | >0 and to_score=0 → `vibe_leads` another batch |
+| `progress.todo.limits.*` | which term caps the claimable number (pool/day/quota/gate) | treat the cause: gate → judge first; pool → wait for intake / widen the list; quota → `vibe_balance` |
+| `items[].delivered_id` | delivery-row id of what you just judged relevant | pass to `vibe_outreach_advice` (**not** the candidate id) |
+| `unmarked_delivered` | sent but outcome not marked | >0 → `vibe_mark_leads(outcome=…)` |
+| `data.source_status` | `ok` / `pending` / `locked` / `waiting` / `exhausted` / `config_missing` | only `ok` has new supply; `locked` → judge first; `config_missing` → fix config per `next_steps` |
+| `billing{claimed_batch,billable_items,charge…}` | billing for this claim batch (first claim = billed) | tell the user the cost; overage is charged to the settlement-currency wallet |
+| `data.lang` / `lang_source` | language for this subscription's judging and drafts | write sd four fields, verdict reasons and drafts in it |
+
 ## Tools
 
 | Tool | Params | What it does | Cost | Auth |
@@ -54,7 +137,7 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 | `vibe_balance` | — | Balance / tier / **two wallets** (`wallets{usd,cny}`) / settlement currency / monthly claim allowance used + daily cap (key via header) | Free | Header |
 | `vibe_set_currency` | `currency` (`usd` \| `cny` \| empty = auto) | Pick the **settlement currency**: which wallet overage is charged from (USD wallet $5/$3.50 per 1,000 · CNY wallet ¥25/¥18 per 1,000) | Free | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(optional), `track_type`(optional) | **Continuous monitoring**: describe your product, system tracks and accumulates candidates (search direction managed for you). **Product description must be complete (40+ chars)**: name + one-line positioning + target users + website URL. Short descriptions produce generic keywords and low-relevance candidates; subscriptions with short descriptions are rejected. | `enable_competitor_kw` (default on): set `false` for direct-demand leads only, excluding competitor-comparison posts. `track_type` (internal use: outreach/seo/hot_content) | Free (candidates free) | Header |
-| `vibe_leads` | `subscription_id, limit, source` | **Claim leads (billed on first claim)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Returns a `billing` block (batch size, free/billable split, `billable_items` / `takeover_items`, charge, month usage, daily cap). **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). Response includes `posts` (new leads), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (when 50 unscored **agent** pendings accumulate, score them to continue; see **Working with pending candidates**). `source` (**2026-09-11**): `agent` (default) or `web` — the web app claims with `source='web'`; its unscored items do **not** count toward your 50-item gate, and you can take them back yourself (free — the first claim was already billed). With `source='web'` you get your own unscored items back instead of new ones (no billing) | **Billed on first claim** (either end) | Header |
+| `vibe_leads` | `subscription_id, limit, source, peek` | **Claim leads (billed on first claim)**: posts/comments with system reference score, each with a **source type** (direct demand / competitor comparison / comment, filterable via `kw_type`; excludes competitor-comparison when disabled). Returns a `billing` block (batch size, free/billable split, `billable_items` / `takeover_items`, charge, month usage, daily cap). **Per-claim cap: free 20 / Starter 30 / Pro 50** (returns min(limit, tier cap)). `peek=true` is a **free read-only preview** (no claim, no billing, no ownership change; items carry `claimed_by`) — look at the list for free before deciding to spend. The response carries a `progress` block (stage / completion / next step). Response includes `posts` (new leads), `pending` (claimed, not yet scored, with `id`) and `source_status: locked` (when 50 unscored **agent** pendings accumulate, score them to continue; see **Working with pending candidates**). `source` (**2026-09-11**): `agent` (default) or `web` — the web app claims with `source='web'`; its unscored items do **not** count toward your 50-item gate, and you can take them back yourself (free — the first claim was already billed). With `source='web'` you get your own unscored items back instead of new ones (no billing) | **Billed on first claim** (either end) | Header |
 | `vibe_submit_score` | `scores, override` | **Score claimed leads (free)**: `relevant` = moved to delivered list, `irrelevant` = feedback for tuning. Scoring never affects billing. `override=true` (**2026-09-11**) accepts items already judged `delivered`/`rejected` and lets your verdict win (a flipped relevant→irrelevant **retracts** the delivery record, so the monthly delivered count goes back down); the response reports `overridden`. Use it when the human overruled you in the web app — plain submissions still reject already-scored ids | **Free** | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **Calibration (optional)**: view/respond to disagreements with the system reference score, and we tune the standard to match your judgment. Use it when a candidate's reference score surprises you; it also flags where your scoring may be drifting, so the pipeline stays aligned with your real definition of a good lead | Free | Header |
 | `vibe_set_notify` | `enabled` | Email alerts on candidate backlog (default on) | Free | Header |
@@ -62,6 +145,7 @@ SEO-GEO) live in `references/use-cases.md`; short form:
 | `vibe_unsubscribe` | `subscription_id` | Cancel subscription (accumulated leads kept) | Free | Header |
 | `vibe_cancel_plan` (指引) | — | **Paid plans (Starter/Pro) cancel via the payment platform** (Creem customer portal / WeChat Pay management), not via this API. After cancellation your tier stays until the current period ends, then downgrades to free; leads already delivered are kept. Product subscriptions are cancelled with `vibe_unsubscribe`. | Free | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality | Free | Header |
+| `vibe_outreach_advice` | `delivered_id`, `draft`(optional), `include_body`(default true) | **Outreach advice + writing brief (zero LLM)**: `delivered_id` is the **DELIVERY ROW id** (the `delivered_id` from `vibe_delivered` / `vibe_submit_score`, **not** the candidate `lead_id`). Returns the four-layer verdict (`verdict`: safe to reply / reply with care / do not reply), `rules` (this community's key rules), `draft_prompt` (**the writing brief for the agent**: body excerpt + hard constraints + examples) and `progress` (outreach-stage progress). Passing `draft=<text>` = submitting the draft: the server re-checks it with the same rules and stores it (`draft_check` / `draft_saved` / `draft_source`) | Free | Header |
 | `vibe_get_delivered` | `lead_id` | Single delivered lead detail (follow-up), including **full body** for context | Free | Header |
 | `vibe_delivered` | `limit, offset` | Delivered leads list (follow-up history) | Free | Header |
 | `vibe_recover_key` | `email` | **Lost your API key?** Step 1: send a verification code to a registered email (no auth) | Free | None |
@@ -251,8 +335,11 @@ core infrastructure, not a post-hoc patch.
 ## Scoring format (agent calling convention)
 
 ```
-vibe_leads(subscription_id=12, limit=10)
-    → leads: [{"id": 1, "title": "...", "url": "...", "score": system_ref, ...}, ...]
+vibe_leads(subscription_id=12, limit=10)          # peek=true = read-only preview (free, no claim)
+    → data.posts: [{"id": 1, "title": "...", "url": "...", "score": system_ref, ...}, ...]
+      data.pending: [ … claimed, not yet judged (with id and body) … ]   # the old key data.leads does not exist — don't read it
+      progress: {stage, stage_done, round{claimed_now,scored_now,delivered_now},
+                 todo{to_score,claimable_now,limits{…}}, next{do,why,args}}
       billing: {"claimed_batch": 10, "free_items": 10, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                 "claimed_this_month": 10, "claimed_quota": 5000,
                 "daily_used": 10, "daily_cap": 1000}
@@ -264,6 +351,10 @@ vibe_submit_score(scores=[
 ])
     → {"ok": true, "passed": 1, "rejected": 1, "quota_used": 1, "quota_limit": 3000}   # scoring is free
       # batch: {"submitted": 2, "max_batch": 100, "calls": 1, "bucket": "pipeline", "bucket_tokens": 1}
+      # items: [{"id": 1, "verdict": "relevant", "delivered_id": 3488}]  ← delivered_id only when judged relevant
+      # progress: {stage:"intake", round:{scored_now:2, delivered_now:1},
+      #            todo:{to_score:16, claimable_now:34}, next:{do:"vibe_submit_score"|"vibe_leads"|…}}
+      # unmarked_delivered: 15   ← sent but outcome not marked (>0 → vibe_mark_leads)
       # Put the WHOLE batch here (up to 100 items): N verdicts in ONE call = ONE pipeline token.
       # Per-item failures land in "errors" as {"index", "id", "code", "err"} and do NOT block the rest.
 ```
@@ -289,24 +380,13 @@ Note the separation of concerns: **claiming is what costs money, scoring is free
 
 Note also that the pending list is **shared**: the web app (`app.html` → **To score**) shows the user their own unscored claims, and leads the user never judged come back to you on the next `vibe_leads` (free, and they don't count against your 50-item gate). Whichever end judges first wins, and a web verdict can override yours.
 
-Standard loop:
-1. `vibe_subscribe(product)` with a **complete description** (name + positioning + target users + website, 40+ chars) → get `subscription_id`. A short description (product name only) is rejected — it would generate generic keywords and low-relevance candidates.
-2. `vibe_leads(subscription_id, limit)` → save the **entire returned record** for each lead (including the `billing` block). Don't drop fields.
-3. Score the pending leads with `vibe_submit_score` (verdict `relevant` or `irrelevant`). Scoring is free and does not unlock billing — it keeps the feedback loop and the pending queue healthy (the queue pauses at 50 unscored). **Return them in ONE call** — build the whole `scores` array (up to 100 items) and submit once: N verdicts = 1 pipeline call, not N.
-4. Right after scoring `relevant`, **write the outreach draft** (skip this and the lead shows
-   "no draft yet" in the app forever):
-   a. the reply carries `outreach_next_step.delivered_ids` — use those (delivery-row ids, not
-      candidate ids);
-   b. `vibe_outreach_advice(delivered_id=<id>, include_body=true)` → returns `draft_prompt`, the
-      writing brief (body excerpt + the four-layer verdict + this community's key rules +
-      8 hard constraints + 12 passing examples);
-   c. write a **<=18 word** reply with **your** LLM from that brief (in `data.lang`, default en);
-   d. send it back through the **same tool** as `draft=<text>` — the server re-checks it against
-      the same rules (<=18 words / no link / no pitch / no promise to do work) and stores it;
-      the lead card in the app then shows **your** draft first.
-   Note: the backend is zero-LLM and serves **no generic templates** (generic lines are unrelated
-   to the lead) — the draft can only come from you. `vibe_get_delivered(lead_id)` still returns the
-   full body if you want it (the brief already includes an excerpt).
+**Full main pipeline (subscribe → claim → judge → outreach → mark → review, with every
+step's "response field → next step") — see 「## Main pipeline (one flow — every response
+tells you the next call)」 above** — just follow `progress.next.do`. The three easiest to trip on:
+
+1. `vibe_subscribe(product)` needs a **complete description** (name + positioning + target users + website, 40+ chars);
+2. save the **whole `vibe_leads` response** (including `billing` and `progress`), don't keep only titles;
+3. return pending leads in **one batch** (≤100 items = 1 pipeline token), and right after judging `relevant` follow `progress.next` (or `outreach_next_step.delivered_ids`) to write the draft.
 
 ## Local script tools (batch executors — call when the action is mechanical)
 
