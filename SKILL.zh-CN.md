@@ -113,7 +113,16 @@ outreach（写草稿 → 发出 → 标记结果）
   要动手时: 先 `vibe_keyword_remove(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
   回执里 `pool_purged` 是条数）/ `vibe_sub_list_update(subs, mode="remove")`, 再
   `vibe_opt_log` 记一笔, 然后回内循环继续领。
-- 触达阶段的 `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`。
+- **结果回填（客观证据服务端给, 判定你来做）**: 监控腿按 T+24h/72h/7d 自动复查你发出去的回复 ——
+  存活 / 被删 / 自删 / 赞数 / **有人回**。回执里同时给两样: `todo.outreach{sent,alive,removed,
+  replied,reply_rate,replied_ids,last_checked_at}`（客观证据）与 `todo.to_mark{n,delivered_ids,
+  outcome_legend}`（还剩多少条没标 + 具体 id）。草稿写完后 `next.do` 会指向
+  `vibe_mark_leads`（outcome = valid | invalid | contacted）—— **有人回 = 强有效信号**, 但
+  valid/成交仍由你判。判定"不该回"的条目（如 karma 不够）会被标 `draft_skip`, 它们
+  **不会卡住流程**（`todo.vetoed_n` 单列）, 而 `drafts_missing` 口径不变。
+  客户端要看的价值证据在 `vibe_delivered` 的 `outreach_stats`（已发 → 存活 → 有人回 → 回复率）。
+- 触达阶段的 `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
+  `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
 
 ### 需求侧回执字段 → 你的动作（对齐 §2 供给侧那张表）

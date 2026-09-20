@@ -134,7 +134,18 @@ loop — don't skip judging and go write drafts.
   true`) — you may simply keep claiming. When you do act: call `vibe_keyword_remove(kw, force=true, note=…)` (**it also purges that word's
   unclaimed pool rows** — `pool_purged` in the reply) / `vibe_sub_list_update(subs, mode="remove")`,
   log it with `vibe_opt_log`, then resume the inner loop.
-- outreach-stage `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`.
+- **Result write-back (the server supplies the objective evidence; you make the call)**: the
+  monitoring leg re-checks your posted replies at T+24h/72h/7d — alive / removed / self-deleted /
+  score / **someone replied**. Two things ride along: `todo.outreach{sent,alive,removed,replied,
+  reply_rate,replied_ids,last_checked_at}` (evidence) and `todo.to_mark{n,delivered_ids,
+  outcome_legend}` (how many are still unmarked, with ids). Once drafts are done `next.do` points at
+  `vibe_mark_leads` (outcome = valid | invalid | contacted) — **a reply is a strong valid signal**,
+  but valid/deal is still your call. Rows judged "do not reply" (e.g. karma too low) are marked
+  `draft_skip` and **never block the flow** (`todo.vetoed_n` is listed separately) while the
+  `drafts_missing` definition stays unchanged. The customer-facing value evidence lives in
+  `vibe_delivered`'s `outreach_stats` (sent -> alive -> replied -> reply rate).
+- outreach-stage `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
+  `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`.
 - language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,
   each minding its own business.
 
