@@ -15,6 +15,16 @@
 >    sd_json) and put its content into their LLM user message as
 >    `[SUPPLY/DEMAND STRUCTURE]` — no template placeholders anywhere.
 >
+> **0. Language (do this FIRST — 2026-09-2x owner: "agent 端应该配置默认语言, 以防语言漂移"):**
+>    the four fields MUST be written in the subscription's **target language**, never mixed.
+>    Read it from any of these (same value, 订阅级 → 账号级 → 按产品描述自动判):
+>      · `vibe_leads(...)` response → `data.lang` / `data.lang_source`
+>      · `vibe_sd_update(...)` response → `lang` / `lang_source` (and `lang_mismatch:true` if you got it wrong)
+>    Want a different default? `vibe_set_lang(lang='en'|'zh'|'', subscription_id=0)` —
+>    `0` = account-wide default, `>0` = override for that one subscription; `''` = auto (by product text).
+>    ⚠️ The backend **does not generate** sd_json and **will not translate** it: if you write the wrong
+>    language, the server returns `lang_mismatch` and the scope stays inconsistent until you rewrite it.
+>
 > When to run: sd_json empty / incomplete (check `vibe_list_subs` sd_json or
 > `data/sd_<sid>.md`). Front-end source of truth: `site/js/app.js` orchPrompts().sdGen.
 
@@ -27,10 +37,12 @@ demand_pain = MUST be written in FIRST PERSON (I/me/my) as that struggling perso
 demand_pain is the judgement anchor for BOTH scoring and keyword generation — competitor names in it let the keyword step produce competitor words (high-intent comparison threads). Make it specific enough that a real Reddit post can be matched to it.
 EXAMPLE OUTPUT (a tool that finds customers on Reddit):
 {"supply_side": "watches Reddit for people already asking for the kind of product you sell and surfaces them as ranked leads", "demand_side": "Indie founders and first-time SaaS/app builders who have a product and are looking for their first customers on Reddit — early-stage, no big ad budget, no sales team. Not: established companies with working acquisition systems", "core_friction": "manually searching Reddit for people who want what I built is slow and noisy — most threads off-target, the few high-intent ones get buried", "demand_pain": "I spent a weekend manually scrolling r/startups and r/SaaS looking for anyone asking for a tool like mine — mostly noise. I looked at GummySearch and Syften but they are too expensive before I have revenue. I want something that watches Reddit for me and surfaces only the threads where someone is actually asking for what I built"}
+**Language**: write ALL FOUR fields in the TARGET_LANG given in the user message — the same language throughout, no code-switching (mixed-language scopes are rejected by the backend as `lang_mismatch`).
 Reply ONLY with a JSON object (no markdown), keys exactly: supply_side, demand_side, core_friction, demand_pain. Values are concise plain-text (no bullets). Use the same language as the product description (English if the description is English, Chinese if Chinese).
 **Length limit (hard): each of the four fields MUST be under 800 characters** (they are stored at an 800-char cap; a longer value gets silently truncated and the tail is lost). If a field would exceed 800, compress it — keep the concrete scenario and competitor names, drop redundant clauses. After composing, verify every field is ≤800.
 
 `user` (assemble with the subscription's product text — nothing here is literal):
 
+TARGET_LANG: [en | zh — from vibe_leads.data.lang (never guess)]
 PRODUCT:
 [product text from vibe_list_subs]
