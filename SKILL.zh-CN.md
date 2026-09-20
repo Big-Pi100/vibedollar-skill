@@ -85,7 +85,8 @@ outreach（写草稿 → 发出 → 标记结果）
   "stage_index": 1, "stage_total": 2, "stage_label": "领取 → 判定 → 交回",
   "stage_done": false,            // true = 本阶段走完, 可以进下一阶段
   "round": {"claimed_now": 2, "scored_now": 0, "delivered_now": 0},
-  "todo": {"to_score": 18, "to_score_web": 0, "claimable_now": 32,
+  "todo": {"to_score": 18, "to_score_web": 0, "to_score_by_sub": {"400": 18},
+           "claimable_now": 32,
            "limits": {"pool_available": 57, "daily_left": 988,
                       "quota_left": 793, "gate_left": 32, "gate_limit": 50}},
   "summary": "本阶段(领取 → 判定 → 交回) 本轮: 领 2 / 判 0 / 交付 0; 还差: 待评分 18, 可领 32",
@@ -95,6 +96,9 @@ outreach（写草稿 → 发出 → 标记结果）
 
 - `claimable_now` = min(池里可立即领的 / 今日剩余 / 月额度剩余+钱包可负担的超额 / 闸门剩余);
   **四项都在 `limits` 里分列** —— 0 是哪一项造成的必须看清（闸门满 ≠ 没货）。
+- **`to_score` 是账号口径**（闸门只按 API key 数），而 `vibe_leads(peek=true)` 的待评分清单是
+  **逐订阅**的 —— 所以用 `todo.to_score_by_sub`（或 `next.args.subscription_ids`）找出欠在哪个订阅，
+  逐个 `peek` → 判定 → 一次批量交回；**所有订阅合计清零**才会 `stage_done=true`（否则阶段永远进不去）。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
 

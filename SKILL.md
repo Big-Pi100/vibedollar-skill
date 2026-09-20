@@ -99,7 +99,8 @@ loop — don't skip judging and go write drafts.
   "stage_index": 1, "stage_total": 2, "stage_label": "claim → judge → return",
   "stage_done": false,            // true = this stage is done, you may move to the next
   "round": {"claimed_now": 2, "scored_now": 0, "delivered_now": 0},
-  "todo": {"to_score": 18, "to_score_web": 0, "claimable_now": 32,
+  "todo": {"to_score": 18, "to_score_web": 0, "to_score_by_sub": {"400": 18},
+           "claimable_now": 32,
            "limits": {"pool_available": 57, "daily_left": 988,
                       "quota_left": 793, "gate_left": 32, "gate_limit": 50}},
   "summary": "this stage(claim → judge → return) this round: claimed 2 / judged 0 / delivered 0; remaining: 18 to score, 32 claimable",
@@ -110,6 +111,11 @@ loop — don't skip judging and go write drafts.
 - `claimable_now` = min(immediately claimable in the pool / left today / monthly allowance left +
   wallet-affordable overage / gate left); **all four are broken out in `limits`** — see clearly
   which term is the 0 (a full gate ≠ no supply).
+- **`to_score` is account-wide** (the gate counts by API key) while the pending list from
+  `vibe_leads(peek=true)` is **per subscription** — use `todo.to_score_by_sub` (or
+  `next.args.subscription_ids`) to find which subscriptions hold the remainder, peek each, judge,
+  and submit one batch; only when **all subscriptions together** reach zero does `stage_done=true`
+  (otherwise the stage can never advance).
 - outreach-stage `todo`: `drafts_missing` / `drafts_written` / `unmarked_delivered` / `delivered_total`.
 - language/scope hints (`lang` / `lang_source` / `sd_missing`) coexist with the progress block,
   each minding its own business.
