@@ -119,6 +119,11 @@ outreach（写草稿 → 发出 → 标记结果）
   与 `kw_change_log` 同款、**自动留痕**, 你只要传 `note`）; `stats.low_yield` = 判过 ≥5 且
   交付率 <20% 的 sub / 词 —— **这只是同一份数据的另一种排法, 不是门**: 收不收由你定。
   `gate` 同样只是证据 + 建议（`override_allowed: true`）—— 你也可以照常领取。
+  **但注意边界**: 供给侧收噪声（停词 / 移 sub / 清旧库存）**是 agent 的活, 不是等人批准的事** ——
+  服务端只给数据与入口（`todo.supply.stats` + 三个工具）。只有这四类才需要先问人: **花钱 / 改计费口径 /
+  发帖发信 / 删除已计费历史**。实测教训（355）: 门开着时如果 agent 只是报告并等, 噪声会一直被领出来 ——
+  该做的是当场 `vibe_keyword_remove(force=true, note=理由)`（自带清库存）/
+  `vibe_sub_list_update(mode="remove")` / `vibe_pool_purge(...)`（留词清库存）, 再 `vibe_opt_log` 记账。
   要动手时: 先 `vibe_keyword_remove(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
   回执里 `pool_purged` 是条数）/ `vibe_sub_list_update(subs, mode="remove")`, 再
   `vibe_opt_log` 记一笔, 然后回内循环继续领。
@@ -185,6 +190,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_list_subs` | `（无）` | 查看我的订阅列表及候选线索积累状态 | 免费 | Header |
 | `vibe_unsubscribe` | `subscription_id` | 取消订阅（已积累的线索保留） | 免费 | Header |
 | `vibe_cancel_plan`（指引） | — | **付费档位（Starter/Pro）通过支付平台取消**（Creem 客户门户 / 微信支付管理），不走本 API。取消后档位保留到当期结束再降级 free；已领取的线索保留。产品订阅用 `vibe_unsubscribe` 取消 | 免费 | Header |
+| `vibe_pool_purge` | `subscription_id`, `kw`(可选), `sub`(可选), `out_of_scope`(默认 false), `dry_run`(默认 true) | **清未领取库存**（`status='new'`，从未计费 → 删除**零账目影响**；`sent/delivered/rejected` 一律不动）。供给侧收噪声的第三个动作：**想留的词**其旧库存会垄断领取轮转，**已移出清单的 sub** 的存量行仍能被领出来 —— 这两种都只能靠它清。先 `dry_run=true` 看会删多少 + 抽样，再 `dry_run=false`；做完 `vibe_opt_log` 记一笔 | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(可选), `include_body`(默认 true) | **触达建议 + 写作任务书（零 LLM）**：`delivered_id` 用**交付行 id**（`vibe_delivered`/`vibe_submit_score` 回执里的 `delivered_id`，**不是**候选 `lead_id`）。回执含四层判定（`verdict` 可回/谨慎回/别回）、`rules`（该社区规则要点）、`draft_prompt`（**给 agent 的写作任务书**：正文摘录 + 硬约束 + 范例）、`progress`（触达阶段进度）。把成稿放进 `draft` 参数回传 = 交稿, 服务端按同一套规则复核并落库（`draft_check`/`draft_saved`/`draft_source`）| 免费 | Header |

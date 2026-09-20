@@ -141,8 +141,15 @@ loop — don't skip judging and go write drafts.
   (who · when · why, auto-recorded like `kw_change_log` — you only pass `note`); `stats.low_yield` =
   subs/keywords with >=5 judged and <20% delivery rate — **just the same data sorted differently, not
   a gate**: it is yours to decide. `gate` is likewise evidence + a suggestion (`override_allowed:
-  true`) — you may simply keep claiming. When you do act: call `vibe_keyword_remove(kw, force=true, note=…)` (**it also purges that word's
-  unclaimed pool rows** — `pool_purged` in the reply) / `vibe_sub_list_update(subs, mode="remove")`,
+  true`) — you may simply keep claiming.
+  **But mind the boundary**: supply-side cleanup (retire a word / drop a sub / purge old stock) **is the
+  agent's job — it is not something to wait for approval on**. The server only supplies the data and the
+  entry points (`todo.supply.stats` + those three tools). Only four things need the human first: **spending
+  money / changing the billing model / posting or emailing / deleting billed history**. Measured lesson
+  (sub 355): while the gate was open and the agent merely reported and waited, noise kept getting claimed —
+  act there and then, then log it. When you do act: call `vibe_keyword_remove(kw, force=true, note=…)` (**it also purges that word's
+  unclaimed pool rows** — `pool_purged` in the reply) / `vibe_sub_list_update(subs, mode="remove")` /
+  `vibe_pool_purge(subscription_id, kw=…)` (keep the word, drop its old stock),
   log it with `vibe_opt_log`, then resume the inner loop.
 - **Result write-back (the server supplies the objective evidence; you make the call)**: the
   monitoring leg re-checks your posted replies at T+24h/72h/7d — alive / removed / self-deleted /
@@ -212,6 +219,7 @@ loop — don't skip judging and go write drafts.
 | `vibe_list_subs` | — | Your subscriptions + candidate accumulation status | Free | Header |
 | `vibe_unsubscribe` | `subscription_id` | Cancel subscription (accumulated leads kept) | Free | Header |
 | `vibe_cancel_plan` (指引) | — | **Paid plans (Starter/Pro) cancel via the payment platform** (Creem customer portal / WeChat Pay management), not via this API. After cancellation your tier stays until the current period ends, then downgrades to free; leads already delivered are kept. Product subscriptions are cancelled with `vibe_unsubscribe`. | Free | Header |
+| `vibe_pool_purge` | `subscription_id`, `kw` (optional), `sub` (optional), `out_of_scope` (default false), `dry_run` (default true) | **Purge unclaimed stock** (`status='new'`, never claimed → never billed, so deleting has **no billing impact**; `sent/delivered/rejected` are untouched). The third supply-side cleanup action: a word you want to **keep** can still have old stock that monopolises the claim rotation, and rows from subs already **removed from the scope** can still be claimed — this is the only way to clear either. Run `dry_run=true` first (count + samples), then `dry_run=false`; log it with `vibe_opt_log` | Free | Header |
 | `vibe_outreach_sent` | `lead_id` (**candidate id**) | **"I posted it" registration**: the server immediately looks for your comment in that thread (one request); on a hit it registers comment id / posted time / alive state / score / reply count and, if you never marked it, **marks the outcome `contacted`**; later re-checks at T+24h/72h/7d. On a miss it records `unknown` and the per-username discovery (every 6h) keeps watching. Requires a Reddit username in the app sidebar | Free | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality. Warning: this requires that you **actually posted** (`todo.outreach.sent > 0`) — with nothing sent there is no result to mark, and `next` will point at `vibe_outreach_sent` instead | Free | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(optional), `include_body`(default true) | **Outreach advice + writing brief (zero LLM)**: `delivered_id` is the **DELIVERY ROW id** (the `delivered_id` from `vibe_delivered` / `vibe_submit_score`, **not** the candidate `lead_id`). Returns the four-layer verdict (`verdict`: safe to reply / reply with care / do not reply), `rules` (this community's key rules), `draft_prompt` (**the writing brief for the agent**: body excerpt + hard constraints + examples) and `progress` (outreach-stage progress). Passing `draft=<text>` = submitting the draft: the server re-checks it with the same rules and stores it (`draft_check` / `draft_saved` / `draft_source`) | Free | Header |
