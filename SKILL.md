@@ -115,6 +115,40 @@ loop — do not skip judging and go write drafts.
    The server is zero-LLM and serves **no generic templates** (generic lines are unrelated to the
    lead) — the draft can only come from you.
 
+### Cold start: **set the search face first**, then the word list (2026-09-21)
+
+After `vibe_subscribe`, **a missing word list or sub list = the pipeline returns at the gate on every
+round → it never produces candidates** (`setup.config_missing` / `source_status=config_missing`).
+That is **not** the same as "running but with no material this round".
+
+- Matching **runs only inside the corpus of the subs on your list** (v2.2 strict sub anchor) — an empty
+  list means zero candidates no matter how good the words are. So with an empty face,
+  `progress.next.do` points straight at `vibe_sub_list_update`, `todo.face.config_missing=true`,
+  `next.args.hint_query` (a short domain term the server extracted from the description — a hint, feel
+  free to change it), and
+  `stage_done=false` (the stage cannot complete).
+- **Derive anchors from the product description / the four supply-demand parts — do not guess**:
+  `vibe_sub_catalog(query=<short domain word>)` — no query → **face A**: subs with real `relevant`
+  deliveries (already in corpus, searchable the moment you add them); with query → **faces B/C**: the
+  directory matched lexically on **sub name + description** (may need pulling). For the whole directory
+  use `vibe_sub_search(query, sort)` (+ pagination + **relevance-first** ranking: `name_hits` (the sub
+  is literally named this) > `rules_hits` (the rules raw text says it) > `desc_hits`, so prefer **short
+  domain words** over a whole product sentence; the top `name_hits` result is usually the anchor you want).
+- **Judge positioning from the rules RAW TEXT, not the description**: every candidate carries `rules[]`
+  (`{short_name, description, priority}` — the moderators' own rules) and `submit_text`. E.g.
+  `r/buildinpublic`: *Stay on Topic: All posts should be related to "building in public" … Off-topic
+  content will be removed* — one sentence defines the sub. ⚠️ `rules_missing=true` means **we asked the
+  rules API and Reddit has no public rules** — that is not "no restrictions"; when `rules_available=false`,
+  fall back to `description` / `submit_text`.
+- **Iterate — do not decide once**: `vibe_sub_list_update(subscription_id, subs=[…], mode="replace")`
+  (or `add` / `remove`) → then each round read `todo.supply.stats.subs` (per-sub pooled / delivered /
+  rejected / **delivery rate** / unclaimed + `in_list`) and `gap_reason=supply_ceiling`: drop the
+  0-delivery subs, add candidates.
+- ⚠️ **An existing subscription's initial list is `source=backfill` — its historical hit surface** (filled
+  at v2.2 launch from whatever it happened to search before). Treat it as a **starting point, not the
+  destination**: review it on the first run (keep what has stock / drop noise / add B/C candidates).
+- Zero server-side LLM: **we write neither the list nor the word list for you** (candidates and evidence
+  are yours to decide on).
 ### `progress` block fields (same shape in every response; absent when the tool doesn't touch that stage)
 
 ```json
@@ -267,7 +301,7 @@ loop — do not skip judging and go write drafts.
 | `vibe_supply_status` | `subscription_id` | **Corpus supply snapshot (zero LLM, 2026-09-07)**: sub pull pool size / reserve depth tiers / **7-day post_store intake trend** (is the corpus still growing?) / catalog freshness (total + last updated) / ArcticShift rate-limit state (shared circuit, cross-process). Read this to tell apart: *keywords exhausted* (expand) vs *corpus boundary thin* (widen subs) vs *registry stale* (catalog needs monthly refresh) vs *collection down* vs *rate-limited*. (2026-09-09: the old word-search-leg field was removed — word corpus matching is read via `pipeline_recent` below) | Free | Header |
 | `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove/list) | **Maintain this subscription's sub list — its explicit search face (v2.2 sub-anchored, 2026-09-09)**: matching runs only inside list subs. Each returned sub tagged `in_pool` (corpus searchable now, posts+comments) or `needs_pull` (server will bulk-fetch it). **This is also the only way to acquire corpus you don't have**: adding a sub queues it for the server's pull worker — there is no agent-side fetch tool (the old `vibe_search_probe` was retired 2026-09-11) | Free | Header |
 | `vibe_sub_catalog` | `query`(optional), `limit` | **Candidate subs before you pick a list (v2.2, 2026-09-09)**: no query → A relevance face (subs with real `relevant` deliveries, delivered DESC — in-corpus, searchable now); with a product/niche query → B/C lexical candidates from the registry (may need pull). Each tagged `stock`(in_pool/needs_pull), `tier`(deep/shallow), `delivered` count, plus **`description`** (sub blurb, 2026-09-11) | Free | Header |
-| `vibe_sub_search` | `query`(optional), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **Full directory search (2026-09-11)**: the whole directory (size = receipt `total`) matched on **name or description** (terms OR'd), paginated. Each item: `description`, `subscribers`, `num_posts`, `posts_90d` + `volume_measured`, `stock`(in_pool/needs_pull), `tier`, `delivered`, `listed` (already in some subscription's list). Use it to *find* subs precisely; then add them with `vibe_sub_list_update` | Free | Header |
+| `vibe_sub_search` | `query`(optional), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **Full directory search (2026-09-11)**: the whole directory (size = receipt `total`) matched on **name or description** (terms OR'd), paginated. Each item: `description`, `subscribers`, `num_posts`, `posts_90d` + `volume_measured`, `stock`(in_pool/needs_pull), `tier`, `delivered`, `listed` (already in some subscription's list). Use it to *find* subs precisely; then add them with `vibe_sub_list_update`. Each item carries **`rules[]` (moderator rules raw text)** + `submit_text` — **judge positioning from the raw text** (`rules_missing=true` = asked, Reddit has no public rules; not "no restrictions") | Free | Header |
 
 > Cost note: the fifteen tools above are read/write state operations — **a lead is billed when first claimed** (Free 1,000/mo · Starter 5,000/mo, then $5 per 1,000 · Pro 30,000/mo, then $3.50 per 1,000); **scoring, re-reading and exporting are free**; daily-cap overflow carries to the next day.
 >

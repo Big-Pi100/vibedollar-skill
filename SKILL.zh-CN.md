@@ -97,6 +97,32 @@ outreach（写草稿 → 发出 → 标记结果）
    不承诺代做）并落库; app 的线索卡片会**优先显示**这一版。
    服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写。
 
+### 冷启动：**先定搜索面**，再谈词表（2026-09-21）
+
+`vibe_subscribe` 之后**缺词表或 sub 清单 = 管线每轮在闸门处直接返回 → 永远不会产出候选**
+（回执里 `setup.config_missing` / `source_status=config_missing`）。这**不是**「在跑但这一轮没料」。
+
+- 匹配**只在你的 sub 清单内的语料里跑**（v2.2 彻底 sub 锚点）—— 清单为空，词表再好也是 0 候选。
+  所以空搜索面时 `progress.next.do` 直接指向 `vibe_sub_list_update`、`todo.face.config_missing=true`、
+  `next.args.hint_query` 是服务端从产品描述/供需四段抽的**领域短词**（提示，可自行换词）、
+  且 `stage_done=false`（阶段不可能走完）。
+- **锚点从产品描述 / 供需四段推，不盲猜**：`vibe_sub_catalog(query=<领域短词>)` ——
+  无 query → **A 面**：真实 `relevant` 交付过的 sub（库内已有货，加入清单立即可搜）；
+  带 query → **B/C 面**：名录按 **sub 名 + 简介**词法匹配（可能需取货）。要更全用
+  `vibe_sub_search(query, sort)`（全量目录 + 分页 + **相关度优先**：先 `name_hits`(名字就叫这个)
+  再 `rules_hits`(规则原文写着这个) 最后 `desc_hits`，所以用**短领域词**而不是整句产品描述；
+  排序里 `name_hits` 最高的那条通常就是你要锚的 sub）。
+- **判定位看 rules 原文，不是看简介**：每条候选带 `rules[]`（`{short_name, description, priority}`，
+  版主写的原始规则）与 `submit_text`。例如 `r/buildinpublic` 的 *Stay on Topic: All posts should
+  be related to "building in public" … Off-topic content will be removed* —— 一句话就是这个 sub
+  的定位。⚠️ `rules_missing=true` = **问过 rules API 但 Reddit 侧没有公开规则**，不等于这个 sub
+  没限制；`rules_available=false` 时退回 `description` / `submit_text` 判。
+- **写完就迭代，不要一次拍死**：`vibe_sub_list_update(subscription_id, subs=[…], mode="replace")`
+  （也可 `add` / `remove`）→ 之后每轮看 `todo.supply.stats.subs`（每个 sub 的入池/交付/拒绝/**交付率**/
+  未领取 + `in_list`）与 `gap_reason=supply_ceiling`：0 交付的移出，候选补进来。
+- ⚠️ **存量订阅的初始清单是 `source=backfill` 的历史命中面**（v2.2 上线时按「过去碰巧搜到过的 sub」
+  回填）—— 它是**起点，不是终点**：首轮就该 review 一遍（保留有货 / 删噪声 / 加 B/C 候选）。
+- 服务端零 LLM：**不代生成清单，也不代生成词表**（候选与证据全给你，决定归你）。
 ### `progress` 块字段（回执同构；本工具不涉及该阶段时不出现）
 
 ```json
@@ -237,7 +263,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_supply_status` | `subscription_id` | **语料供给状态快照（零 LLM，2026-09-07）**：拉取池规模 / 储备分层 / **近 7 天 post_store 入帖趋势**（语料是否还在增长）/ 名录新鲜度（总量 + 最后更新）/ ArcticShift 限流态（共享熔断，跨进程）。用于区分：*词面耗尽*（应扩词）vs *语料边界窄*（应扩 sub）vs *名录旧*（catalog 需月度刷新）vs *采集停* vs *限流中*（2026-09-09：词搜腿字段已移除——词全语料匹配看下方 `pipeline_recent`） | 免费 | Header |
 | `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove/list) | **维护本订阅的 sub 清单——它的显式搜索面（v2.2 sub 锚点，2026-09-09）**：匹配只在清单 sub 语料内跑。每条返回 `in_pool`（库内可立即搜，帖+评论）或 `needs_pull`（服务器将批量取货）。**这也是获取你没有的语料的唯一途径**：加 sub 即入服务端取货队列；agent 侧没有拉取工具（原 `vibe_search_probe` 已于 2026-09-11 下线） | 免费 | Header |
 | `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数，以及 **`description`**（sub 简介，2026-09-11 起返回） | 免费 | Header |
-| `vibe_sub_search` | `query`(可选), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **全量目录检索（2026-09-11 新增）**：全量目录（体量看回执 `total`）按**名称或简介**匹配（多词 OR 并集）+ 分页。每条：`description`、`subscribers`、`num_posts`、`posts_90d` + `volume_measured`、`stock`(in_pool/needs_pull)、`tier`、`delivered`、`listed`（已被某订阅清单引用）。用来**精准找 sub**，再用 `vibe_sub_list_update` 加入 | 免费 | Header |
+| `vibe_sub_search` | `query`(可选), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **全量目录检索（2026-09-11 新增）**：全量目录（体量看回执 `total`）按**名称或简介**匹配（多词 OR 并集）+ 分页。每条：`description`、`subscribers`、`num_posts`、`posts_90d` + `volume_measured`、`stock`(in_pool/needs_pull)、`tier`、`delivered`、`listed`（已被某订阅清单引用）。用来**精准找 sub**，再用 `vibe_sub_list_update` 加入。每条带 **`rules[]` 版主规则原文** + `submit_text`（**判 sub 定位用原文**；`rules_missing=true` = 问过但 Reddit 侧无公开规则，≠ 无限制） | 免费 | Header |
 
 > 费用说明：上面 16 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
 >
