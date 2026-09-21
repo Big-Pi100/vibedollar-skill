@@ -96,9 +96,9 @@
 
 ## 5. 放在哪
 
-随包带一份**实例** \`scripts/jev_example.json\`(就是 vibedollar 这个订阅的问句) —— 它的用处**只有一个**:
+随包带一份**实例** `scripts/jev_example.json`(就是 vibedollar 这个订阅的问句) —— 它的用处**只有一个**:
 让你看清格式和"闸门对怎么写"。**别直接用它**: 那份问句是 vibedollar 的需求画像的函数。
-照上面四节从**你自己的 \`data/sd_<sid>.md\`** 推出你自己的, 落到 \`data/jev_<sid>.json\`。
+照上面四节从**你自己的 `data/sd_<sid>.md`** 推出你自己的, 落到 `data/jev_<sid>.json`。
 
 ## 6. 放在哪 (路径)
 
