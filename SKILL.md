@@ -52,6 +52,17 @@ stage + how complete it is + the next tool**. Just follow `progress.next.do` —
 have to reconstruct "where am I in the loop" yourself.
 
 ```
+0 · STARTUP (once, and after any rebuild) — set the search face FIRST, then the word list
+  sd_gen.md → vibe_sd_update            four sd fields — demand_side (audience profile) and
+                                        demand_pain (buyer language) come from DIFFERENT sources
+  → vibe_sub_catalog / vibe_sub_search  find subs; anchor words come ONLY from demand_side
+                                        (the server extracts nothing for you — no candidate words)
+  → vibe_sub_list_update(subs, mode)    the search face = this explicit sub list (server queues pulls)
+  → kw_init.md (derive from sd)  /  kw_mine.md (sweep a precision audience sub's own corpus)
+  → vibe_keyword_add_batch(source=auto)
+  ⚠️ missing sd or an empty sub list = every round returns at the gate and NOTHING is produced
+
+1 · RUN (per round — driven by progress.next.do)
 intake (claim → judge → return) — inner loop
   ├─ progress.todo.supply.gate == true     → vibe_keywords (fix words/scope first, stop claiming noise)
   ├─ progress.todo.to_score > 0            → vibe_submit_score (return what you hold first)
@@ -64,6 +75,19 @@ outreach (write draft → send → mark outcome)
   │                              re-check clock; or do nothing — discovery runs every 6h by username)
   ├─ unmarked_delivered > 0 and sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)
   └─ both are 0                → back to intake / review
+
+2 · OPTIMIZE (goal-driven outer loop — runs BETWEEN rounds; details in "Agent decision loop")
+  goal check first: vibe_sub_health.assessment → projected_items_month vs commitment_remaining
+    ├─ committed_ok → wait (the fast loop is absorbing it; no supply action)
+    └─ shortfall    → pick ONE action by gap_reason:
+        supply_ceiling → widen / refresh the sub list
+                         (vibe_sub_catalog / vibe_sub_search → vibe_sub_list_update)
+        word_face      → retire a noise word (vibe_keyword_remove force) or REGENERATE the word face
+                         (sd_gen → kw_init / kw_opt / kw_mine → vibe_keyword_add_batch)
+        capacity       → nothing to do on supply (that is the daily cap)
+        collecting     → alert (collection stalled — widening words is useless)
+  act → write your `expect` → verify next round → back to the goal check
+  Only "exhausted" (judge → retire → widen list → regenerate → report) may stop it; silent stop is forbidden.
 ```
 
 **A stage only completes when that stage's `stage_done=true`** (intake = 0 to score **and**

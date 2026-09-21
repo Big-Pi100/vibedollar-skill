@@ -44,8 +44,19 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 照 `progress.next.do` 走即可, 不必自己拼"我走到哪一步了"。
 
 ```
+0 · 启动（一次性 / 重建后）—— **先定搜索面, 再定词表**
+  sd_gen.md → vibe_sd_update            供需四段 —— demand_side(人群画像) 与 demand_pain(买家语言)
+                                        **不同源**
+  → vibe_sub_catalog / vibe_sub_search  找 sub; 锚点词**只能从 demand_side** 提 (服务端不抽词)
+  → vibe_sub_list_update(subs, mode)    定搜索面 = 这份显式 sub 清单 (服务端排队取货)
+  → kw_init.md (从 sd 推词)  /  kw_mine.md (扫高精度人群 sub 自己的语料)
+  → vibe_keyword_add_batch(source=auto)
+  ⚠️ 缺 sd 或清单为空 = 每轮在闸门处直接返回, **永远不产出候选**
+
+1 · 运转（每轮 —— 由 progress.next.do 驱动）
 intake（领取 → 判定 → 交回）—— 内循环
   ├─ progress.todo.supply.gate == true     → vibe_keywords（先修词面/清单, 别再领噪声）
+  ├─ progress.todo.to_score > 0            → vibe_submit_score（先把手上欠的交回）
   ├─ to_score == 0 且 claimable_now > 0    → vibe_leads（再领一批, 回到判定）
   └─ to_score == 0 且 claimable_now == 0   → stage_done=true → 进入 outreach
 outreach（写草稿 → 发出 → 标记结果）
@@ -55,6 +66,19 @@ outreach（写草稿 → 发出 → 标记结果）
   │                              也可以什么都不做 —— 监控腿每 6 小时按用户名自动发现)
   ├─ unmarked_delivered > 0 且 sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)
   └─ 两项都为 0                → 回 intake / 复盘
+
+2 · 优化（目标驱动的外循环 —— 插在**运转之间**; 细则见「Agent 决策循环」）
+  每轮先做目标检查: vibe_sub_health.assessment → projected_items_month vs commitment_remaining
+    ├─ committed_ok → wait（快环在消化, 无需供给动作）
+    └─ shortfall    → 按 gap_reason 选**一个**动作:
+        supply_ceiling → 扩 / 换 sub 清单
+                         (vibe_sub_catalog / vibe_sub_search → vibe_sub_list_update)
+        word_face      → 退役噪声词 (vibe_keyword_remove force) 或 **重生成词面**
+                         (sd_gen → kw_init / kw_opt / kw_mine → vibe_keyword_add_batch)
+        capacity       → 供给侧无事可做（那是每日节流）
+        collecting     → alert（采集停 —— 扩词无用）
+  act → 写下 expect → 下一轮 verify → 回到目标检查
+  只有「穷尽」(评分 → 退役 → 扩清单 → 重生成 → 报告) 才允许停; **静默收尾 = 禁止**。
 ```
 
 **进入下一阶段的唯一条件是本阶段 `stage_done=true`**（intake = 待评分 0 **且** 可领 0）。
