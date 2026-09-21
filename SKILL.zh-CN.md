@@ -594,7 +594,10 @@ python3 score_batch.py --sub 355 --engine jev --replay-answers run1.json   # 离
 
 - **`confidence`**：按最强证据离 0.5 边界的距离折算到 [0,1]，回传给 `vibe_submit_score`。
   服务端**只存不用**（不改 verdict/score、不参与计费）。
-- **`escalate_ids`**：两个问句**答案不一致**的条目 —— 建议你用 `judge_prompt` 复核一遍；
+- **`escalate_ids`**：**落在不确定带 `max(p1,p2) ∈ [0.3,0.7]`** 的条目 —— 建议你用 `judge_prompt` 复核一遍；
+  （2026-09-21 判据调整：原来是"两个问句答案不一致"，实测 1145 条带独立盲判基准的真实线索 ——
+  **分歧判据升级 25% 但自动带错 10.1% 的条目；概率带判据升级 26% 而自动带错只有 5.1%**。
+  同样的升级率，错误翻倍。分歧仍单独报为 `disagree`，是个有用的信号，但不再是升级判据。）
   服务端不会替你改。这是 skill 的 `confidence-routing` 用法。
 - `reason` 是**机器记录**（形如 `[jev] is_buyer=0.90 acquisition_ask=0.10 → relevant`），
   **不是解释** —— Jev 不生成文本；语义理由由你（agent）在升级带里补。

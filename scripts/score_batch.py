@@ -170,13 +170,22 @@ def _save_evidence(out_dir: str, sid: int, product: str,
     print(f"      📄 证据 {len(rows)} 条 → {fpath}")
 
 
+# 升级带: max(p1,p2) 落在这个区间 = "连 Jev 自己都不确定" → 交 agent 复核。
+# 2026-09-21 实测调参 (1145 条带独立盲判基准的真实线索, 见 docs/jev-shadow-eval §14):
+#   判据A "两问不一致"(原实现): 升级 25%, **自动带错 10.1% 条目**
+#   判据B "max(p) ∈ [0.3,0.7]" (现用): 升级 26%, **自动带错 5.1% 条目**
+#   并集:                        升级 40%, 自动带错 3.8% 条目
+# → **同样的升级率, 原判据的错误是两倍** —— 换代价明显更小。并集更保守但多判 14%。
+#   "两问不一致"仍单独报出 (disagree), 它是个有用的信号, 但**不是**升级判据。
+ESCALATE_LO, ESCALATE_HI = 0.3, 0.7
+
+
 def jev_decide(is_buyer: float, acq_ask: float, thr: float = 0.5) -> dict:
     """Jev 两问结果的**级联决策** (纯函数, 可离线单测)。
 
-    依据 2026-09-21 gold set 实测 (scripts/jev_gold50.json, n=50):
-      · `is_buyer` 单问: 一致率 0.840, 高置信段 0.897, **FP=0** (精度好, 但漏 4 条)
-      · 两问 **OR**: **FN=0** (一条不漏), 代价 FP 上升
-      · 所以: 用 OR 保召回, 用 `escalate` 把**两问分歧**的那批标出来交给 agent 复核。
+    用两问 **OR** 保召回 (实测 FN=0 一条不漏; 单问 is_buyer 会漏), 用 `escalate`
+    把**不确定的那批**标出来交给 agent 按 `judge_prompt.md` 复核 —— 这才是三段式:
+    **高置信自动过 / 升级带交人**。升级判据见上面 ESCALATE_* 的实测调参。
 
     confidence: 判定侧最强证据离 0.5 边界的距离 (Noul 没有独立 confidence,
       按其概率的确定性折算到 [0,1]; 这就是回传给服务端的 `confidence` —— 服务端只存不用)。
@@ -187,7 +196,9 @@ def jev_decide(is_buyer: float, acq_ask: float, thr: float = 0.5) -> dict:
     conf = (strong - thr) * 2 if rel else (thr - strong) * 2
     conf = max(0.0, min(1.0, conf))
     return {'relevant': rel,
-            'escalate': ((p1 >= thr) != (p2 >= thr)),   # 两问分歧 → 交 agent 复核
+            # 升级 = 落在不确定带 (不是"两问分歧" —— 实测后者同升级率下错误翻倍)
+            'escalate': (ESCALATE_LO <= strong <= ESCALATE_HI),
+            'disagree': ((p1 >= thr) != (p2 >= thr)),   # 单独报出, 供参考
             'confidence': round(conf, 3),
             'score': int(round(strong * 100)),
             'is_buyer': round(p1, 3), 'acquisition_ask': round(p2, 3)}

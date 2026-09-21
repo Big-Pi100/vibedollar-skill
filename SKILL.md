@@ -648,7 +648,7 @@ python3 score_batch.py --sub 355 --engine jev --replay-answers run1.json   # off
 
 - **`confidence`**: distance of the strongest evidence from the 0.5 boundary, mapped to [0,1]; submitted via
   `vibe_submit_score`. The server **stores it and never uses it** (no verdict/score/billing effect).
-- **`escalate_ids`**: items where the two questions **disagree** — re-check them yourself with
+- **`escalate_ids`**: items whose strongest answer lands in the **uncertain band** max(p1,p2) ∈ [0.3,0.7] — re-check them yourself with
   `judge_prompt`. The server will not change your verdict. This is the skill's `confidence-routing` pattern.
 - `reason` is a **machine record** (e.g. `[jev] is_buyer=0.90 acquisition_ask=0.10 → relevant`), **not an
   explanation** — Jev does not generate text; the semantic reason is yours to add on the escalated band.
