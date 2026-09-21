@@ -193,7 +193,13 @@ outreach（写草稿 → 发出 → 标记结果）
   证据列出并带 `zero_delivered:false`, `why` 会明说**不建议停**（与决策表一致: `delivered>0`
   永不自停, flagging weak 只等于"观察"）。**看那一行, 不要只看比率** —— 一个词可以 90% 噪声同时
   是你最好的供给源（实测: `beta users` `410/454` 噪声但**交付了 44 条**, 差点被停掉）。
-  **交付率与清单管理历史也一并给你**（不是替你决定）: `todo.supply.stats.subs` / `.kw` = 每个
+  **交付率与清单管理历史也一并给你**（不是替你决定）: `todo.supply.stats.subs` / `.kw` / **`.pairs`** = 每个
+  sub / 词 / **（词 × sub）组合** 的入池·交付·拒绝·**交付率**·未领取 —— `.pairs` 是关键的一层: **同一个词能在一个 sub
+  95%、在另一个 sub 0%**（实测 `closed testing` 全局 95% / 在 `b2bmarketing` 13%），所以低精度要先看是哪一层的问题。
+  每格带 `kw_rate_elsewhere`（该词扣掉本格后在**别的 sub** 的交付率）、`sub_rate_other_kw`（该 sub 用别的词时的交付率）
+  与 `hint`（**配对问题** = 词与 sub 各自在别处都不错, 只有这个组合差 / **词面问题** / **sub 问题**）——
+  `hint` 是**确定性分类, 只是提示**: 服务端不据此停词/移 sub/排除任何格。也可以先试**更窄的词形**
+  (`closed testing` → `closed testing testers`) 再谈排除。每个 sub / 词的后面还有: `每个
   sub / 词的入池·交付·拒绝·**交付率**·未领取 + `in_list`（是否仍在搜索面）+ `list_added_at` /
   `list_source`; `stats.sub_history` = 该清单的 add/remove/replace 流水（谁·何时·为什么,
   与 `kw_change_log` 同款、**自动留痕**, 你只要传 `note`）; `stats.low_yield` = 判过 ≥5 且

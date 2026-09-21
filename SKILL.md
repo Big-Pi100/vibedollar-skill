@@ -231,7 +231,14 @@ That is **not** the same as "running but with no material this round".
    the rate: a word can be 90% noise and still be your best supplier (measured: `beta users` at `410/454`
    noise had delivered **44** leads and was nearly retired).
    **Delivery rates and the scope's management history come with it** (not a
-  decision made for you): `todo.supply.stats.subs` / `.kw` = per sub/keyword pooled · delivered ·
+  decision made for you): `todo.supply.stats.subs` / `.kw` / **`.pairs`** = per sub / keyword / **(word x sub) pair**
+pooled · delivered · rejected · **delivery rate** · unclaimed. `.pairs` is the layer that matters most: **the same word
+can be 95% in one sub and 0% in another** (measured: `closed testing` 95% overall vs 13% in `b2bmarketing`), so a low
+number must first be attributed. Each pair carries `kw_rate_elsewhere` (that word's rate in the **other** subs, this
+cell removed), `sub_rate_other_kw` (that sub's rate on other words) and a `hint` (**pair problem** = word and sub are
+both fine elsewhere, only this combination is bad / **word problem** / **sub problem**). The `hint` is a
+**deterministic classification and only a hint** — the server never retires a word, drops a sub or excludes a cell
+because of it. Try a **narrower word shape** first (`closed testing` → `closed testing testers`). Also per sub/keyword: `每个
   rejected · **delivery rate** · unclaimed, plus `in_list` (still in the search scope) and
   `list_added_at` / `list_source`; `stats.sub_history` = the add/remove/replace log for that scope
   (who · when · why, auto-recorded like `kw_change_log` — you only pass `note`); `stats.low_yield` =
