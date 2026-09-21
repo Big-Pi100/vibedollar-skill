@@ -211,41 +211,100 @@ def jev_decide(is_buyer: float, acq_ask: float, thr: float = 0.5) -> dict:
             'is_buyer': round(p1, 3), 'acquisition_ask': round(p2, 3)}
 
 
-def jev_questions():
-    """两个**独立**问句, 一次调用并行问 (TypeSafe 的 fan-out)。问句设计见 docs/jev-shadow-eval。"""
+# ── 每订阅的问句 (2026-09-21) ─────────────────────────────────────────────
+# ⚠️ 为什么**不再内建**问句: 问句必须来自**该订阅自己的需求画像** (sd + judge_prompt)。
+#   早先内建的 is_buyer/acquisition_ask 里, acquisition_ask 隐含"买家在求获客"这个假设 ——
+#   那只对"卖给想获客的人"的产品成立 (vibedollar 正好是), 对美甲/剃须刀/SaaS 监控都不成立。
+#   把某一个订阅的画像硬编码进通用引擎 = 换了个地方的隐藏语义机制 (core/01 禁止)。
+#   现在问句写在 data/jev_<sid>.json (与 data/sd_<sid>.md 同族), 由 agent 按 scripts/jev_gen.md
+#   从自己的 sd 推导。引擎只提供**通用结构**:
+#     · 多个 need 问句取 OR (保召回)   · 可选闸门对 gate_yes ∧ ¬gate_no (治"漏掉的那一类")
+#     · 升级带 = 任一**判定用**信号落在不确定带   · 契约: relevant ⟺ score >= 60
+JEV_BAND_LO, JEV_BAND_HI = 0.3, 0.7
+
+
+def jev_spec_path(sub_id: int) -> str:
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data",
+                        "jev_%s.json" % sub_id)
+
+
+def jev_load_spec(sub_id: int, path: str = ""):
+    """读该订阅的问句文件。**缺文件/格式错 = 明确报错并指向 jev_gen.md** (不给内建默认)。"""
+    p = path or jev_spec_path(sub_id)
+    if not os.path.exists(p):
+        sys.exit("engine=jev 需要**该订阅自己的**问句文件: %s\n"
+                 "  怎么写出适合你这个订阅的问句 -> 读 scripts/jev_gen.md\n"
+                 "  (不要套用别的订阅的问句: 问句是需求画像的函数, 换产品就不成立)" % p)
+    try:
+        with open(p, encoding="utf-8") as fh:
+            spec = json.load(fh)
+    except Exception as e:  # noqa: BLE001
+        sys.exit("问句文件读不了 (%s): %s" % (p, str(e)[:120]))
+    if not isinstance(spec.get("questions"), dict) or not spec["questions"]:
+        sys.exit("问句文件要有非空的 questions 字典: %s (见 scripts/jev_gen.md)" % p)
+    spec.setdefault("band", [JEV_BAND_LO, JEV_BAND_HI])
+    spec["_path"] = p
+    return spec
+
+
+def jev_build_questions(spec: dict):
+    """按 spec 构造 Noul 字典 (name -> Noul)。questions 里的进 OR 腿; gate 对单独成两条。"""
     from typesafe_sdk import Noul
-    return {
-        # 产品相对: 这人是这个产品的潜在买家吗 (高精度, FP=0)
-        'is_buyer': Noul(instructions={
-            'question': ('The state holds a PRODUCT and a Reddit POST. Is the post author a potential '
-                         'buyer for that product — do they express a need this product solves, or ask '
-                         'how to solve it themselves?'),
-            'answer_yes_when': ['describes the exact problem this product solves and wants it solved',
-                                'asks for recommendations of tools/services in this product category',
-                                'is evaluating or comparing options in this category for their own use',
-                                'is at the first-users stage: recruiting their first users or testers for their own product, or asking how others got theirs'],
-            'answer_no_when': ['the post is in an unrelated domain from the product',
-                               'the author announces, launches or promotes their own product or progress',
-                               'the author offers services in this category themselves',
-                               'the post is thought-leadership, a comparison or a news roundup with no own ask'],
-        }),
-        # 通用: 作者是否在为获客/增长求助 (高召回, 补 is_buyer 的漏)
-        'acquisition_ask': Noul(instructions={
-            'question': ('Is the post author asking for help GETTING CUSTOMERS, users, sales, traction or '
-                         'audience — is growth/acquisition their own problem here, whether stated outright '
-                         'or clearly implied by their situation?'),
-            'answer_yes_when': ['asks how or where to find customers, users, leads, first users or sales',
-                                'asks how to market, promote or grow their own thing',
-                                'says they cannot get users/traction and asks what others did',
-                                'asks others how THEY got their first users/customers/traction (implies the same unmet need)'],
-            'answer_no_when': ['the author shows no such need — pure news, a technical writeup, or a story with no ask',
-                               'the author offers their own services or agency work to others',
-                               'the post is about something else entirely'],
-        }),
-    }
+    out = {}
+    for name, q in (spec.get("questions") or {}).items():
+        out[name] = Noul(instructions={"question": q.get("question") or "",
+                                       "answer_yes_when": list(q.get("answer_yes_when") or []),
+                                       "answer_no_when": list(q.get("answer_no_when") or [])})
+    g = spec.get("gate") or {}
+    for leg in ("yes", "no"):
+        if isinstance(g.get(leg), dict):
+            q = g[leg]
+            out["gate_" + leg] = Noul(instructions={
+                "question": q.get("question") or "",
+                "answer_yes_when": list(q.get("answer_yes_when") or []),
+                "answer_no_when": list(q.get("answer_no_when") or [])})
+    return out
 
 
-def jev_judge(ts_key: str, model: str, product: str, sdj: dict, post: dict):
+def jev_compose(spec: dict, probs: dict, thr: float = 0.5) -> dict:
+    """把 N 个概率合成判定 —— 纯函数, 可离线单测。
+
+    语义: relevant = any(need >= thr) or (gate_yes >= thr and gate_no < thr)
+    升级带: 任一**判定用**信号落在 [lo,hi] (need 取最大者; gate_yes)。
+      实测 (263 条): 把 gate_no 也拉进带会把复核量从 44% 推到 55-63% 而收益相同, 故不进。
+    契约: score >= 60 ⟺ relevant (与 judge_prompt 同契)。
+    """
+    lo, hi = (spec.get("band") or [JEV_BAND_LO, JEV_BAND_HI])[:2]
+    needs = [float(probs[k]) for k in (spec.get("questions") or {}) if k in probs]
+    gy = float(probs["gate_yes"]) if "gate_yes" in probs else None
+    gn = float(probs["gate_no"]) if "gate_no" in probs else None
+    rel = (any(p >= thr for p in needs)
+           or (gy is not None and gy >= thr and (gn is None or gn < thr)))
+    deciders = list(needs) + ([gy] if gy is not None else [])
+    strong = max(deciders) if deciders else 0.0
+    conf = (strong - thr) * 2 if rel else (thr - strong) * 2
+    conf = max(0.0, min(1.0, conf))
+    band = bool(deciders) and any(lo <= p <= hi for p in deciders)
+    sc = int(round(strong * 100))
+    sc = max(sc, 60) if rel else min(sc, 59)
+    return {"relevant": rel, "escalate": band, "confidence": round(conf, 3), "score": sc,
+            "probs": {k: round(float(v), 3) for k, v in probs.items()},
+            "gate": (None if gy is None else
+                     {"yes": round(gy, 3), "no": (None if gn is None else round(gn, 3))})}
+
+
+def jev_reason(dec: dict) -> str:
+    """机器记录 (**不是解释**): 每个问句的概率 + 闸门 + 结论。
+    语义理由由 agent 在升级带里补 (judge_prompt 的契约)。"""
+    parts = ["%s=%.2f" % (k, v) for k, v in (dec.get("probs") or {}).items()]
+    g = dec.get("gate") or {}
+    if g:
+        parts.append("gate(yes=%.2f,no=%.2f)" % (g.get("yes") or 0, g.get("no") or 0))
+    return "[jev] %s -> %s%s" % (" ".join(parts), "relevant" if dec["relevant"] else "irrelevant",
+                                 " (落在不确定带, 建议 agent 复核)" if dec["escalate"] else "")
+
+
+def jev_judge(ts_key: str, model: str, product: str, sdj: dict, post: dict, spec: dict = None):
     """调 TypeSafe/Jev 一次 (两问并行), 返回与 `_llm_judge` 同形的判定 + 置信/升级标记。
 
     **key 与成本都在消费方** (原则「模型层分工」第 3 条) —— 这里用的是你自己的
@@ -259,16 +318,13 @@ def jev_judge(ts_key: str, model: str, product: str, sdj: dict, post: dict):
              'post': {'subreddit': post.get('subreddit') or '',
                       'title': post.get('title') or '',
                       'body': str(post.get('body') or '')[:2500]}}
+    qs = jev_build_questions(spec)
     with TypeSafeClient(api_key=ts_key) as client:
-        r = client.system_one(state=state, model=model, questions=jev_questions())
-    p1 = float(r.answers['is_buyer'].noul)
-    p2 = float(r.answers['acquisition_ask'].noul)
-    dec = jev_decide(p1, p2)
+        r = client.system_one(state=state, model=model, questions=qs)
+    dec = jev_compose(spec, {k: float(getattr(r.answers[k], 'noul', 0.0)) for k in qs})
     # reason: Jev **不给解释** —— 这里给的是**事实性的机器记录**, 不是理由;
     #   服务端只存不改 (原则第 4 条)。语义理由仍应由 agent 在升级带里补。
-    dec['reason'] = ('[jev] is_buyer=%.2f acquisition_ask=%.2f → %s%s'
-                     % (p1, p2, 'relevant' if dec['relevant'] else 'irrelevant',
-                        ' (两问分歧, 建议 agent 复核)' if dec['escalate'] else ''))
+    dec['reason'] = jev_reason(dec)
     return dec
 
 def main() -> None:
@@ -293,6 +349,7 @@ def main() -> None:
     ap.add_argument("--typesafe-key", default=os.environ.get("TYPESAFE_API_KEY", ""),
                     help="engine=jev 时必填 (你自己的 key; 环境变量 TYPESAFE_API_KEY)")
     ap.add_argument("--jev-model", default=os.environ.get("JEV_MODEL", "jev-latest"))
+    ap.add_argument("--questions", default="", help="每订阅问句文件 (默认 data/jev_<sub>.json; 怎么写出自己的 -> scripts/jev_gen.md)")
     ap.add_argument("--record-answers", default="",
                     help="engine=jev 跑完后把两问答案落盘 (供日后 --replay-answers 离线复跑)")
     ap.add_argument("--replay-answers", default="",
@@ -364,6 +421,16 @@ def main() -> None:
         except Exception as e:  # noqa: BLE001
             sys.exit('读不到 --replay-answers 文件: %s' % str(e)[:120])
 
+    # 顺序要紧: **回放先判** —— 回放是离线复算, 不该因为没有问句文件就失败
+    _spec = None
+    if args.replay_answers:
+        try:
+            _spec = jev_load_spec(args.sub, args.questions)
+        except SystemExit:
+            _spec = None   # 旧记录只有两问 -> 走 legacy 回放
+    elif args.engine == "jev":
+        _spec = jev_load_spec(args.sub, args.questions)
+
     def _one(p):
         """一个候选的判定 —— 三条路: 离线回放 / Jev / 原 chat LLM。"""
         lid = p.get('id')
@@ -371,15 +438,18 @@ def main() -> None:
             row = _replay.get(str(lid))
             if not row:
                 raise RuntimeError('replay 缺该条答案 (lead_id=%s)' % lid)
-            dec = jev_decide(row.get('is_buyer'), row.get('acquisition_ask'))
-            dec['reason'] = '[jev/replay] is_buyer=%.2f acquisition_ask=%.2f' % (
-                float(row.get('is_buyer') or 0), float(row.get('acquisition_ask') or 0))
+            # 回放: 记录里就有该订阅问句的答案 -> 用通用合成; 只有旧的两问记录才退回 legacy
+            names = set(jev_build_questions(_spec)) if _spec else set()
+            if names and names <= set(row):
+                dec = jev_compose(_spec, {k: row[k] for k in names})
+            else:
+                dec = jev_decide(row.get('is_buyer'), row.get('acquisition_ask'))
+            dec['reason'] = '[jev/replay] ' + jev_reason(dec).replace('[jev] ', '')
             return dec
         if args.engine == 'jev':
-            dec = jev_judge(args.typesafe_key, args.jev_model, product, sdj, p)
-            answers_out[str(lid)] = {'is_buyer': dec['is_buyer'],
-                                     'acquisition_ask': dec['acquisition_ask'],
-                                     'sub_id': args.sub, 'title': (p.get('title') or '')[:80]}
+            dec = jev_judge(args.typesafe_key, args.jev_model, product, sdj, p, _spec)
+            answers_out[str(lid)] = dict(dec.get('probs') or {},
+                                          sub_id=args.sub, title=(p.get('title') or '')[:80])
             return dec
         return _llm_judge(args.llm_base, args.llm_model, args.llm_key, prompt, product, p)
 

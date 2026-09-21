@@ -580,7 +580,13 @@ python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidenc
 
 ### `score_batch.py --engine jev` —— 用 Jev/TypeSafe 当判定引擎（可选）
 
-默认引擎是自己带的 chat 模型（`--engine llm`）。另有 **`--engine jev`**：调 TypeSafe 的 System One
+默认引擎是自己带的 chat 模型（`--engine llm`）。另有 **`--engine jev`**：调 TypeSafe 的 System One。
+**⚠️ 问句是「每个订阅自己写」的**：`--engine jev` 读 `data/jev_<sid>.json`（与 `data/sd_<sid>.md` 同族），
+缺文件会**直接报错并指向 `scripts/jev_gen.md`** —— 刻意不内建默认问句：问句是**你的需求画像的函数**，
+套用别的订阅的问句（例如「买家是不是在求获客」）对卖美甲机/剃须刀/SaaS 监控的产品就是错的。
+引擎只提供**通用结构**：多条 need 问句取 OR（保召回）+ 可选闸门对 `gate_yes ∧ ¬gate_no`（治漏掉的那一类），
+升级带 = 任一判定用信号落在 `[0.3,0.7]`，契约 `relevant ⟺ score>=60`。**怎么写出并验证你自己的问句看 `scripts/jev_gen.md`**。
+调 TypeSafe 的 System One
 决策模型，**一次调用并行问两个问题**（`is_buyer` 产品相对 + `acquisition_ask` 通用获客求助），再按
 **OR 级联**出 verdict。按**定稿口径**实测（2026-09-21 用独立盲判重做基准, 旧标签与词面提示都已剥离）：
 **高置信带 0.921 一致 / 精确 84% / 召回 100%**（n=38/50），全体 0.780；**真实线索轮次**（n=31）

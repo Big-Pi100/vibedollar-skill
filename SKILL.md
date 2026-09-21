@@ -632,7 +632,15 @@ read it, then decide next (score another sub, expand keywords, wait).
 
 ### `score_batch.py --engine jev` — judge with Jev/TypeSafe (optional)
 
-Default engine is your own chat model (`--engine llm`). With **`--engine jev`** the script calls TypeSafe's
+Default engine is your own chat model (`--engine llm`). With **`--engine jev`** the script calls TypeSafe's.
+**⚠️ The questions are written PER SUBSCRIPTION**: `--engine jev` reads `data/jev_<sid>.json` (same family as
+`data/sd_<sid>.md`); a missing file **fails with a pointer to `scripts/jev_gen.md`** — deliberately no built-in
+default: questions are a function of YOUR demand profile, and borrowing another subscription's questions
+(e.g. "is the buyer asking for help getting customers") is simply wrong for a nail-polish or razor product.
+The engine only supplies the **generic structure**: several need questions OR-ed (recall) + an optional gate pair
+`gate_yes AND NOT gate_no` (for the class you keep missing); the escalation band is any deciding signal in
+`[0.3,0.7]`; contract `relevant iff score>=60`. **See `scripts/jev_gen.md` for how to write and validate yours.**
+TypeSafe's
 System One decision model, asking **two questions in one call** (`is_buyer`, product-relative, plus
 `acquisition_ask`, generic) and combining them with an **OR cascade**. Measured against the **finalized
 caliber** (2026-09-21; the gold set re-judged by an independent blind pass, old labels and keyword hints

@@ -1,0 +1,70 @@
+{
+ "sub_id": 355,
+ "derived_from": "data/sd_355.md (demand_side=独立开发者/首次做 SaaS·App 找首批客户; demand_pain=手动翻 Reddit 找线索、嫌 GummySearch/Syften 贵)",
+ "band": [
+  0.3,
+  0.7
+ ],
+ "questions": {
+  "is_buyer": {
+   "question": "The state holds a PRODUCT and a Reddit POST. Is the post author a potential buyer for that product - do they express a need this product solves, or ask how to solve it themselves?",
+   "answer_yes_when": [
+    "describes the exact problem this product solves and wants it solved",
+    "asks for recommendations of tools/services in this product category",
+    "is evaluating or comparing options in this category for their own use"
+   ],
+   "answer_no_when": [
+    "the post is in an unrelated domain from the product",
+    "the author announces, launches or promotes their own product or progress",
+    "the author offers services in this category themselves",
+    "the post is thought-leadership, a comparison or a news roundup with no own ask"
+   ]
+  },
+  "acquisition_ask": {
+   "question": "Is the post author asking for help GETTING CUSTOMERS, users, sales, traction or audience - is growth/acquisition their own problem here, whether stated outright or clearly implied?",
+   "answer_yes_when": [
+    "asks how or where to find customers, users, leads, first users or sales",
+    "asks how to market, promote or grow their own thing",
+    "says they cannot get users/traction and asks what others did",
+    "asks others how THEY got their first users/customers/traction (implies the same unmet need)"
+   ],
+   "answer_no_when": [
+    "the author shows no such need - pure news, a technical writeup, or a story with no ask",
+    "the author offers their own services or agency work to others",
+    "the post is about something else entirely"
+   ]
+  }
+ },
+ "gate": {
+  "yes": {
+   "question": "Is the post author asking OTHER PEOPLE for something for a product THAT THEY THEMSELVES are building or have just launched - feedback, testers, early users, or help getting adoption?",
+   "answer_yes_when": [
+    "asks for feedback, honest opinions, a roast or a review of something they built",
+    "recruits testers, beta users, alpha testers or early users for their own product",
+    "invites people to try, sign up for, or join a waitlist for their own product",
+    "says they have (almost) no users of their OWN product and asks what to do"
+   ],
+   "answer_no_when": [
+    "the author is selling, offering or advertising their own services or agency work",
+    "the author is a peer or supplier promoting a tool they sell (e.g. a tester marketplace)",
+    "the post is news, a comparison, a how-to, a retrospective or an opinion piece",
+    "the product the post is about does not belong to the author"
+   ]
+  },
+  "no": {
+   "question": "Is the post author NOT a potential buyer - are they a seller/supplier/peer, or are they showing off a system that already works, rather than having an unresolved need of their own?",
+   "answer_yes_when": [
+    "offers, sells or advertises their own services, agency or consulting work",
+    "promotes a commercial tool or marketplace they sell (a competitor or supplier)",
+    "shows off revenue, users, MRR or traction as a success story with no ask of their own",
+    "is looking for a job, a cofounder or an investor for their own project"
+   ],
+   "answer_no_when": [
+    "the author has an unresolved need and is asking for help",
+    "the author is early with few or no users and wants them",
+    "the author asks for feedback/testers on something they just built"
+   ]
+  }
+ },
+ "_note": "⚠️ 这是一个**实例**, 不是模板: 它按 vibedollar 自己的 demand_side 写成 —— 其中 acquisition_ask 隐含\"买家在求获客\"这个假设, 只对\"卖给想获客的人\"的产品成立。照 scripts/jev_gen.md 从**你自己的 sd** 推导你自己的问句; 把它复制成 data/jev_<sid>.json 再用。"
+}
