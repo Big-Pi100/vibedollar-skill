@@ -236,7 +236,12 @@ pooled · delivered · rejected · **delivery rate** · unclaimed. `.pairs` is t
 can be 95% in one sub and 0% in another** (measured: `closed testing` 95% overall vs 13% in `b2bmarketing`), so a low
 number must first be attributed. Each pair carries `kw_rate_elsewhere` (that word's rate in the **other** subs, this
 cell removed), `sub_rate_other_kw` (that sub's rate on other words) and a `hint` (**pair problem** = word and sub are
-both fine elsewhere, only this combination is bad / **word problem** / **sub problem**). The `hint` is a
+both fine elsewhere, only this combination is bad / **word problem** / **sub problem** /
+**both word and sub are bad** (retiring the word will not help) / **null** (**the comparison sample is too
+small, so no attribution is given**). Every threshold is in the row itself and **recomputable**: the cell is
+low-yield when judged >= 5 and rate < 0.20; `kw_rate_elsewhere` / `sub_rate_other_kw` are computed with
+**this cell removed** and only count when `kw_elsewhere_judged` / `sub_other_kw_judged` are >= 5; >= 0.40 counts
+as "fine elsewhere"). The `hint` is a
 **deterministic classification and only a hint** — the server never retires a word, drops a sub or excludes a cell
 because of it. Try a **narrower word shape** first (`closed testing` → `closed testing testers`). Also per sub/keyword: `每个
   rejected · **delivery rate** · unclaimed, plus `in_list` (still in the search scope) and
