@@ -195,12 +195,19 @@ def jev_decide(is_buyer: float, acq_ask: float, thr: float = 0.5) -> dict:
     strong = max(p1, p2)
     conf = (strong - thr) * 2 if rel else (thr - strong) * 2
     conf = max(0.0, min(1.0, conf))
+    # ⚠️ score 必须遵守 judge_prompt 的契约: relevant ⟺ score >= 60。
+    #   OR 规则下会出现 max(p1,p2)=0.5 → relevant, 但 0.5*100 = 50 < 60 —— 契约被破坏:
+    #   下游(与 judge_prompt 同源的判定/审计)会认为"score<60 却是 relevant"自相矛盾。
+    #   (2026-09-21 隔离跑实测: 4239775=59 / 4239776=58 / 4238972=50 三条都是 relevant。)
+    #   修法: 保留量级信号, 但把落到错误一侧的值夹到契约边界上。
+    _sc = int(round(strong * 100))
+    _sc = max(_sc, 60) if rel else min(_sc, 59)
     return {'relevant': rel,
             # 升级 = 落在不确定带 (不是"两问分歧" —— 实测后者同升级率下错误翻倍)
             'escalate': (ESCALATE_LO <= strong <= ESCALATE_HI),
             'disagree': ((p1 >= thr) != (p2 >= thr)),   # 单独报出, 供参考
             'confidence': round(conf, 3),
-            'score': int(round(strong * 100)),
+            'score': _sc,
             'is_buyer': round(p1, 3), 'acquisition_ask': round(p2, 3)}
 
 
@@ -431,10 +438,13 @@ def main() -> None:
         print(f"  ❌ 交还超时/失败 (状态不确定 — 用 health 核验): {str(e)[:100]}",
               file=sys.stderr)
     out["relevant"] = sum(1 for _, pl in judged if pl["verdict"] == "relevant")
-    # 升级带: 两问分歧的条目 —— 给人/agent 复核用; 不改变已交结果
+    # 升级带: 落在不确定带 max(p1,p2) ∈ [0.3,0.7] 的条目 —— 给人/agent 复核用; 不改变已交结果
+    #   (2026-09-21 判据调整: 原为"两问不一致"; 1145 条实测同升级率下其自动带错误翻倍)
     out["escalate_ids"] = escalate_ids
-    out["escalate_note"] = ("这些条目两个问句答案不一致 → 建议用 judge_prompt 复核; "
-                            "服务端只存你回传的 verdict/confidence, 不会替你改")
+    out["escalate_note"] = ("这些条目**落在不确定带 max(p1,p2) ∈ [%.1f,%.1f]** "
+                            "(连 Jev 自己也不确定) → 建议用 judge_prompt 复核; "
+                            "服务端只存你回传的 verdict/confidence, 不会替你改"
+                            % (ESCALATE_LO, ESCALATE_HI))
     out["confidence_submitted"] = sum(1 for _, pl in judged if "confidence" in pl)
     if args.record_answers and answers_out:
         with open(args.record_answers, "w", encoding="utf-8") as fh:
