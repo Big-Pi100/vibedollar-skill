@@ -162,6 +162,87 @@ def _save_evidence(out_dir: str, sid: int, product: str,
     print(f"      📄 证据 {len(rows)} 条 → {fpath}")
 
 
+def jev_decide(is_buyer: float, acq_ask: float, thr: float = 0.5) -> dict:
+    """Jev 两问结果的**级联决策** (纯函数, 可离线单测)。
+
+    依据 2026-09-21 gold set 实测 (scripts/jev_gold50.json, n=50):
+      · `is_buyer` 单问: 一致率 0.840, 高置信段 0.897, **FP=0** (精度好, 但漏 4 条)
+      · 两问 **OR**: **FN=0** (一条不漏), 代价 FP 上升
+      · 所以: 用 OR 保召回, 用 `escalate` 把**两问分歧**的那批标出来交给 agent 复核。
+
+    confidence: 判定侧最强证据离 0.5 边界的距离 (Noul 没有独立 confidence,
+      按其概率的确定性折算到 [0,1]; 这就是回传给服务端的 `confidence` —— 服务端只存不用)。
+    """
+    p1, p2 = float(is_buyer or 0.0), float(acq_ask or 0.0)
+    rel = (p1 >= thr) or (p2 >= thr)
+    strong = max(p1, p2)
+    conf = (strong - thr) * 2 if rel else (thr - strong) * 2
+    conf = max(0.0, min(1.0, conf))
+    return {'relevant': rel,
+            'escalate': ((p1 >= thr) != (p2 >= thr)),   # 两问分歧 → 交 agent 复核
+            'confidence': round(conf, 3),
+            'score': int(round(strong * 100)),
+            'is_buyer': round(p1, 3), 'acquisition_ask': round(p2, 3)}
+
+
+def jev_questions():
+    """两个**独立**问句, 一次调用并行问 (TypeSafe 的 fan-out)。问句设计见 docs/jev-shadow-eval。"""
+    from typesafe_sdk import Noul
+    return {
+        # 产品相对: 这人是这个产品的潜在买家吗 (高精度, FP=0)
+        'is_buyer': Noul(instructions={
+            'question': ('The state holds a PRODUCT and a Reddit POST. Is the post author a potential '
+                         'buyer for that product — do they express a need this product solves, or ask '
+                         'how to solve it themselves?'),
+            'answer_yes_when': ['describes the exact problem this product solves and wants it solved',
+                                'asks for recommendations of tools/services in this product category',
+                                'is evaluating or comparing options in this category for their own use'],
+            'answer_no_when': ['the post is in an unrelated domain from the product',
+                               'the author announces, launches or promotes their own product or progress',
+                               'the author is recruiting testers or early users for free feedback',
+                               'the author offers services in this category themselves',
+                               'the post is thought-leadership, a comparison or a news roundup with no own ask'],
+        }),
+        # 通用: 作者是否在为获客/增长求助 (高召回, 补 is_buyer 的漏)
+        'acquisition_ask': Noul(instructions={
+            'question': ('Is the post author asking for help GETTING CUSTOMERS, users, sales, traction or '
+                         'audience — i.e. is growth/acquisition their own stated problem in this post?'),
+            'answer_yes_when': ['asks how or where to find customers, users, leads, first users or sales',
+                                'asks how to market, promote or grow their own thing',
+                                'says they cannot get users/traction and asks what others did'],
+            'answer_no_when': ['the author is not asking for anything — they are sharing, announcing or opining',
+                               'the author is offering help, services or a product to others',
+                               'the post is about something else entirely'],
+        }),
+    }
+
+
+def jev_judge(ts_key: str, model: str, product: str, sdj: dict, post: dict):
+    """调 TypeSafe/Jev 一次 (两问并行), 返回与 `_llm_judge` 同形的判定 + 置信/升级标记。
+
+    **key 与成本都在消费方** (原则「模型层分工」第 3 条) —— 这里用的是你自己的
+    TYPESAFE_API_KEY; 服务端不碰这个 key。
+    """
+    from typesafe_sdk import TypeSafeClient
+    state = {'product': (product or '')[:600],
+             'supply_side': str((sdj or {}).get('supply_side') or '')[:400],
+             'demand_side': str((sdj or {}).get('demand_side') or '')[:400],
+             'demand_pain': str((sdj or {}).get('demand_pain') or '')[:400],
+             'post': {'subreddit': post.get('subreddit') or '',
+                      'title': post.get('title') or '',
+                      'body': str(post.get('body') or '')[:2500]}}
+    with TypeSafeClient(api_key=ts_key) as client:
+        r = client.system_one(state=state, model=model, questions=jev_questions())
+    p1 = float(r.answers['is_buyer'].noul)
+    p2 = float(r.answers['acquisition_ask'].noul)
+    dec = jev_decide(p1, p2)
+    # reason: Jev **不给解释** —— 这里给的是**事实性的机器记录**, 不是理由;
+    #   服务端只存不改 (原则第 4 条)。语义理由仍应由 agent 在升级带里补。
+    dec['reason'] = ('[jev] is_buyer=%.2f acquisition_ask=%.2f → %s%s'
+                     % (p1, p2, 'relevant' if dec['relevant'] else 'irrelevant',
+                        ' (两问分歧, 建议 agent 复核)' if dec['escalate'] else ''))
+    return dec
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="vibedollar 批量评分执行器 (单订阅单批)")
     ap.add_argument("--key", default=os.environ.get("VIBEDOLLAR_API_KEY", ""))
@@ -177,12 +258,26 @@ def main() -> None:
     ap.add_argument("--out", default="", help="证据输出目录 (可选)")
     ap.add_argument("--out-format", default="csv", choices=["csv", "json"])
     ap.add_argument("--dry-run", action="store_true")
+    # ── 判定引擎 (2026-09-21): llm = 现行为 (自带 chat 模型); jev = TypeSafe 决策模型 ──
+    ap.add_argument("--engine", default=os.environ.get("JUDGE_ENGINE", "llm"),
+                    choices=["llm", "jev"],
+                    help="llm (默认, OpenAI 兼容 chat) | jev (TypeSafe 两问级联)")
+    ap.add_argument("--typesafe-key", default=os.environ.get("TYPESAFE_API_KEY", ""),
+                    help="engine=jev 时必填 (你自己的 key; 环境变量 TYPESAFE_API_KEY)")
+    ap.add_argument("--jev-model", default=os.environ.get("JEV_MODEL", "jev-latest"))
+    ap.add_argument("--record-answers", default="",
+                    help="engine=jev 跑完后把两问答案落盘 (供日后 --replay-answers 离线复跑)")
+    ap.add_argument("--replay-answers", default="",
+                    help="离线回放: 用 --record-answers 的答案跑同一套级联 (零 API 调用)")
     args = ap.parse_args()
 
     if not args.key:
         sys.exit("缺少 vibedollar key — 设 VIBEDOLLAR_API_KEY 或 --key")
-    if not args.llm_key and not args.dry_run:
+    if args.engine == "llm" and not args.llm_key and not args.dry_run:
         sys.exit("缺少 LLM key — 设 LLM_API_KEY 或 --llm-key (dry-run 除外)")
+    if (args.engine == "jev" and not args.replay_answers
+            and not args.typesafe_key and not args.dry_run):
+        sys.exit("engine=jev 需要**你自己的** TypeSafe key — 设 TYPESAFE_API_KEY 或 --typesafe-key")
 
     prompt = _load_judge_prompt(args.judge)
     mc = MCPClient(args.key)
@@ -219,6 +314,7 @@ def main() -> None:
     out = {"sub_id": args.sub, "claimed": len(leads), "judged": 0,
            "relevant": 0, "submitted": 0, "failed": 0,
            "submit_state": "none",
+           "engine": args.engine + ("/replay" if args.replay_answers else ""),
            "pending": [p.get("id") for p in pending if p.get("id")]}
     if not leads:
         print(json.dumps(out, ensure_ascii=False))
@@ -230,24 +326,62 @@ def main() -> None:
     # 并行判真 (效率核心 — 每路独立请求)
     judged: list = []
     fail = 0
+    escalate_ids: list = []
+    answers_out: dict = {}
+    _replay = {}
+    if args.replay_answers:
+        try:
+            with open(args.replay_answers, encoding='utf-8') as fh:
+                _replay = json.load(fh).get('answers') or {}
+        except Exception as e:  # noqa: BLE001
+            sys.exit('读不到 --replay-answers 文件: %s' % str(e)[:120])
+
+    def _one(p):
+        """一个候选的判定 —— 三条路: 离线回放 / Jev / 原 chat LLM。"""
+        lid = p.get('id')
+        if _replay:
+            row = _replay.get(str(lid))
+            if not row:
+                raise RuntimeError('replay 缺该条答案 (lead_id=%s)' % lid)
+            dec = jev_decide(row.get('is_buyer'), row.get('acquisition_ask'))
+            dec['reason'] = '[jev/replay] is_buyer=%.2f acquisition_ask=%.2f' % (
+                float(row.get('is_buyer') or 0), float(row.get('acquisition_ask') or 0))
+            return dec
+        if args.engine == 'jev':
+            dec = jev_judge(args.typesafe_key, args.jev_model, product, sdj, p)
+            answers_out[str(lid)] = {'is_buyer': dec['is_buyer'],
+                                     'acquisition_ask': dec['acquisition_ask'],
+                                     'sub_id': args.sub, 'title': (p.get('title') or '')[:80]}
+            return dec
+        return _llm_judge(args.llm_base, args.llm_model, args.llm_key, prompt, product, p)
+
     with ThreadPoolExecutor(max_workers=max(1, args.parallel)) as ex:
         futs = {}
         for p in leads:
-            lid = p.get("id")
-            if lid is None:
+            if p.get('id') is None:
                 continue
-            futs[ex.submit(_llm_judge, args.llm_base, args.llm_model,
-                           args.llm_key, prompt, product, p)] = (p, lid)
+            futs[ex.submit(_one, p)] = (p, p.get('id'))
         for fu in as_completed(futs):
             p, lid = futs[fu]
-            j = fu.result()
+            try:
+                j = fu.result()
+            except Exception as e:  # noqa: BLE001
+                print('  ⚠️ 判真失败 lead_id=%s: %s' % (lid, str(e)[:80]), file=sys.stderr)
+                j = None
             if not j:
                 fail += 1
                 continue
-            payload = {"id": int(lid),
-                       "verdict": "relevant" if j["score"] >= args.threshold
-                       else "irrelevant",
-                       "score": j["score"], "reason": j["reason"]}
+            # 判决来源: 引擎显式给 relevant 就用它 (Jev 级联是 OR 规则, 不等于阈值);
+            #   否则沿用原行为 (score >= threshold)。
+            verdict = ('relevant' if j['relevant'] else 'irrelevant') \
+                if 'relevant' in j else \
+                ('relevant' if j['score'] >= args.threshold else 'irrelevant')
+            payload = {'id': int(lid), 'verdict': verdict,
+                       'score': j['score'], 'reason': j['reason']}
+            if j.get('confidence') is not None:
+                payload['confidence'] = j['confidence']
+            if j.get('escalate'):
+                escalate_ids.append(int(lid))
             judged.append((p, payload))
     out["judged"] = len(judged)
     out["failed"] = fail
@@ -276,6 +410,16 @@ def main() -> None:
         print(f"  ❌ 交还超时/失败 (状态不确定 — 用 health 核验): {str(e)[:100]}",
               file=sys.stderr)
     out["relevant"] = sum(1 for _, pl in judged if pl["verdict"] == "relevant")
+    # 升级带: 两问分歧的条目 —— 给人/agent 复核用; 不改变已交结果
+    out["escalate_ids"] = escalate_ids
+    out["escalate_note"] = ("这些条目两个问句答案不一致 → 建议用 judge_prompt 复核; "
+                            "服务端只存你回传的 verdict/confidence, 不会替你改")
+    out["confidence_submitted"] = sum(1 for _, pl in judged if "confidence" in pl)
+    if args.record_answers and answers_out:
+        with open(args.record_answers, "w", encoding="utf-8") as fh:
+            json.dump({"model": args.jev_model, "sub_id": args.sub,
+                       "answers": answers_out}, fh, ensure_ascii=False, indent=1)
+        out["recorded_answers"] = args.record_answers
     if args.out:
         _save_evidence(args.out, args.sub, product, judged, args.out_format)
     print(json.dumps(out, ensure_ascii=False))

@@ -526,6 +526,27 @@ python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidenc
 - **失败安全**：某条判真失败不丢——留 pending 下轮重试；`vibe_leads` 返回 `locked`+pending 列表
   直到评完为止，把领的全评了（relevant 或 irrelevant）就解锁下一批
 
+### `score_batch.py --engine jev` —— 用 Jev/TypeSafe 当判定引擎（可选）
+
+默认引擎是自己带的 chat 模型（`--engine llm`）。另有 **`--engine jev`**：调 TypeSafe 的 System One
+决策模型，**一次调用并行问两个问题**（`is_buyer` 产品相对 + `acquisition_ask` 通用获客求助），再按
+**OR 级联**出 verdict —— 依据 50 条人工 gold set 实测：单问 `is_buyer` 一致率 0.840 / 高置信段 0.897 /
+**FP=0**；两问 OR 则 **FN=0**（一条不漏）。
+
+```bash
+export TYPESAFE_API_KEY=...            # 你自己的 key（服务端不碰这个 key）
+python3 score_batch.py --sub 355 --limit 20 --engine jev \
+    --record-answers run1.json         # 顺手把两问答案落盘
+python3 score_batch.py --sub 355 --engine jev --replay-answers run1.json   # 离线复跑（零 API）
+```
+
+- **`confidence`**：按最强证据离 0.5 边界的距离折算到 [0,1]，回传给 `vibe_submit_score`。
+  服务端**只存不用**（不改 verdict/score、不参与计费）。
+- **`escalate_ids`**：两个问句**答案不一致**的条目 —— 建议你用 `judge_prompt` 复核一遍；
+  服务端不会替你改。这是 skill 的 `confidence-routing` 用法。
+- `reason` 是**机器记录**（形如 `[jev] is_buyer=0.90 acquisition_ask=0.10 → relevant`），
+  **不是解释** —— Jev 不生成文本；语义理由由你（agent）在升级带里补。
+- key 与成本都在**消费方**（BYOK）；这属于「模型层分工原则」第 3 条。
 ### `scripts/mcp.py` —— 共享 MCP 客户端（库，非 CLI）
 
 供其他本地脚本 import：`from mcp import MCPClient`。不由你直接调用。

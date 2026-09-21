@@ -569,6 +569,28 @@ read it, then decide next (score another sub, expand keywords, wait).
   run, never lost. `vibe_leads` returns `locked` with pending ids until they're scored;
   scoring everything you claimed unlocks the next batch.
 
+### `score_batch.py --engine jev` — judge with Jev/TypeSafe (optional)
+
+Default engine is your own chat model (`--engine llm`). With **`--engine jev`** the script calls TypeSafe's
+System One decision model, asking **two questions in one call** (`is_buyer`, product-relative, plus
+`acquisition_ask`, generic) and combining them with an **OR cascade** — measured on a 50-item human gold
+set: `is_buyer` alone agrees 0.840 (0.897 on the confident subset, **FP=0**); the OR cascade gives **FN=0**
+(nothing missed) at the cost of more false positives.
+
+```bash
+export TYPESAFE_API_KEY=...            # your own key (the server never touches it)
+python3 score_batch.py --sub 355 --limit 20 --engine jev \
+    --record-answers run1.json         # also persist the two answers
+python3 score_batch.py --sub 355 --engine jev --replay-answers run1.json   # offline replay (zero API)
+```
+
+- **`confidence`**: distance of the strongest evidence from the 0.5 boundary, mapped to [0,1]; submitted via
+  `vibe_submit_score`. The server **stores it and never uses it** (no verdict/score/billing effect).
+- **`escalate_ids`**: items where the two questions **disagree** — re-check them yourself with
+  `judge_prompt`. The server will not change your verdict. This is the skill's `confidence-routing` pattern.
+- `reason` is a **machine record** (e.g. `[jev] is_buyer=0.90 acquisition_ask=0.10 → relevant`), **not an
+  explanation** — Jev does not generate text; the semantic reason is yours to add on the escalated band.
+- Key and cost stay on the **consumer** side (BYOK) — principle section 3.
 ### `scripts/mcp.py` — shared MCP client (library, not a CLI)
 
 Import by other local tools: `from mcp import MCPClient`. Not called directly by you.
