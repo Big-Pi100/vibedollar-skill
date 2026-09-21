@@ -580,9 +580,16 @@ read it, then decide next (score another sub, expand keywords, wait).
 
 Default engine is your own chat model (`--engine llm`). With **`--engine jev`** the script calls TypeSafe's
 System One decision model, asking **two questions in one call** (`is_buyer`, product-relative, plus
-`acquisition_ask`, generic) and combining them with an **OR cascade** — measured on a 50-item human gold
-set: `is_buyer` alone agrees 0.840 (0.897 on the confident subset, **FP=0**); the OR cascade gives **FN=0**
-(nothing missed) at the cost of more false positives.
+`acquisition_ask`, generic) and combining them with an **OR cascade**. Measured against the **finalized
+caliber** (2026-09-21; the gold set re-judged by an independent blind pass, old labels and keyword hints
+stripped): **high-confidence band 0.921 agreement / 84% precision / 100% recall** (n=38 of 50), overall 0.780.
+On **real leads** (n=31) the high-confidence band was **0.952 / 100% precision / 90% recall** — the 3 misses
+were milestone/celebration posts sitting in the caliber's borderline band.
+What matters is not the headline number but **where the disagreement lands**: 73–80% of it falls inside the
+band where your own judge is *also* unsure. So treat Jev as a **pre-filter with routing**, never as the
+verdict — let the confident band through automatically, escalate the rest to `judge_prompt` yourself.
+(An earlier version of this line claimed "FN=0 / nothing missed". That held only on the **pre-caliber** gold
+set; on real leads it is **not** true.)
 
 ```bash
 export TYPESAFE_API_KEY=...            # your own key (the server never touches it)
