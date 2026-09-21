@@ -1,10 +1,11 @@
 {
- "sub_id": 355,
- "derived_from": "data/sd_355.md (demand_side=独立开发者/首次做 SaaS·App 找首批客户; demand_pain=手动翻 Reddit 找线索、嫌 GummySearch/Syften 贵)",
+ "sub_id": 0,
+ "derived_from": "data/sd_355.md 的 demand_side/demand_pain + **355 自己 250 条标注上的逐腿消融** (docs/jev-shadow-eval §17)",
  "band": [
   0.3,
   0.7
  ],
+ "_measured": "消融 (250 条: delivered 125 + rejected 125): is_buyer 单用召回仅 11%; 两问 0.864; 加闸门对降到 0.812 (多 24 FP 只换 2 TP) -> **不启用闸门**。跨 6 个产品实测本 spec 会拖累别的产品 (§16), 只在 355 上用。",
  "questions": {
   "is_buyer": {
    "question": "The state holds a PRODUCT and a Reddit POST. Is the post author a potential buyer for that product - do they express a need this product solves, or ask how to solve it themselves?",
@@ -35,36 +36,5 @@
    ]
   }
  },
- "gate": {
-  "yes": {
-   "question": "Is the post author asking OTHER PEOPLE for something for a product THAT THEY THEMSELVES are building or have just launched - feedback, testers, early users, or help getting adoption?",
-   "answer_yes_when": [
-    "asks for feedback, honest opinions, a roast or a review of something they built",
-    "recruits testers, beta users, alpha testers or early users for their own product",
-    "invites people to try, sign up for, or join a waitlist for their own product",
-    "says they have (almost) no users of their OWN product and asks what to do"
-   ],
-   "answer_no_when": [
-    "the author is selling, offering or advertising their own services or agency work",
-    "the author is a peer or supplier promoting a tool they sell (e.g. a tester marketplace)",
-    "the post is news, a comparison, a how-to, a retrospective or an opinion piece",
-    "the product the post is about does not belong to the author"
-   ]
-  },
-  "no": {
-   "question": "Is the post author NOT a potential buyer - are they a seller/supplier/peer, or are they showing off a system that already works, rather than having an unresolved need of their own?",
-   "answer_yes_when": [
-    "offers, sells or advertises their own services, agency or consulting work",
-    "promotes a commercial tool or marketplace they sell (a competitor or supplier)",
-    "shows off revenue, users, MRR or traction as a success story with no ask of their own",
-    "is looking for a job, a cofounder or an investor for their own project"
-   ],
-   "answer_no_when": [
-    "the author has an unresolved need and is asking for help",
-    "the author is early with few or no users and wants them",
-    "the author asks for feedback/testers on something they just built"
-   ]
-  }
- },
- "_note": "⚠️ **实例, 不是模板, 而且已实测过它的危害**: 2026-09-21 把这 4 句原样搬到 6 个不同领域的\n产品上跑 (标签=客户自己的判定), 跨产品准确率 **0.89 (只问 is_buyer) → 0.82 (加 acquisition_ask)\n→ 0.77 (再加闸门对)** —— 6 个产品无一例外都变差。照 scripts/jev_gen.md 从**你自己的 sd** 推导, \n并以 is_buyer 为基线逐条证明新增的腿有价值。"
+ "_note": "⚠️ 这是**实例** (按 vibedollar 自己的 sd 与它自己 250 条标注的消融写成), **不是模板**。实测: 把它原样搬到 6 个不同领域的产品上, 跨产品准确率 0.89 → 0.82 (含 acquisition_ask), 再加闸门对 → 0.77 —— 无一例外都变差。照 scripts/jev_gen.md 从**你自己的 sd** 推导, 并在**你自己的代表性标签**上逐腿验证: 起点 is_buyer, 每加一条腿都要证明它不劣于基线, 且样本**不能按模型的输出挑**。"
 }
