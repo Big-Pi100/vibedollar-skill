@@ -401,6 +401,12 @@ vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → which subreddits actually contribute candidates
 vibe_sub_list_update(sid, subs=[], mode="list")  → your current sub list (v2.2: your explicit search face)
+vibe_leads(peek=true)    → **glance at this every round**: progress.todo.supply.stats.pairs / low_yield.pairs
+                           = the (word x sub) grid — **the same word can be 95% in one sub and 0% in
+                           another** (measured: closed testing 95% overall / 13% in b2bmarketing). Each
+                           cell carries kw_rate_elsewhere / sub_rate_other_kw and a hint, which tells you
+                           whether to fix the word, drop the sub, or declare a pair exclusion —
+                           **read the hint first, never the bare number**
 ```
 
 **v2.2 (2026-09-09) — your search face is your sub list.** Matching now runs **only
@@ -473,6 +479,7 @@ Decision table (goal-driven, v2.2 sub-anchored — 2026-09-09):
 | NEW30 swept, collecting_ok | corpus boundary thin → widen your sub list (stage B), record the attempt meanwhile |
 | `collecting_ok=false` | alert (intake down — expanding useless) |
 | `arctic.limited` | pause supply actions — physical wait, not a cooldown |
+| **a `stats.pairs` cell is low-yield** (judged ≥5 and rate <20%) | **read the `hint` first**: `pair problem` (word and sub are both fine elsewhere) → declare the exclusion with `vibe_pair_exclude`; `word problem` → fix the word (`vibe_keyword_remove`) or try a **narrower word shape** (`closed testing` → `closed testing testers`); `sub problem` → consider dropping the sub (`vibe_sub_list_update mode=remove`). **Never drop a sub off the bare number** — measured: that nearly deleted 4 subs whose audience was fine |
 
 **Exhausted (only legal stop)** — delivery still short AND you have already tried, in
 order, with verification at each step: score → retire noise → widen/refresh your sub

@@ -352,6 +352,11 @@ vibe_keywords(sid, all)  → 每词: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
 vibe_sub_list_update(sid, subs=[], mode="list")  → 你当前的 sub 清单（v2.2：你的显式搜索面）
+vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.pairs / low_yield.pairs:
+                           (词 × sub) 网格 —— **同一个词能在一个 sub 95%、在另一个 sub 0%**
+                           (实测 closed testing 全局 95% / 在 b2bmarketing 13%)。每格带
+                           kw_rate_elsewhere / sub_rate_other_kw 与 hint, 直接告诉你该改词
+                           / 移 sub / 还是声明排除格 —— **先看 hint, 别只看那个低数字**
 ```
 
 **v2.2（2026-09-09）——搜索面 = 你的 sub 清单。** 匹配现在**只在你列出的 sub
@@ -419,6 +424,7 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 | NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间记录尝试 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
 | `arctic.limited` | 暂停供给动作 —— 物理等待，非冷却 |
+| **`stats.pairs` 某格低产**（判过 ≥5 且交付率 <20%） | **先看 `hint` 再动手**: `配对问题`（词与 sub 各自在别处都不错）→ `vibe_pair_exclude` 声明排除该格; `词面问题` → 改词（`vibe_keyword_remove`）或换**更窄的词形**（`closed testing` → `closed testing testers`）; `sub 问题` → 考虑移 sub（`vibe_sub_list_update mode=remove`）。**别只看那个低数字就删 sub** —— 实测因此差点删掉 4 个**人群没问题**的 sub |
 
 **穷尽（唯一合法停止）** —— 交付仍缺 且 你已依序尝试并逐步验证：评分 → retire 噪声 →
 扩/刷新 sub 清单（catalog A/B/C）→ 从 sd 重生成词面 → probe → 报告。然后诚实报告试过
