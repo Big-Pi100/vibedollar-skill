@@ -148,6 +148,14 @@ outreach（写草稿 → 发出 → 标记结果）
   be related to "building in public" … Off-topic content will be removed* —— 一句话就是这个 sub
   的定位。⚠️ `rules_missing=true` = **问过 rules API 但 Reddit 侧没有公开规则**，不等于这个 sub
   没限制；`rules_available=false` 时退回 `description` / `submit_text` 判。
+- **确认「这个 sub 的人就是 demand_side」—— 读它的语料, 别只信交付率**: 交付率是
+  **(sub × 你当时的判定口径)** 的函数, 不是 sub 的性质。实测 2026-09-21: `r/alphaandbetausers`
+  在旧口径下 **3.2%** (7/220) 被移出清单; 口径修正 + 重判 213 条历史后是 **95%** (209/220) ——
+  全订阅最对口的 sub。所以 (a) **口径变更后 per-sub 历史必须重算**才能拿来决策;
+  (b) `n<10` 本来就不够下结论。与口径无关的确认法是**读他们自己写的话**:
+  `vibe_sub_corpus(sub=<候选>, limit=200)` —— 标题若成片是"我在招第一批用户/测试者",
+  这个 sub 的人群就是你的 demand_side (`r/alphaandbetausers`: 3417 帖里 `beta testers` 出现 390 次)。
+  这一步不看任何评分结果, 也不受口径影响。
 - **写完就迭代，不要一次拍死**：`vibe_sub_list_update(subscription_id, subs=[…], mode="replace")`
   （也可 `add` / `remove`）→ 之后每轮看 `todo.supply.stats.subs`（每个 sub 的入池/交付/拒绝/**交付率**/
   未领取 + `in_list`）与 `gap_reason=supply_ceiling`：0 交付的移出，候选补进来。

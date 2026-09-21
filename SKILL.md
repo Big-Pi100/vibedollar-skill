@@ -173,6 +173,16 @@ That is **not** the same as "running but with no material this round".
   content will be removed* — one sentence defines the sub. ⚠️ `rules_missing=true` means **we asked the
   rules API and Reddit has no public rules** — that is not "no restrictions"; when `rules_available=false`,
   fall back to `description` / `submit_text`.
+- **Confirm "the people in this sub ARE the demand_side" — read its corpus, do not trust the delivery rate alone**:
+  a sub's delivery rate is a function of **(sub × the judging caliber you were using at the time)**, not a
+  property of the sub. Measured 2026-09-21: `r/alphaandbetausers` showed **3.2%** (7/220) under the old
+  caliber and was dropped from the list; after the caliber was fixed and its 213 historical rejections were
+  re-judged it is **95%** (209/220) — the most on-target sub of the subscription. So (a) after any caliber
+  change, per-sub history **must be recomputed** before you act on it, and (b) `n<10` was never enough to
+  conclude anything. The caliber-independent check is to read what those people actually write:
+  `vibe_sub_corpus(sub=<candidate>, limit=200)` — if the titles are overwhelmingly "I'm recruiting my first
+  users / testers", the audience IS your demand_side (`r/alphaandbetausers`: `beta testers` in 390 of 3417
+  titles). That check uses no scoring result and no caliber.
 - **Iterate — do not decide once**: `vibe_sub_list_update(subscription_id, subs=[…], mode="replace")`
   (or `add` / `remove`) → then each round read `todo.supply.stats.subs` (per-sub pooled / delivered /
   rejected / **delivery rate** / unclaimed + `in_list`) and `gap_reason=supply_ceiling`: drop the
