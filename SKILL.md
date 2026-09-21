@@ -190,7 +190,13 @@ That is **not** the same as "running but with no material this round".
   retired, the 36 rows pooled 7 minutes earlier were still handed out). Once the evidence is enough
   (a word/sub with >=10 judged and >=90% noise, or one batch with >=5 items and >=80% irrelevant) the
   response sets `todo.supply.gate=true`, lists `noise_kw` / `noise_subs`, and switches `next.do` to
-  `vibe_keywords`. **Delivery rates and the scope's management history come with it** (not a
+  `vibe_keywords`. **A high noise rate is NOT by itself a retirement order**: retirement advice is only given for
+   **zero-delivered** rows. A word/sub that has already delivered has produced buyers, so it is listed as
+   evidence with `zero_delivered:false` and `why` explicitly says do-not-retire — consistent with the skill
+   decision table (`delivered>0` is never self-retired; "weak" only means watch it). Read the row, not just
+   the rate: a word can be 90% noise and still be your best supplier (measured: `beta users` at `410/454`
+   noise had delivered **44** leads and was nearly retired).
+   **Delivery rates and the scope's management history come with it** (not a
   decision made for you): `todo.supply.stats.subs` / `.kw` = per sub/keyword pooled · delivered ·
   rejected · **delivery rate** · unclaimed, plus `in_list` (still in the search scope) and
   `list_added_at` / `list_source`; `stats.sub_history` = the add/remove/replace log for that scope

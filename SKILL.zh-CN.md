@@ -157,6 +157,10 @@ outreach（写草稿 → 发出 → 标记结果）
   旧货照样会被领出来（实测: `revenue` 词停用后, 停用前入池的 36 条仍被领出）。
   证据够了（某词/sub 判过 ≥10 条且噪声率 ≥90%, 或本批 ≥5 条且 ≥80% 判无关）回执会置
   `todo.supply.gate=true` 并给出 `noise_kw` / `noise_subs`, `next.do` 改指 `vibe_keywords`:
+  **噪声率高 ≠ 退役令**: 退役建议**只给零交付的项** —— 已经交付过的词/sub 说明它产出过买家, 只作为
+  证据列出并带 `zero_delivered:false`, `why` 会明说**不建议停**（与决策表一致: `delivered>0`
+  永不自停, flagging weak 只等于"观察"）。**看那一行, 不要只看比率** —— 一个词可以 90% 噪声同时
+  是你最好的供给源（实测: `beta users` `410/454` 噪声但**交付了 44 条**, 差点被停掉）。
   **交付率与清单管理历史也一并给你**（不是替你决定）: `todo.supply.stats.subs` / `.kw` = 每个
   sub / 词的入池·交付·拒绝·**交付率**·未领取 + `in_list`（是否仍在搜索面）+ `list_added_at` /
   `list_source`; `stats.sub_history` = 该清单的 add/remove/replace 流水（谁·何时·为什么,
