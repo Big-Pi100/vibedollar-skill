@@ -1,0 +1,79 @@
+# kw_mine.md — 从「高精度人群 sub」的全量语料里提炼关键词 (agent 侧)
+
+> **何时跑**: 你已经确认某个 sub 的**人群本身就是本订阅的 demand_side**(人群画像 sub), 想让它的人
+> **自己说出来的话**变成词表 —— 而不是从产品描述里猜词。
+> **前置**: 该 sub 的语料已采集 (`vibe_sub_corpus` 回执 `total > 0`; 为 0 先
+> `vibe_sub_list_update(mode="add")` 加清单, 等服务器取货)。
+>
+> **方向与常规相反**: 常规是"先定词 → 词决定捞到谁"; 这条是"**先定人群(sub) → 语料决定词**"。
+> owner 2026-09-21: 「从精准人群画像 sub 中逐贴全量扫描从而进一步提炼 kw 的路径」。
+>
+> **服务端零语义**: `vibe_sub_corpus` 只做确定性翻页 (不筛选 / 不排序语义 / 不抽词 / 不打分)。
+> **提词是你的 LLM 的活** —— owner 定调:「机械抽词就不应该存在, 要不就是 agent 去做」。别指望服务端给候选词。
+
+## 步骤
+
+1. **选 sub (必须是人群画像 sub)**。判据: 这个 sub 里的人**正在经历产品要解决的问题**, 而不是
+   同行/供应商/新闻读者。反例: 一个"卖 AI 工具"的订阅, `r/artificial` 是话题 sub, 不是人群 sub;
+   而 `r/alphaandbetausers` (都在招 beta 测试者)、`r/microsaas` (都在找首批用户) 是人群 sub。
+   找法: `vibe_sub_search(query=<demand_side 里的短领域词>)` 或 `vibe_sub_catalog`。
+2. **标题优先, 全量扫完**:
+   ```
+   cur = ""
+   while True:
+       d = vibe_sub_corpus(sub=S, limit=500, cursor=cur)   # 不带正文 —— 便宜且标题已承载"我在找什么"
+       <把 d["posts"] 的 title 交给你的 LLM, 用下面的 sys>
+       cur = d["next_cursor"]
+       if not d["has_more"]: break
+   ```
+   实测 `alphaandbetausers`: 3417 帖 = **7 次调用 / 约 13 秒**; 全文模式约 250 万字, 按需再取
+   (对某一页 `include_body=True` 重取那一段即可)。
+3. **分块跑 sys, 最后合并**。每块只产出词 + 证据, 不在块内做最终决定。
+4. **收口 (必须做)**:
+   - 与现有词表去重: `vibe_keywords(subscription_id, status="all")` —— **任何状态都算重复**;
+     已 removed/retire 的词不复活 (除非你有这次语料里的新证据)。
+   - 剔除**产品自己的词**: 帖子作者不会写你的产品名/功能名, 那是"搜索目标的描述"不是买家语言。
+   - `vibe_keyword_add_batch(subscription_id, keywords, source=auto)` 落库,
+     `vibe_opt_log(outcome="mined", reason=…, n_new_kw=N)` 记一笔,
+     reason 里写明**从哪个 sub / 扫了多少帖**捞出来的 (审计链)。
+5. **不要顺手把 sub 加进清单** —— 加清单是第 1 步的事, 且必须是你判断过的人群 sub。
+   本脚本只产词; 清单变更走 `vibe_sub_list_update`。
+
+## 与 `kw_init` / `kw_opt` 的分工
+
+| 脚本 | 词的来源 | 什么时候用 |
+|---|---|---|
+| `kw_init.md` | 从 sd 的 demand_side / demand_pain **推**词 | 冷启动, 词面为空 |
+| `kw_opt.md` | 现有词的**命中统计** → 扩词/标弱 | 有数据之后, 词面调优 |
+| **本脚本** | **人群 sub 的真实语料** → 捞词 | 已经锁定高精度人群 sub, 想要"他们真正会打的字" |
+
+三者互补: `kw_init` 给起点, 本脚本给**实证词** (可用来替换 `kw_init` 里那些推测词),
+`kw_opt` 用命中数据做最终取舍。
+
+`sys`:
+
+You are extracting SEARCH KEYWORDS from real Reddit posts written by a specific audience (the product's demand side). You will receive post titles (and optionally bodies) from ONE subreddit. The people writing these posts are the target buyers.
+
+Extract the words and short noun phrases THESE AUTHORS USE THEMSELVES when describing their situation and their need. That is the whole job.
+
+RULES:
+- Output only 2-4 word noun phrases a real Redditor would type in a post title/body (e.g. "first users", "beta testers", "getting traffic", "cold outreach"). Never sentence-style scene phrases.
+- The word must be about THEIR problem/want, not about any product's features or category name. If a phrase only makes sense as "what I would search for to find leads", it is NOT a keyword — drop it (e.g. "reddit threads where people ask for my product" is a search-target description, not buyer language).
+- BAN umbrella/category terms ("saas marketing", "app growth") and phrases whose most distinctive token is a generic transaction verb (get, find, buy, sell, free) — they match chatter everywhere.
+- Prefer words that appear in MANY of the posts you were given (that is why this sub is the audience) — report `n` = how many posts used it.
+- Give 8-20 candidates. Quality over quantity; a word that only appears once is usually noise.
+- Language: same as the posts.
+
+Reply ONLY with JSON:
+{"keywords": [{"kw": "...", "kw_type": "entity|tail|competitor|comment", "n": 12, "evidence": ["<post_id>", "...up to 3"]}]}
+
+`user`:
+
+SUBREDDIT: [sub name]
+WHY THIS SUB IS THE AUDIENCE: [one line: which demand_side sentence it matches]
+DEMAND (target audience): [demand_side from sd doc]
+PAIN (first person): [demand_pain from sd doc]
+PRODUCT (reference only — do NOT mine words from this): [product text]
+
+POSTS (title | post_id):
+[one line per post]
