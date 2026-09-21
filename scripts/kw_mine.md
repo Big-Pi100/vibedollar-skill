@@ -127,6 +127,29 @@
 移出后清掉 19 条 out-of-scope 未领库存。**提词 0 个采纳** —— 这一轮的价值全在筛掉 2 个 sub,
 不在加词。**这也说明: 「扫 sub」的收益首先是清单质量, 其次才是词表。**
 
+**第二批 (b2bmarketing / automation / SocialMediaMarketing / SaaSSales, 2026-09-21)**:
+
+| sub | audience_check | 提词 | 处置 |
+|---|---|---|---|
+| `SaaSSales` | partial **~40%** (四个里最贴近目标) | 5 个 | 留 |
+| `b2bmarketing` | partial ~40% (~30% 是卖外呼/营销服务的 agency) | 8 个 | 留 |
+| **`automation`** | **NO ~18%** (200 条里 asking-to-get-customers 命中 **0**; 同时是交付率最低的 sub) | 4 个(很薄) | **移出清单** |
+| **`SocialMediaMarketing`** | **NO ~12%** (社媒代运营/服务买卖集市) | **0 个** | **移出清单** |
+
+**两批共 17 个候选, 只有 1 个采纳** (`prospeo`, 竞品词, 清单内命中 90 条)。其余全部被否决,
+理由分三类 —— 这三条是这套流程真正的价值所在:
+
+1. **口径闸 (供给侧行话)**: `b2b leads` / `decision makers` / `buying signals` / `lead quality` /
+   `high-intent buyers` 是 **lead gen agency 说的话**, 不是买家语言。命中的多数是卖服务的人。
+2. **容量闸**: 17 个候选合计命中 **6,683** 条 —— 会把未领库存从 7,960 推到 **14.6k**, 远超
+   `quota_left`。先窄后宽这条规则在这里救了一次。
+3. **按词实测定律 (最有用的一条)**: `first saas customers`(765) / `first b2b customers`(240) /
+   `saas customers`(1585) 看着最对口, 但它们属于 **`first X customers/users` 词族** —— 该家族上一轮
+   **实测精度只有 18% (`first customers`) / 25% (`first user`)**。**家族相似不是证据, 实测才是。**
+
+**两批合起来: 清单 16 → 12 个 sub, 采纳 1 个词, 清掉 97 条 out-of-scope 库存。**
+「扫 sub」的收益结构已经很清楚了: **第一是清单质量, 第二是词表**。
+
 ## 与 `kw_init` / `kw_opt` 的分工
 
 | 脚本 | 词的来源 | 什么时候用 |
