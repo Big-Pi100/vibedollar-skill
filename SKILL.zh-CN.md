@@ -425,7 +425,7 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 | NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间记录尝试 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
 | `arctic.limited` | 暂停供给动作 —— 物理等待，非冷却 |
-| **`stats.pairs` 某格低产**（判过 ≥5 且交付率 <20%） | **先看 `hint` 再动手**: `配对问题`（词与 sub 各自在别处都不错）→ `vibe_pair_exclude` 声明排除该格; `词面问题` → 改词（`vibe_keyword_remove`）或换**更窄的词形**（`closed testing` → `closed testing testers`）; `sub 问题` → 考虑移 sub（`vibe_sub_list_update mode=remove`）。**别只看那个低数字就删 sub** —— 实测因此差点删掉 4 个**人群没问题**的 sub |
+| **`stats.pairs` 某格低产**（判过 ≥5 且交付率 <20%） | **先看 `hint` 再动手**: `配对问题`（词与 sub 各自在别处都不错）→ `vibe_pair_exclude` 声明排除该格; `词面问题` → 改词（`vibe_keyword_remove`）或换**更窄的词形**（`closed testing` → `closed testing testers`）; `sub 问题` → 考虑移 sub（`vibe_sub_list_update mode=remove`）。**别只看那个低数字就删 sub** —— 实测因此差点删掉 4 个**人群没问题**的 sub。 **⑦ 只在划算时才声明**: 必须 ① `hint=配对问题`（`词面问题`→改词; `sub 问题`→排除格治不了, 那要移 sub）② 该格 `unclaimed>0`（已捞干的格声明排除**零收益**）③ 若 `sub_rate_other_kw` 只有 0.2–0.3 且**各词都低** = 整个 sub 均匀低产而非某格塌陷 → 排除格治不了, 按「delivered>0 不自退」留着或考虑移 sub |
 
 **穷尽（唯一合法停止）** —— 交付仍缺 且 你已依序尝试并逐步验证：评分 → retire 噪声 →
 扩/刷新 sub 清单（catalog A/B/C）→ 从 sd 重生成词面 → probe → 报告。然后诚实报告试过
