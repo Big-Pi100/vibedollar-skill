@@ -196,22 +196,24 @@ def jev_questions():
                          'how to solve it themselves?'),
             'answer_yes_when': ['describes the exact problem this product solves and wants it solved',
                                 'asks for recommendations of tools/services in this product category',
-                                'is evaluating or comparing options in this category for their own use'],
+                                'is evaluating or comparing options in this category for their own use',
+                                'is at the first-users stage: recruiting their first users or testers for their own product, or asking how others got theirs'],
             'answer_no_when': ['the post is in an unrelated domain from the product',
                                'the author announces, launches or promotes their own product or progress',
-                               'the author is recruiting testers or early users for free feedback',
                                'the author offers services in this category themselves',
                                'the post is thought-leadership, a comparison or a news roundup with no own ask'],
         }),
         # 通用: 作者是否在为获客/增长求助 (高召回, 补 is_buyer 的漏)
         'acquisition_ask': Noul(instructions={
             'question': ('Is the post author asking for help GETTING CUSTOMERS, users, sales, traction or '
-                         'audience — i.e. is growth/acquisition their own stated problem in this post?'),
+                         'audience — is growth/acquisition their own problem here, whether stated outright '
+                         'or clearly implied by their situation?'),
             'answer_yes_when': ['asks how or where to find customers, users, leads, first users or sales',
                                 'asks how to market, promote or grow their own thing',
-                                'says they cannot get users/traction and asks what others did'],
-            'answer_no_when': ['the author is not asking for anything — they are sharing, announcing or opining',
-                               'the author is offering help, services or a product to others',
+                                'says they cannot get users/traction and asks what others did',
+                                'asks others how THEY got their first users/customers/traction (implies the same unmet need)'],
+            'answer_no_when': ['the author shows no such need — pure news, a technical writeup, or a story with no ask',
+                               'the author offers their own services or agency work to others',
                                'the post is about something else entirely'],
         }),
     }
