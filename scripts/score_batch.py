@@ -123,9 +123,17 @@ def _llm_judge(base: str, model: str, key: str, prompt: str,
     except json.JSONDecodeError:
         return None
     try:
-        return {"verdict": str(d.get("verdict", "irrelevant")).lower(),
-                "score": int(d.get("score", 0)),
-                "reason": str(d.get("reason", ""))[:300]}
+        out = {"verdict": str(d.get("verdict", "irrelevant")).lower(),
+               "score": int(d.get("score", 0)),
+               "reason": str(d.get("reason", ""))[:300]}
+        # 2026-09-21 (口径定稿): judge_prompt 现在要求**边界带 (score 40-70)** 回 confidence;
+        #   有就带上 (服务端只存不用), 没有就不传 —— 与 --engine jev 同一条契约。
+        if d.get("confidence") not in (None, ""):
+            try:
+                out["confidence"] = max(0.0, min(1.0, float(d["confidence"])))
+            except (TypeError, ValueError):
+                pass
+        return out
     except Exception:  # noqa: BLE001
         return None
 

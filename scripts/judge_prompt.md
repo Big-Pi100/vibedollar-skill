@@ -6,6 +6,8 @@
 该订阅的供需分析文档 `data/sd_<sid>.md` (生成/校准见 `sd_gen.md` + `scripts/sd_doc.py`;
 后端权威副本在 product_subs.sd_json, `vibe_sd_update` 写)。
 
+口径的来历与实测见 `docs/lead-relevance-caliber-20260921.md` (**改本文件前先读它**)。
+
 Also readable in English below; edit the sd fields to match YOUR market.
 
 ---
@@ -15,25 +17,47 @@ Reddit post is a real potential customer of the product described by the user,
 using the product's supply/demand structure (injected below) as the buyer profile.
 
 Judgment rules (aligned with ENG_SYS_CORE — the billing contract):
-1. RELEVANT = the author is **actively in the demand-side struggle RIGHT NOW**:
-   complaining about the pain the product solves, asking how to solve it, asking
-   for recommendations, comparing alternatives, saying current solutions are too
-   expensive/hard, or explicitly looking for a tool/service. Being merely in the
-   target audience is NOT enough — the post must show current struggle or active
-   seeking.
-2. NOT relevant (mark 0-29 or 30-59): pure sharing / show-off (bragging about
-   sales/ROAS/growth numbers — author already has a working system, not a buyer);
-   story/experience sharing with no current need; author building/selling a
-   competing or similar tool (peer, not buyer); advertising/job posts/news/
-   politics/entertainment; tangential audience only (support-seeking, no need).
-3. Score 0-100 by fit:
-   - 85-100: active struggle + concrete need/ask expressed (strong prospect)
+0. **EVERYTHING IS RELATIVE TO *THIS* PRODUCT** (the [SUPPLY/DEMAND STRUCTURE] below).
+   The same post can be a lead for one product and noise for another — never judge a
+   post on its own topic, and never mix two products' calibers in one batch.
+1. RELEVANT = the author is a **party with an unresolved need this product serves**:
+   - complaining about / describing the pain this product solves, RIGHT NOW
+   - asking how or where to solve it ("how do I get my first customers/users?")
+   - asking for recommendations, comparing alternatives, saying current options are
+     too expensive or too hard
+   - **at the zero-users / first-users stage and trying to get users — including when
+     they are RECRUITING their first users or testers, or asking others how THEY got
+     theirs.** These are NOT disqualifiers: a founder with a product and no users is
+     exactly who buys this product; asking "how did you get your first 100 users?"
+     implies the same unmet need.
+   - any early-stage struggle framing (stuck, plateaued, no traction, no budget).
+2. NOT relevant:
+   - the post is in an unrelated domain from the product, or shares no need with it
+   - **the author already has a working system and is showing it off** (bragging about
+     revenue / ROAS / scale with no current need of their own)
+   - the author builds or sells a competing/similar tool, or offers their own services
+     or agency work — peer or supplier, not buyer
+   - **pure news, technical writeups, "here is how I did it" retrospectives, opinion or
+     debate — no ask and no stated need of their own**
+   - ads / job posts / politics / entertainment; tangential audience only
+   - the author wants a job, a cofounder or a developer for their own project
+     (unless THIS product provides exactly that)
+   ⚠️ **THE FORM OF THE POST IS NOT THE CRITERION — the author's situation is.**
+   A milestone / recruiting / question / discussion post CAN be a lead; a "help me"
+   post CAN be noise. Judge the situation; never the format.
+3. Score 0-100 = **priority**, not the yes/no decision:
+   - 85-100: active struggle + concrete ask (strong prospect)
    - 60-84:  clearly in the struggle and seeking, need slightly implicit
-   - 30-59:  borderline / tangential (some fit but no clear active need)
-   - 0-29:   not relevant (sharing / show-off / ads / competitor / tangential)
+   - 40-59:  **borderline** — same space, need genuinely unclear
+   - 0-39:   not relevant (see rule 2)
 4. Output STRICT JSON only, no other text:
-   {"verdict": "relevant"|"irrelevant", "score": <0-100>, "reason": "one line"}
-   verdict = "relevant" ONLY when score >= 60.
+   {"verdict": "relevant"|"irrelevant", "score": <0-100>, "reason": "one line",
+    "confidence": <optional 0..1>}
+   - `verdict = "relevant"` **iff** `score >= 60` (contract — do not change).
+   - When the score lands in **40-70**, you MUST also output `confidence` (0..1, low for
+     the murky middle) and say `borderline` in `reason` — these go to a human/agent for
+     review. Elsewhere `confidence` is optional. The server only STORES it; it never
+     changes your verdict (see the model-layer split principle).
 
 (score_batch.py appends the subscription's [SUPPLY/DEMAND STRUCTURE] block after this
 template when sd_json exists — see vibe_list_subs; generate sd via sd_gen.md if empty.)
