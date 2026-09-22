@@ -44,19 +44,35 @@ class MCPClient:
         }
         if self._session:
             headers["Mcp-Session-Id"] = self._session
-        req = urllib.request.Request(self._url, data=body, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
-                if method == "initialize":
-                    sid = resp.headers.get("Mcp-Session-Id") or ""
-                    if sid:
-                        self._session = sid
-                raw = resp.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as e:  # noqa: BLE001
-            raise RuntimeError(f"MCP HTTP {e.code}: {e.read()[:200]}")
-        except Exception as e:  # noqa: BLE001
-            raise RuntimeError(f"MCP 连接失败: {e}")
-        return self._parse(raw)
+        # 2026-09-22 (隔离 agent 实测报告 #7): 旧实现**零重试** —— 一次瞬断 (read timeout /
+        # 连接抖动) 就让整批 领取→判真→交回 挂掉, 而这时**已经领取 = 已经计费**。
+        # 现在对可恢复错误 (超时/连接错/429/5xx) 退避重试; 4xx 参数类错误立刻抛 (不重试)。
+        last_err = ""
+        for attempt in range(3):
+            if self._session:
+                headers["Mcp-Session-Id"] = self._session
+            req = urllib.request.Request(self._url, data=body, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+                    if method == "initialize":
+                        sid = resp.headers.get("Mcp-Session-Id") or ""
+                        if sid:
+                            self._session = sid
+                    raw = resp.read().decode("utf-8", errors="replace")
+                return self._parse(raw)
+            except urllib.error.HTTPError as e:  # noqa: BLE001
+                if e.code in (429, 500, 502, 503, 504) and attempt < 2:
+                    last_err = f"HTTP {e.code}"
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise RuntimeError(f"MCP HTTP {e.code}: {e.read()[:200]}")
+            except Exception as e:  # noqa: BLE001
+                last_err = str(e)
+                if attempt < 2:
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                raise RuntimeError(f"MCP 连接失败: {e}")
+        raise RuntimeError(f"MCP 连接失败 (重试 3 次后): {last_err}")
 
     @staticmethod
     def _parse(raw: str) -> dict:

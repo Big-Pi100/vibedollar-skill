@@ -63,15 +63,28 @@ Reddit post is a real potential customer of the product described by the user.
    "reason":"one line"} — verdict relevant ONLY when score >= 60."""
 
 
-def _load_judge_prompt(path: str) -> str:
+def _load_judge_prompt(path: str, explicit: bool = False) -> str:
+    """读判真口径。
+
+    2026-09-22 (隔离 agent 实测报告 #5): 旧实现在 `--judge` 路径写错时**静默**回退到
+    sibling 文件、再回退到内置 DEFAULT_JUDGE_PROMPT —— 而内置那份是**旧口径**
+    (没有规则 0 / 没有 borderline 契约), 于是"判真标准"会悄悄变而调用方毫不知情。
+    现在: 显式给了 --judge 而文件不存在 → **硬失败**; 只有没显式给时才回退,
+    且回退到内置时必须打警告。
+    """
     if path and os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             return f.read()
-    if os.path.exists(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                   "judge_prompt.md")):
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "judge_prompt.md"), encoding="utf-8") as f:
+    if explicit:
+        sys.exit("--judge 指定的文件不存在: %s\n"
+                 "  不静默回退 —— 判真口径会悄悄变成内置旧口径 (score_batch 只做机械执行, "
+                 "口径必须是你要的那份)" % path)
+    _sib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "judge_prompt.md")
+    if os.path.exists(_sib):
+        with open(_sib, encoding="utf-8") as f:
             return f.read()
+    sys.stderr.write("⚠️ 未找到 judge_prompt.md —— 回退到**内置旧口径** DEFAULT_JUDGE_PROMPT; "
+                     "请把 skill 包里的 scripts/judge_prompt.md 放在同目录, 或用 --judge 指定\n")
     return DEFAULT_JUDGE_PROMPT
 
 
@@ -364,7 +377,7 @@ def main() -> None:
             and not args.typesafe_key and not args.dry_run):
         sys.exit("engine=jev 需要**你自己的** TypeSafe key — 设 TYPESAFE_API_KEY 或 --typesafe-key")
 
-    prompt = _load_judge_prompt(args.judge)
+    prompt = _load_judge_prompt(args.judge, explicit=bool(args.judge))
     mc = MCPClient(args.key)
 
     # 单订阅领取
@@ -391,6 +404,23 @@ def main() -> None:
                 "\ndemand pain (first person): " + str(sdj.get("demand_pain") or "")
     except Exception:  # noqa: BLE001 — sd 注入失败不影响判真 (降级纯 product)
         pass
+    # 2026-09-22 (隔离 agent 实测报告 #4): 旧实现 **dry-run 也会领取**, 而"首领即计费" ——
+    # 想"安全看库存"的人会被扣费, 还会在 sent 里留下占满 50 条未判闸门的行。
+    # 现在 dry-run 走 **peek=true**(免费只读, 服务端不产生领取/计费), 不领新的。
+    if args.dry_run:
+        pr = mc.call("vibe_leads", {"subscription_id": args.sub, "limit": args.limit,
+                                    "peek": True})
+        pd = pr.get("data", pr) if isinstance(pr, dict) else {}
+        print(json.dumps({
+            "sub_id": args.sub, "dry_run": True, "claimed": 0,
+            "pending_count": (pd or {}).get("pending_count"),
+            "pending_count_agent": (pd or {}).get("pending_count_agent"),
+            "pending": [x.get("id") for x in ((pd or {}).get("pending") or []) if x.get("id")],
+            "pool_stats": (pd or {}).get("pool_stats") or (pd or {}).get("stats"),
+            "note": ("dry-run 只 peek(免费) —— 不领取/不判真/不交还; "
+                     "真跑才会领取, 而**领取即计费**(首领计费)")}, ensure_ascii=False))
+        return
+
     rr = mc.call("vibe_leads", {"subscription_id": args.sub, "limit": args.limit})
     d = rr.get("data", rr)
     posts = d.get("posts", []) if isinstance(d, dict) else []
@@ -401,10 +431,12 @@ def main() -> None:
            "submit_state": "none",
            "engine": args.engine + ("/replay" if args.replay_answers else ""),
            "pending": [p.get("id") for p in pending if p.get("id")]}
+    # 2026-09-22 (报告 #9): 服务端会说明"为什么没领满" —— 旧实现把它丢了
+    if isinstance(d, dict):
+        for _k in ("source_detail", "source_status", "count", "skipped_no_body"):
+            if d.get(_k) not in (None, "", 0):
+                out[_k] = d.get(_k)
     if not leads:
-        print(json.dumps(out, ensure_ascii=False))
-        return
-    if args.dry_run:
         print(json.dumps(out, ensure_ascii=False))
         return
 
