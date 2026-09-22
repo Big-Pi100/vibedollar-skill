@@ -74,6 +74,9 @@ intake (claim → judge → return) — inner loop
 outreach (write draft → send → mark outcome)
   ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
   ├─ drafts done but sent == 0 → post the draft first; after posting call vibe_outreach_sent(lead_id)
+│  ⚠️ 2026-09-23: declaring is not sending. Once the copy is handed to the user, call
+│     vibe_outreach_declare(delivered_id) once (no network) so the lead leaves "to do" for
+│     "awaiting confirmation"; "sent" still requires the server to find your comment in the thread.
   │                             (the server finds your comment, marks it contacted, starts the
   │                              re-check clock; or do nothing — discovery runs every 6h by username)
   ├─ unmarked_delivered > 0 and sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)

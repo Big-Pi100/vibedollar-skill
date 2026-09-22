@@ -67,6 +67,10 @@ outreach（写草稿 → 发出 → 标记结果）
   ├─ 草稿齐但 sent == 0        → 先把草稿**发出去**; 发出后 vibe_outreach_sent(lead_id) 登记
   │                             (服务端去找你的评论, 找到即自动标 contacted + 起复查时钟;
   │                              也可以什么都不做 —— 监控腿每 6 小时按用户名自动发现)
+  │      ⚠️ 口径 (2026-09-23): **声明 ≠ 已发出**。文案一旦交给用户/复制走, 调
+  │         vibe_outreach_declare(delivered_id) 只需一次、零网络 —— 线索从"待处理"进
+  │         "待确认"(否则队列只进不出); "已发出"仍以**服务端在帖里找到你的评论**为准
+  │         (vibe_outreach_sent = 声明 + 立即核对, 没找到就停在待确认, 不会误记已发出)。
   ├─ unmarked_delivered > 0 且 sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)
   └─ 两项都为 0                → 回 intake / 复盘
 
