@@ -250,6 +250,19 @@ SKILL.md 回答三个问题：
       日上限超出顺延次日；公平使用入库上限 free 5k / starter 25k / pro 50k 条/日（条款级，
       不计费）。sub/keyword 额度已取消（技术上限仍在：sub 清单 ≤100、词表 top-30 / 评论词
       top-15）。
+- [x] **A2.12. 循环节奏 (2026-09-22，真实客户口径审计)**：客户订阅的失败模式不是"面配错"
+      而是"跑一次就不回来了"—— 线上实测 (2026-09-22) 8 个 active 客户订阅里好几个手上积
+      3,000~6,000 条已领/未领候选而**最后判定停在 1~2 周前**，另两个从未判过；面板显示
+      "没有线索"而池子是满的。skill 原先只写"缺 sd/清单 = 永远不产出"（配置侧），
+      **没有任何一节写"多久跑一次 / 什么信号触发跑"**（score_batch.py 开头就声明
+      "不含调度 —— 归宿主 agent"，但没人告诉宿主该排期）。本次：SKILL.md / SKILL.zh-CN.md
+      各新增 **「Loop cadence / 循环节奏」** 一节（EN/ZH 同步）+ 主流程图的 🔁 节奏行 ——
+      触发条件表（`todo.to_score > 0` → 先交回；`to_score==0 && claimable_now>0` → 领；
+      `stock` 涨而 `projected_items_month` 不达 → 跑并排期；`stage_done` → 转 outreach）、
+      节奏（shortfall 期 30~60 分钟一批 / 稳态每天一次）、批量口径（一次领+一次回传 = 1 个
+      pipeline token；档位上限 20/30/50）、多订阅口径（`to_score_by_sub`）、宿主调度配方
+      （`score_batch.py --sub <sid> --limit <档位上限>` + 读 `gap_reason`）、反模式与实测证据。
+      守卫：`tests/test_doc_contract_guards.py` 新增 1j 段（两份 SKILL 必须都有该节且字段同名）。
 - [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

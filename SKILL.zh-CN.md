@@ -59,6 +59,9 @@ intake（领取 → 判定 → 交回）—— 内循环
   ├─ progress.todo.to_score > 0            → vibe_submit_score（先把手上欠的交回）
   ├─ to_score == 0 且 claimable_now > 0    → vibe_leads（再领一批, 回到判定）
   └─ to_score == 0 且 claimable_now == 0   → stage_done=true → 进入 outreach
+  🔁 节奏（2026-09-22）：内循环**不是一次性的** —— 按库存重入（todo.to_score > 0 就先交回,
+     再 claimable_now > 0 就领）, gap_reason=shortfall 期间每 30~60 分钟一批, 稳态每天一次。
+     见下面「循环节奏」一节。
 outreach（写草稿 → 发出 → 标记结果）
   ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
   ├─ 草稿齐但 sent == 0        → 先把草稿**发出去**; 发出后 vibe_outreach_sent(lead_id) 登记
@@ -321,6 +324,37 @@ outreach（写草稿 → 发出 → 标记结果）
 > 费用说明：上面 16 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
 >
 > 限流是**每账号三个独立桶**（2026-09-11），读不会再吃掉你的管道预算：**读**（delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance…）free·starter·pro = **120 · 240 · 480** 次/分钟；**管道**（`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`）= **10 · 20 · 40**；**写**（subscribe / keyword_* / sd_update / mark_leads / sub_list_update…）= **15 · 30 · 60**。所以一轮感知（5 次读）很便宜 —— 节奏要压在写桶上。**桶按「调用」计数，不按条目数**：一次 `vibe_submit_score` 最多收 **100** 条，只吃 **1 个** pipeline token —— 领 N 条后**一次**回传 N 条（`vibe_leads(limit=N)` + 一次 `vibe_submit_score(scores=[…])` = **2 次** pipeline 调用，不是 N+1 次）。一次超过 100 条返回 `code=batch_too_large`，**整单不落库**。
+
+### 循环节奏 —— 按**库存**重入，不按钟表（2026-09-22）
+
+这条循环**不是一次性配置**：服务端每 ~30 分钟往池子里补候选，所以"面配好了但从此不再跑"会静默
+堆起一堆没人判定的线索。线上实测（2026-09-22）：在**真实客户**的 active 订阅里，好几个订阅手上
+积了 **3,000~6,000** 条已领/未领候选，而**最后一次判定是 1~2 周前**，另有两个订阅**一次都没判过**。
+它们的面板显示"没有线索"，而池子其实是满的 —— 面没问题，是没人跑循环。
+
+**触发条件 —— 读到就动（不靠掐表、不靠猜）**
+
+| 你读到什么 | 含义 | 现在做什么 |
+|---|---|---|
+| `progress.todo.to_score > 0`（任一回执）或 `vibe_leads(peek=true).data.unjudged_total > 0` | 手上压着"已领未判" | `vibe_submit_score` —— **先把这批交回，再谈领取** |
+| `to_score == 0` 且 `progress.todo.claimable_now > 0` | 有货、额度也空着 | `vibe_leads(subscription_id, limit)` → 判 → 交回 |
+| `vibe_sub_health.stock` 在涨而 `assessment.projected_items_month` 一直不达 | 面在产出，但没人判定 | 立刻跑；你是宿主 agent 就**把它排进调度** |
+| `to_score == 0`、`claimable_now == 0`、`progress.stage_done == true` | 本阶段暂时做完了 | 去 outreach；下一拍再回来看 |
+
+- **节奏**：`assessment.gap_reason=shortfall`（目标未达）期间**每 30~60 分钟至少一批**；
+  稳态（`committed_ok`）**每天一次**就够 —— 每天一趟也顺带避免 `sent` 撞 7 天过期。
+- **批量**：一次 `vibe_leads(limit)` + 一次 `vibe_submit_score`（≤100 条 = **1 个 pipeline
+  token**）。按档位领满（free 20 / starter 30 / pro 50），判完交回，再领下一批。**不要**一次
+  领一大摞留着"回头判"：`to_score` 会占着你自己的下一次领取（闸门是账号口径）。
+- **每个订阅都要跑，不只第一个**：`to_score` 是账号口径，而待判清单是逐订阅的 —— 用
+  `todo.to_score_by_sub`（或 `next.args.subscription_ids`）看出**欠在哪个订阅**，逐个跑。
+- **宿主 agent 的调度配方**（技能包给的是执行器，不是定时器）：每 30~60 分钟、逐订阅执行
+  `python3 scripts/score_batch.py --sub <sid> --limit <档位上限>` → 再读 `vibe_sub_health`，
+  按 `assessment.gap_reason` 选动作（见下面「Agent 决策循环」）。当
+  `assessment.committed_ok` 且库存走平，就可以停止给这个订阅排期。
+- **反模式（这条节奏就是为了防它）**："面配好、早期判了几条、然后再也没回来"。没有报错、没有告警，
+  客户面板一直空着 —— 2026-09-22 一天内实测到两例（`345` 待判 ~5k / 最后判定 09-08；
+  `397`/`398` 一次都没判过）。
 
 ### Agent 决策循环（每订阅、每轮 —— v2.1 交付目标驱动）
 

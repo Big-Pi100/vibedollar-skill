@@ -68,6 +68,9 @@ intake (claim → judge → return) — inner loop
   ├─ progress.todo.to_score > 0            → vibe_submit_score (return what you hold first)
   ├─ to_score == 0 and claimable_now > 0   → vibe_leads (claim another batch, back to judging)
   └─ to_score == 0 and claimable_now == 0  → stage_done=true → move to outreach
+  🔁 CADENCE (2026-09-22): the inner loop is **not one-shot** — re-enter it on stock
+     (todo.to_score > 0 → submit first, then claimable_now > 0 → claim), every 30–60 min
+     while gap_reason=shortfall, once a day in steady state. See "Loop cadence" below.
 outreach (write draft → send → mark outcome)
   ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
   ├─ drafts done but sent == 0 → post the draft first; after posting call vibe_outreach_sent(lead_id)
@@ -369,6 +372,42 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
 > Cost note: the fifteen tools above are read/write state operations — **a lead is billed when first claimed** (Free 1,000/mo · Starter 5,000/mo, then $5 per 1,000 · Pro 30,000/mo, then $3.50 per 1,000); **scoring, re-reading and exporting are free**; daily-cap overflow carries to the next day.
 >
 > Rate limits are **three independent buckets per account** (2026-09-11), so reads never eat your pipeline budget: **read** (delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance …) 120 · 240 · 480 req/min for free · starter · pro; **pipeline** (`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`) 10 · 20 · 40; **write** (subscribe / keyword_* / sd_update / mark_leads / sub_list_update …) 15 · 30 · 60. A per-round perceive step (5 reads) is therefore cheap — pace yourself on the write bucket. **Buckets count CALLS, not items**: one `vibe_submit_score` call takes up to **100** score objects and consumes exactly **one** pipeline token — so claim N leads and return all N verdicts in a SINGLE call (`vibe_leads(limit=N)` + one `vibe_submit_score(scores=[…])` = **2** pipeline calls, not N+1). More than 100 items in one call returns `code=batch_too_large` and writes nothing.
+
+### Loop cadence — re-enter on **stock**, not on a clock (2026-09-22)
+
+The loop is **not a one-time setup**: the server keeps filing candidates into the pool every
+~30 min, so a face that is configured but never re-run silently piles up leads nobody judges.
+Measured on the live service (2026-09-22): among **active customer** subscriptions several had
+**3,000–6,000** claimed/unclaimed candidates waiting while their **last judgement was 1–2 weeks
+old**, and two had never judged anything at all. Their dashboard said "no leads" while the pool
+was full — the face was fine, nothing was running the loop.
+
+**Trigger — read these, then act (no clock-watching, no guessing)**
+
+| What you read | What it means | What you do now |
+|---|---|---|
+| `progress.todo.to_score > 0` (any response) or `vibe_leads(peek=true).data.unjudged_total > 0` | you are holding claimed-but-unjudged items | `vibe_submit_score` — **finish the batch before claiming another** |
+| `to_score == 0` and `progress.todo.claimable_now > 0` | stock is waiting and your allowance is free | `vibe_leads(subscription_id, limit)` → judge → return |
+| `vibe_sub_health.stock` rising while `assessment.projected_items_month` stays short | the face produces, nobody judges | run the loop; if you are the host agent, **schedule it** |
+| `to_score == 0`, `claimable_now == 0`, `progress.stage_done == true` | intake is complete for now | move to outreach, then re-check on the next tick |
+
+- **Cadence**: while `assessment.gap_reason=shortfall` (goal not met) run **at least one batch
+  every 30–60 minutes**; in steady state (`committed_ok`) **once a day** is enough — a daily pass
+  also keeps `sent` items from hitting the 7-day expiry.
+- **Batch**: one `vibe_leads(limit)` + one `vibe_submit_score` (≤100 items = **1 pipeline
+  token**). Claim up to your tier's limit (free 20 / starter 30 / pro 50), judge it, return it,
+  repeat. Do **not** claim a big stack and judge it "later": `to_score` counts against your own
+  next claim (the gate is per account).
+- **Every subscription, not just the first**: `to_score` is account-wide while the pending list
+  is per subscription — use `todo.to_score_by_sub` (or `next.args.subscription_ids`) to see
+  **which** subscription is behind, and run the loop for each of them.
+- **Host-agent scheduler recipe** (the skill ships the executor, not the timer): every 30–60 min,
+  per subscription, `python3 scripts/score_batch.py --sub <sid> --limit <tier limit>` → then read
+  `vibe_sub_health` and act on `assessment.gap_reason` (see "Agent decision loop" below). Stop
+  scheduling a subscription when `assessment.committed_ok` is true and stock is flat.
+- **Anti-pattern (the failure this prevents)**: "set up the face, judged a few early leads, never
+  came back". Nothing errors, nothing alerts, and the dashboard stays empty — measured twice on
+  2026-09-22 (`345` ≈5k to score, last judged 09-08; `397`/`398` never judged at all).
 
 ### Agent decision loop (per subscription, per round — v2.1 delivery-driven)
 
