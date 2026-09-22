@@ -420,6 +420,36 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 | `pipeline_recent`（连续多轮 matched=0）| 词在语料里现在捞不到 | 词耗尽 → probe/换词/重生成；**与语料停区分**：若 `corpus_today` 暴跌（对比 ~90k/日基准）→ 语料没在长——等待/alert，不是词的问题 |
 | `arctic.limited` | 物理限流 | 暂停供给动作到解除（非冷却）|
 
+#### 2b. `gap_reason=word_face` —— 自己修，并且**证明**修好了（闭环配方, 2026-09-22）
+
+`word_face` 的含义: 有库存、有额度、轮次也在跑 —— 但**领回来的几乎全判无关**。这是词/面问题,
+不是供给问题也不是节奏问题; 而且**由你（宿主 agent）来修** —— 服务端从不改你的词表或清单。
+
+实测例子 (2026-09-22 sub 362): 领 8 → 判 8 → **relevant 0** → 交付率停在 `1/98 = 1%`;
+`config_missing=false`、库存 97、无 429、额度没动。没有任何东西"坏了" —— 只是这些词不是这个
+产品的买家语言。
+
+**四步全做完，不要在第二步就收工:**
+
+1. **看词级证据，不看总数。** `vibe_keywords(sub, all=true)` → 每个词的 `hit_count` /
+   `n_pooled` / `n_delivered` / `n_rejected` / `avg_score` / `invalid_sample`
+   (最后一个是真实的被拒帖 —— 读它, 它告诉你这个词**实际**捞到什么)。
+   `n_rejected ≥ 2 且 n_delivered = 0` 的词 = 噪声发生器。
+2. **动词表**: 噪声词 `vibe_keyword_remove`; 然后**按 `sd.demand_side` + `demand_pain` 重新生成
+   词面** —— `kw_init.md`(从 sd 推) 或 `kw_mine.md`(扫一个高精度人群 sub 的语料、提它自己的说法)
+   → `vibe_keyword_add_batch`。若某个 sub 只贡献拒绝, **面也要动**:
+   `vibe_sub_list_update(mode=add|remove)` —— 同一个词能在一个 sub 95%、在另一个 sub 0%
+   (先看 `stats.pairs`, 用 `vibe_pair_exclude` 而不是把一个在别处有效的词整个删掉)。
+3. **再跑一轮, 用同一把尺子重测**: `score_batch.py --sub <sid> --limit <档位上限>` →
+   读回每个词的 `relevant/judged`。**成功判据**: 新词的
+   `n_delivered / (n_delivered + n_rejected)` 在**≥5 条已判**下 **≥ 20%**
+   (低于这个数, 那就是换了个拼写的同一堆噪声), 且该订阅交付率不再往 0 走。
+4. **把"改了什么、为什么"写下来** —— `vibe_opt_log` 或你自己的笔记: 退役了哪些词、加了哪些、
+   前后测到的比率。下一个 agent(或下周的你自己)必须能区分"这修好了"和"这只是又跑了一遍"。
+
+⚠️ **绝不因为一批全无关就断言"这个市场没需求"** —— 这正是本配方要防的实测失效模式
+(面可以修; 而用"从来没匹配到买家"的词去检验市场, 什么都证明不了)。
+
 #### 3. Plan —— 一个动作，目标驱动
 
 **A. 先闭环你自己的评分反馈**（评分反馈是最强信号）。

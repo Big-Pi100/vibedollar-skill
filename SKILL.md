@@ -478,6 +478,41 @@ The server only *reports* these; **you** act on them (v2.1 — server makes zero
 | `pipeline_recent` (matched=0 several rounds) | words find nothing in corpus now | word exhaustion → probe/replace/regenerate; **distinguish from corpus intake stall**: if `corpus_today` collapsed (vs ~90k/day baseline) the corpus isn't growing — wait/alert, not a word problem |
 | `arctic.limited` | physical rate limit | pause supply actions until clear (not a cooldown) |
 
+#### 2b. `gap_reason=word_face` — fix it yourself, then **prove** it (closed recipe, 2026-09-22)
+
+`word_face` means: you have stock, you have quota, the rounds run — and **almost everything you
+claim comes back `irrelevant`**. That is a word/face problem, not a supply or a cadence problem,
+and **you (the host agent) fix it** — the server never rewrites your words or your list.
+
+Measured example (2026-09-22, sub 362): 8 claimed → 8 judged → **0 relevant** → delivery rate
+stayed `1/98 = 1%`; `config_missing=false`, stock 97, no 429, quota untouched. Nothing was
+"broken" — the words were simply not buyer language for that product.
+
+**Loop (do all four steps, do not stop after step 2):**
+
+1. **Read the per-word evidence, not the total.** `vibe_keywords(sub, all=true)` →
+   per word: `hit_count` / `n_pooled` / `n_delivered` / `n_rejected` / `avg_score` /
+   `invalid_sample` (the last is a real rejected post — read it: it tells you what the word
+   *actually* pulls). A word with `n_rejected ≥ 2, n_delivered = 0` is a noise generator.
+2. **Act on the words**: `vibe_keyword_remove(kw)` for the noise generators, then **regenerate
+   the word face from `sd.demand_side` + `demand_pain`** — `kw_init.md` (derive from sd) or
+   `kw_mine.md` (sweep a precision audience sub's own corpus and mine its phrasing) →
+   `vibe_keyword_add_batch`. If a whole sub contributes only rejects, fix the **face** too:
+   `vibe_sub_list_update(mode=add|remove)` — the same word can be 95% in one sub and 0% in
+   another (use `stats.pairs` + `vibe_pair_exclude` before dropping a word that works elsewhere).
+3. **Re-run the round and measure the same thing again** (one round is ~1 batch):
+   `score_batch.py --sub <sid> --limit <tier limit>` → read back `relevant/judged` per word.
+   **Success criterion**: the new words' `n_delivered / (n_delivered + n_rejected)` ≥ **20%**
+   over ≥ 5 judged (below that, they are the same noise with new spelling), and the
+   subscription's delivery rate stops moving toward 0.
+4. **Write down what you changed and why** — `vibe_opt_log` (or your own notes): which words
+   retired, which added, the measured before/after rate. The next agent (or you, next week)
+   must be able to tell "this was fixed" from "this was merely re-run".
+
+⚠️ **Never conclude "this market has no demand" from one all-irrelevant batch** — that is the
+measured failure mode this recipe exists to prevent (a face can be fixed; a market judgment
+cannot be tested with words that never matched buyers).
+
 #### 3. Plan — one action, driven by the goal
 
 **A. Close your own scoring loop first** (scoring feedback is the strongest signal).
