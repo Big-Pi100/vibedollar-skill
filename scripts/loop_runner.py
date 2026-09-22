@@ -120,15 +120,24 @@ def _subs(mc: MCPClient) -> list:
 
 def _outreach(args, mc: MCPClient, sid: int, state: dict) -> int:
     """给该订阅"该写但没草稿"的交付线索补草稿 (服务端口径: has_draft 空 且 draft_skip 空)。"""
-    try:
-        r = mc.call("vibe_delivered", {"subscription_id": sid, "limit": 50})
-    except Exception as e:  # noqa: BLE001
-        _log("sub%s 取已交付失败: %s" % (sid, str(e)[:80]), args.state_log)
-        return 0
-    d = r.get("data", r) if isinstance(r, dict) else {}
-    rows = d.get("posts") or d.get("delivered") or []
-    todo = [x for x in rows
-            if x.get("delivered_id") and not x.get("has_draft") and not x.get("draft_skip")]
+    # 2026-09-22 (实测): 只取"最新 50 条"会**够不到旧积压** —— 355 有 465 条该写草稿,
+    #   而窗口内只有 29 条; 补完窗口内那几条后窗口不再前进 → 旧账永远轮不到。
+    #   现在按 offset 分页扫描 (--outreach-scan, 默认 200 条窗口), 直到凑够本次要写的量。
+    todo = []
+    for off in range(0, max(50, args.outreach_scan), 50):
+        try:
+            r = mc.call("vibe_delivered", {"subscription_id": sid, "limit": 50, "offset": off})
+        except Exception as e:  # noqa: BLE001
+            _log("sub%s 取已交付失败 (offset=%d): %s" % (sid, off, str(e)[:70]), args.state_log)
+            break
+        d = r.get("data", r) if isinstance(r, dict) else {}
+        rows = d.get("posts") or d.get("delivered") or []
+        if not rows:
+            break
+        todo += [x for x in rows
+                 if x.get("delivered_id") and not x.get("has_draft") and not x.get("draft_skip")]
+        if len(todo) >= args.outreach_per_sub:
+            break
     n_ok = 0
     for x in todo[:args.outreach_per_sub]:
         dlid = int(x["delivered_id"])
@@ -168,6 +177,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--daily-cap", type=int, default=60)
     ap.add_argument("--outreach-per-sub", type=int, default=5)
+    ap.add_argument("--outreach-scan", type=int, default=200,
+                    help="补草稿时最多向前扫多少条已交付 (默认 200; 旧积压要更大的窗口)")
     ap.add_argument("--state", default=os.path.join(HERE, "..", "data",
                                                     "loop_runner_state.json"))
     ap.add_argument("--log", default="", help="日志文件 (可选)")
