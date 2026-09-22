@@ -450,6 +450,25 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 ⚠️ **绝不因为一批全无关就断言"这个市场没需求"** —— 这正是本配方要防的实测失效模式
 (面可以修; 而用"从来没匹配到买家"的词去检验市场, 什么都证明不了)。
 
+#### 2c. 花额度之前先**免费看标题**，并且记住这是 AND 语义（2026-09-22）
+
+由**客户侧 agent** 自己修 `word_face` 订阅时发现（362: 交付率 1.9% → 5.5%，新词
+`facebook marketplace` 3/10 = 30%）。两条值得照抄的习惯：
+
+- **领取前先免费看库存。** `vibe_export_leads`（库存标题/正文）与
+  `vibe_pool_purge(out_of_scope=true, dry_run=true)` 能在**不领取**的前提下看清池子里到底是什么；
+  **领取才计费**。用它先判"这个词该退役 / 这批库存该清"，**别让一条垃圾花掉额度**。
+  实测的坑：执行器的 `--dry-run` 也不免费（老版本甚至照样领取）；
+  真正免费的是 `vibe_leads(peek=true)`、`vibe_export_leads`、`vibe_pool_purge(dry_run=true)`。
+- **这套匹配是 AND（所有词都出现才命中）—— 泛词就是毒药。** 362 实测：`free stuff` /
+  `free items` / `buy nothing` / `moving boxes` / `needing furniture` / `nextdoor` /
+  `freecycle` 全部把池子灌成噪声 —— 每一条都是**读了标题**才证伪并退役的。
+  词里必须带**领域名词**（`free furniture`、`curb alert`、`facebook marketplace`），
+  不能只有意图。
+- **弱词是 (词 × sub) 的问题，不是词的问题**：`free furniture` 全局 7%，在城市 sub 有用、
+  在 `minimalism`/`Mommit`/`ZeroWaste` 全是拒绝 —— 该用 `vibe_pair_exclude` 排格子，
+  不是 `vibe_keyword_remove` 删词。
+
 #### 3. Plan —— 一个动作，目标驱动
 
 **A. 先闭环你自己的评分反馈**（评分反馈是最强信号）。

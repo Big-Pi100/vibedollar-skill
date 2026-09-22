@@ -513,6 +513,27 @@ stayed `1/98 = 1%`; `config_missing=false`, stock 97, no 429, quota untouched. N
 measured failure mode this recipe exists to prevent (a face can be fixed; a market judgment
 cannot be tested with words that never matched buyers).
 
+#### 2c. Before you spend quota: **read the titles first** (free) — and know the AND semantics (2026-09-22)
+
+Found by a customer-side agent fixing a `word_face` subscription (362: 1.9% → 5.5% delivery,
+new word `facebook marketplace` 3/10 = 30%). Two habits worth copying:
+
+- **Free inspection before claiming.** `vibe_export_leads` (bodies/titles of stock) and
+  `vibe_pool_purge(out_of_scope=true, dry_run=true)` show you **what is actually in the pool**
+  without claiming anything — claiming is what gets billed. Use them to decide
+  "retire this word / purge this stock" **before** one junk item costs quota. The measured
+  trap: `--dry-run` on the executor is not free either — it peeks nothing and, in older
+  versions, still claimed; the free reads are `vibe_leads(peek=true)`, `vibe_export_leads`,
+  `vibe_pool_purge(dry_run=true)`.
+- **This matcher is AND (all words must appear), so generic words are poison.**
+  Measured on 362: `free stuff` / `free items` / `buy nothing` / `moving boxes` /
+  `needing furniture` / `nextdoor` / `freecycle` all filled the pool with noise — every one
+  was disproven by **reading the titles**, and all were retired. A word must carry the domain
+  noun (`free furniture`, `curb alert`, `facebook marketplace`), not just the intent.
+- **A weak word is a (word × sub) problem, not a word problem**: `free furniture` was 7%
+  overall but useful in city subs and rejected in `minimalism`/`Mommit`/`ZeroWaste` —
+  the fix is `vibe_pair_exclude`, not `vibe_keyword_remove`.
+
 #### 3. Plan — one action, driven by the goal
 
 **A. Close your own scoring loop first** (scoring feedback is the strongest signal).
