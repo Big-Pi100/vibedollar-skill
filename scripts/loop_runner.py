@@ -47,6 +47,7 @@ judge_prompt.md, 服务端零语义不变。
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as _cf
 import json
 import os
 import subprocess
@@ -61,8 +62,15 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DRAFT_MAX_WORDS = 18
 
 
+def _mask(s: str) -> str:
+    """日志里**永不出现凭据** (2026-09-22 事故: wrapper 把子进程 stderr 尾部原样记进日志,
+    argparse 的报错里带着 --llm-key sk-... → 密钥进了磁盘与终端)。"""
+    import re as _re
+    return _re.sub(r"sk-[A-Za-z0-9_\-]{6,}", "sk-***", s or "")
+
+
 def _log(msg: str, log_path: str = "") -> None:
-    line = "[%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg)
+    line = _mask("[%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), msg))
     print(line)
     if log_path:
         try:
@@ -138,27 +146,45 @@ def _outreach(args, mc: MCPClient, sid: int, state: dict) -> int:
                  if x.get("delivered_id") and not x.get("has_draft") and not x.get("draft_skip")]
         if len(todo) >= args.outreach_per_sub:
             break
-    n_ok = 0
-    for x in todo[:args.outreach_per_sub]:
+    def _one(x) -> int:
+        """一条草稿: 取任务书 → LLM 写 → 交回复核落库。返回 1/0 (单条失败不影响其余)。"""
         dlid = int(x["delivered_id"])
         try:
             adv = mc.call("vibe_outreach_advice",
                           {"delivered_id": dlid, "include_body": True})
             pr = (adv or {}).get("draft_prompt") or ""
             if not pr:
-                continue                      # 服务端否决 (draft_skip) 或该线索不该回
+                return 0                      # 服务端否决 (draft_skip) 或该线索不该回
             txt = _llm_write_draft(pr, args.llm_key, args.llm_base, args.llm_model)
             if not txt:
-                continue
+                return 0
             sv = mc.call("vibe_outreach_advice", {"delivered_id": dlid, "draft": txt})
             bad = ((sv or {}).get("draft_check") or {}).get("errors")
             if bad:
                 _log("sub%s 草稿被复核打回 id=%s: %s" % (sid, dlid, str(bad)[:100]), args.state_log)
-            else:
-                n_ok += 1
+                return 0
+            return 1
         except Exception as e:  # noqa: BLE001 — 单条失败不影响其余
             _log("sub%s 写草稿失败 id=%s: %s" % (sid, dlid, str(e)[:80]), args.state_log)
-        time.sleep(1.0)
+            return 0
+
+    # 2026-09-22 (owner 问"为什么 7-8 小时"): 串行时瓶颈是 **LLM 往返 (~3.3s/条)**, 实测
+    #   17~21 条/分钟; 写桶 (free 15 / starter 30 / pro 60 每分钟, **按账号**) 根本没触顶。
+    #   并行后写桶会成为真瓶颈 —— 所以 --parallel 默认 1 (稳态够用), 清积压时按档位调到
+    #   接近写桶上限 (starter ≤30, 但 LLM 侧并发别一次开太大, 建议 4~8)。
+    n_ok = 0
+    work = todo[:args.outreach_per_sub]
+    if args.parallel > 1 and len(work) > 1:
+        t0 = time.time()
+        with _cf.ThreadPoolExecutor(max_workers=min(args.parallel, 16)) as ex:
+            n_ok = sum(ex.map(_one, work))
+        _log("sub%s 触达(并行 %d): %d 条 / %.0fs = %.1f 条/分钟"
+             % (sid, min(args.parallel, 16), len(work), time.time() - t0,
+                len(work) / max(1.0, time.time() - t0) * 60), args.state_log)
+    else:
+        for x in work:
+            n_ok += _one(x)
+            time.sleep(1.0)
     if todo:
         _log("sub%s 触达: 该写 %d 条 → 落库 %d 条草稿 (发出仍需你/你的 agent: vibe_outreach_sent)"
              % (sid, len(todo), n_ok), args.state_log)
@@ -177,6 +203,9 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--daily-cap", type=int, default=60)
     ap.add_argument("--outreach-per-sub", type=int, default=5)
+    ap.add_argument("--parallel", type=int, default=1,
+                    help="写草稿并发数 (默认 1; 清积压时按档位写桶调: free<=15 starter<=30 "
+                         "pro<=60 每分钟; 建议 4~8)")
     ap.add_argument("--outreach-scan", type=int, default=200,
                     help="补草稿时最多向前扫多少条已交付 (默认 200; 旧积压要更大的窗口)")
     ap.add_argument("--state", default=os.path.join(HERE, "..", "data",
