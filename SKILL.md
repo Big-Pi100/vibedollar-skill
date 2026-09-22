@@ -401,8 +401,18 @@ was full — the face was fine, nothing was running the loop.
 - **Every subscription, not just the first**: `to_score` is account-wide while the pending list
   is per subscription — use `todo.to_score_by_sub` (or `next.args.subscription_ids`) to see
   **which** subscription is behind, and run the loop for each of them.
-- **Host-agent scheduler recipe** (the skill ships the executor, not the timer): every 30–60 min,
-  per subscription, `python3 scripts/score_batch.py --sub <sid> --limit <tier limit>` → then read
+- **Ready-made timer: `scripts/loop_runner.py`** (2026-09-22). The skill now ships the timer,
+  not just the executor: it does **intake** (calls `score_batch.py`: claim → judge → return) and the
+  mechanical half of **outreach** (fetch the draft task → your LLM writes ≤18 words → the server
+  re-checks and stores it). **It never posts** — sending stays with you/your agent
+  (`vibe_outreach_sent` → `vibe_mark_leads`). BYOK: `VIBEDOLLAR_API_KEY` + `LLM_API_KEY`
+  (+ `VIBEDOLLAR_MCP_URL` for a self-hosted endpoint); cost gates `--limit`/`--daily-cap`/
+  `--outreach-per-sub`; `--stage intake|outreach|both`; install snippets (cron + systemd
+  timer) are in the script's docstring. Measured why it matters: without a timer the loop stops
+  half-way — 8 non-marketing subscriptions had 6 with judging stale 11–14 days (or never), and
+  sub 355 had 655 delivered leads but only 166 drafts (its latest 10: none).
+- **Per-subscription manual recipe** (if you prefer to drive it yourself): every 30–60 min,
+  `python3 scripts/score_batch.py --sub <sid> --limit <tier limit>` → then read
   `vibe_sub_health` and act on `assessment.gap_reason` (see "Agent decision loop" below). Stop
   scheduling a subscription when `assessment.committed_ok` is true and stock is flat.
 - **Anti-pattern (the failure this prevents)**: "set up the face, judged a few early leads, never

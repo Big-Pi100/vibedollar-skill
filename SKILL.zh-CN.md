@@ -348,7 +348,15 @@ outreach（写草稿 → 发出 → 标记结果）
   领一大摞留着"回头判"：`to_score` 会占着你自己的下一次领取（闸门是账号口径）。
 - **每个订阅都要跑，不只第一个**：`to_score` 是账号口径，而待判清单是逐订阅的 —— 用
   `todo.to_score_by_sub`（或 `next.args.subscription_ids`）看出**欠在哪个订阅**，逐个跑。
-- **宿主 agent 的调度配方**（技能包给的是执行器，不是定时器）：每 30~60 分钟、逐订阅执行
+- **现成的定时器：`scripts/loop_runner.py`**（2026-09-22）。技能包现在**连定时器一起给**，不再只给执行器：
+  它跑 **intake**（内部调 `score_batch.py`：领取→判真→交回）和 **outreach 的机械一半**
+  （取任务书 → 你的 LLM 写 ≤18 词 → 服务端复核落库）。**它绝不自动发帖** —— 发出仍归你/你的 agent
+  （`vibe_outreach_sent` → `vibe_mark_leads`）。BYOK：`VIBEDOLLAR_API_KEY` + `LLM_API_KEY`
+  （自建端点再加 `VIBEDOLLAR_MCP_URL`）；成本闸门 `--limit`/`--daily-cap`/`--outreach-per-sub`；
+  `--stage intake|outreach|both`；cron 与 systemd timer 的安装片段写在脚本 docstring 里。
+  **实测为什么必须有它**：没有定时器时循环会停在半路 —— 8 个非营销订阅里 6 个判定停在
+  11~14 天前（或从未判过）；sub 355 交付 655 条却只有 166 条有草稿（最近 10 条一条都没有）。
+- **逐订阅手工配方**（你想自己驱动时）：每 30~60 分钟执行
   `python3 scripts/score_batch.py --sub <sid> --limit <档位上限>` → 再读 `vibe_sub_health`，
   按 `assessment.gap_reason` 选动作（见下面「Agent 决策循环」）。当
   `assessment.committed_ok` 且库存走平，就可以停止给这个订阅排期。
