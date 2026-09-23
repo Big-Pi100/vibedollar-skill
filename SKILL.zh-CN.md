@@ -137,6 +137,9 @@ outreach（写草稿 → 发出 → 标记结果）
 
 养号的几条**硬口径**（2026-09-23 一次隔离跑把歧义挖出来之后写死的）:
 
+- **列表是「最新帖」**: 打开一个养号社区时, 服务端按 **TTL(10 分钟)** 增量拉一次**真·最新帖**再返回 ——
+  不拉的话卡片还是几周前的调研快照, 那种帖子没人看, 评论上去也**攒不到 karma**。排序写死: **有草稿的在前 → 新的在前**,
+  每行带 `age_h`; `force=true` 跳过 TTL(界面点「刷新」就是它)。
 - **列表带正文**: `vibe_warmup_threads` 每行给 `title` **和 `body` 摘要**(1200 字) —— 把 body 一起传给
   `vibe_warmup_prompt`, 任务书里才有「这条帖子的事实」。只凭标题写稿 = 泛泛而谈。
 - **交稿有复核**: `vibe_warmup_prompt(..., draft=)` 回执带 `draft_check`(bool) 与 `failed_detail[{k,hit,note}]`
@@ -321,7 +324,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_outreach_declare` | `delivered_id` | **声明已发（零网络）**：复制草稿后调它 → 线索从「待处理」进「待确认」；**声明 ≠ 已发出**，只有服务端在帖里确认到你的评论才算（见 `vibe_outreach_confirm_link`） | 免费 | Header |
 | `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **贴回复链接确认触达**：回复被 Reddit 删掉时作者会变 `[deleted]`，按用户名永远认不出 —— 这时把那条回复的**永久链接**贴进来，服务端按 comment_id 查证（存在性 + 帖归属）后登记为已发出 | 免费 | Header |
 | `vibe_warmup_subs` | `（无）` | **养号社区清单**（与线索池独立）：梗图/猫狗/问答等社区 + 我们**实测的评论/发帖移除率**、评论是否受限、明确劝退清单 + 今日档位/纪律/ETA。回执另给 **`pick`**（按实测移除率升序的推荐社区 + 排序规则，解决并列 tie-break）、`tier_note`（`t0/t1/t2` 养号档位 ≠ `rate.tier` 计费档位）、`progress`（今日条数 + 分社区分布） | 免费 | Header |
-| `vibe_warmup_threads` | `sub`, `limit`(默认 20), `order`(new/old) | **养号帖列表（界面同款）**：本地语料里的帖 + 它**已存的养号草稿** + 是否已记账 —— 一次调用渲染整屏（不用逐卡扇出）。每行含 `title` **和 `body` 摘要**（写稿要有依据，别只凭标题）、`draft`、`logged`；`next.why` 说明「**不用全写**，今天按纪律 3-5 条」 | 免费 | Header |
+| `vibe_warmup_threads` | `sub`, `limit`(默认 20), `order`(new/hot), `refresh`(默认 true), `force`(默认 false) | **养号帖列表（界面同款）**：**先按 TTL(10 分钟) 拉一次最新帖**（否则是几周前的快照，老帖没人看、攒不到 karma），再返回帖 + 它**已存的养号草稿** + 是否已记账 —— 一次调用渲染整屏（不用逐卡扇出）。排序写死「**有草稿的在前** → 新的在前」(`order=hot` 换成评论多的在前)；`force=true` 跳过 TTL。回执 `freshness` 段说明这次拉没拉、快照多旧。每行含 `title` **和 `body` 摘要**（写稿要有依据，别只凭标题）、`draft`、`logged`；`next.why` 说明「**不用全写**，今天按纪律 3-5 条」 | 免费 | Header |
 | `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选), `draft`(可选，**交稿**) | **养号评论任务书 + 交稿**：与触达**完全同构** —— 把写好的 1-3 句放进 `draft=` 回传 → 服务端落库（`draft_written`/`draft_stored`）**并做确定性复核**（`draft_check` + `failed_detail[{k,hit,note}]`：链接/产品名/推销/套话开头/复述标题/超 3 句；只报命中、不拦截落库），**用户在 app 养号页点「复制草稿」直接发**（不再复制任务书）。写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
 | `vibe_warmup_log` | `sub`, `post_id`, `draft`(可选), `comment_id`(可选) | **养号台账**（与线索/交付分开）：记一次养号动作（= **已发出**；不带 `comment_id` 也照记，算进今天条数），带 `comment_id` 就去档案查存活。养号**不受触达节流限制**，且养号评论**不进**触达熔断（那条 48 小时熔断只数触达评论） | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
