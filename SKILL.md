@@ -154,6 +154,31 @@ app warm-up pane** (no longer copying the task book) → after posting, log it w
 still alive). Zero LLM, no templates, drafts only from the agent; warm-up is **not** subject to the
 outreach throttle (those 2/day are for promo-flavoured comments).
 
+Hard rules for warm-up (written down after an isolated customer-agent run exposed the ambiguities,
+2026-09-23):
+
+- **The list carries the body**: each `vibe_warmup_threads` row gives `title` **and a `body` excerpt**
+  (1200 chars) — pass the body to `vibe_warmup_prompt` so the task book has the post's facts.
+  Writing from the title alone means writing generically.
+- **Submission is re-checked**: `vibe_warmup_prompt(..., draft=)` returns `draft_check` (bool) plus
+  `failed_detail[{k,hit,note}]` — deterministic checks (link / product name / pitch / cliché opener /
+  title echo / more than 3 sentences). It only reports hits and **never blocks storage**; fix and resubmit.
+- **A stored draft is not "post them all today"**: **3-5/day**, spread over **2-3 communities**, and leave
+  **30+ minutes** between posts in the same community. "N threads still have no draft" in `next.why` is
+  not an instruction to fill all N — write only the ones you genuinely have something to say about.
+- **Which community**: `vibe_warmup_subs` sorts by **measured comment removal rate** ascending, ties broken
+  by a fixed curated order (Q&A/chat first); the reply carries `pick` (the recommended sub + the rule).
+  Posting several today? Walk down `subs` instead of stacking one community.
+- **Two different "tier" vocabularies**: `vibe_warmup_subs.data.tier` = `t0/t1/t2` is your **warm-up tier**
+  (karma/account age); `rate.tier` = `free/starter/pro` is the **billing tier**. `tier_note` says so.
+- **vs `vibe_account_ramp`**: `vibe_warmup_subs`/`vibe_warmup_*` farm karma in **gate-free communities**
+  (nothing to do with the lead pool); `vibe_account_ramp(subscription_id)` audits whether you can post in
+  **your own lead communities** (how far from the gates / how long). Farm karma first, then check the ramp.
+- **Ledger semantics**: `vibe_warmup_log` records an **already-posted** comment; it still counts today's
+  quota without a `comment_id`, and with one the server checks liveness. Warm-up comments do **not** feed
+  the outreach circuit-breaker (the 48h pause counts outreach comments only) — but a removal is still a
+  signal: change community or change how you write.
+
 ### Cold start: **set the search face first**, then the word list (2026-09-21)
 
 After `vibe_subscribe`, **a missing word list or sub list = the pipeline returns at the gate on every
@@ -351,10 +376,10 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
 | `vibe_account_ramp` | `subscription_id` (optional) | **Account ramp check + route (read-only, zero LLM)**: measures **how far you are from the gates**, **which communities you can post in right now**, and **roughly how long** it will take. Per community: `postable` (no archived gate and this account was never removed there) · `gate_unmet` (numeric gate missed + `gap`) · `gate_unknown` (archive says there is a gate but gives no number) · `self_removed` (**this account was actually removed there** — harder evidence than the archive) · `high_removal`. The reply carries `plan{postable_now, ramp_first, target_karma, karma_gap, eta_days, steps}` and `next`; every `vibe_outreach_profile` update records a karma snapshot so `karma_trend` shows progress. **Boundary: the server never farms karma for you** (no posting, no commenting, no vote manipulation — that is spam), the human does that in real conversations | Free | Header |
 | `vibe_outreach_declare` | `delivered_id` | **Declare sent (no network)**: call it right after copying a draft — the lead leaves "to do" for "awaiting confirmation". **Declaring is not sending**: only a verified comment in the thread counts | Free | Header |
 | `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **Confirm via the reply permalink**: when Reddit removed your comment the author becomes `[deleted]` (username discovery can never match it) — paste the permalink and the server verifies the comment id + thread | Free | Header |
-| `vibe_warmup_subs` | (none) | **Karma warm-up sub list** (separate from the lead pool): meme/pet/Q&A subs with our **measured comment/post removal rates**, restricted-commenting flags, an avoid list, plus your tier / daily discipline / ETA | Free | Header |
-| `vibe_warmup_threads` | `sub`, `limit` (default 20), `order` (new/old) | **Warm-up thread list (same as the app)**: posts from the local corpus + the **stored warm-up draft** for each + whether it is logged — one call renders the whole screen | Free | Header |
-| `vibe_warmup_prompt` | `sub`, `post_id?`, `title?`, `body?`, `draft?` (**submission**) | **Warm-up comment task book + submission**: **identical shape to outreach** — pass your 1-3 sentences as `draft=` and the server stores it (`draft_written`/`draft_stored`), then the **user clicks "copy the draft" in the app warm-up pane** (no longer copying the task book). Hard rules: no links, no product names, no pitching, and "skip this one if you have nothing to say" | Free | Header |
-| `vibe_warmup_log` | `sub`, `post_id`, `draft?`, `comment_id?` | **Warm-up ledger** (kept apart from leads/delivery): log what you posted; with `comment_id` the server checks whether it is still alive. Warm-up is **not** subject to the outreach throttle | Free | Header |
+| `vibe_warmup_subs` | (none) | **Karma warm-up sub list** (separate from the lead pool): meme/pet/Q&A subs with our **measured comment/post removal rates**, restricted-commenting flags, an avoid list, plus your tier / daily discipline / ETA. Also returns **`pick`** (the recommended sub per the removal-rate sort rule, so ties are deterministic), `tier_note` (`t0/t1/t2` warm-up tier != `rate.tier` billing tier) and `progress` (today's count + per-sub split) | Free | Header |
+| `vibe_warmup_threads` | `sub`, `limit` (default 20), `order` (new/old) | **Warm-up thread list (same as the app)**: posts from the local corpus + the **stored warm-up draft** for each + whether it is logged — one call renders the whole screen. Each row has `title` **and a `body` excerpt** (write from the facts, not the title), `draft` and `logged`; `next.why` says **not to write them all** (3-5/day) | Free | Header |
+| `vibe_warmup_prompt` | `sub`, `post_id?`, `title?`, `body?`, `draft?` (**submission**) | **Warm-up comment task book + submission**: **identical shape to outreach** — pass your 1-3 sentences as `draft=` and the server stores it (`draft_written`/`draft_stored`), then the **user clicks "copy the draft" in the app warm-up pane** (no longer copying the task book). Hard rules: no links, no product names, no pitching, and "skip this one if you have nothing to say". Submitting `draft=` stores it (`draft_written`/`draft_stored`) **and re-checks it deterministically** (`draft_check` + `failed_detail[{k,hit,note}]`; reports hits only, never blocks storage) | Free | Header |
+| `vibe_warmup_log` | `sub`, `post_id`, `draft?`, `comment_id?` | **Warm-up ledger** (kept apart from leads/delivery): log what you **posted** (no `comment_id` is fine and still counts toward today's quota); with `comment_id` the server checks whether it is still alive. Warm-up is **not** subject to the outreach throttle, and warm-up comments do **not** feed the outreach circuit-breaker | Free | Header |
 | `vibe_outreach_sent` | `lead_id` (**candidate id**) | **"I posted it" registration**: the server immediately looks for your comment in that thread (one request); on a hit it registers comment id / posted time / alive state / score / reply count and, if you never marked it, **marks the outcome `contacted`**; later re-checks at T+24h/72h/7d. On a miss it records `unknown` and the per-username discovery (every 6h) keeps watching. Requires a Reddit username in the app sidebar | Free | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality. Warning: this requires that you **actually posted** (`todo.outreach.sent > 0`) — with nothing sent there is no result to mark, and `next` will point at `vibe_outreach_sent` instead | Free | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(optional), `include_body`(default true) | **Outreach advice + writing brief (zero LLM)**: `delivered_id` is the **DELIVERY ROW id** (the `delivered_id` from `vibe_delivered` / `vibe_submit_score`, **not** the candidate `lead_id`). Returns the four-layer verdict (`verdict`: safe to reply / reply with care / do not reply), `rules` (this community's key rules), `draft_prompt` (**the writing brief for the agent**: body excerpt + hard constraints + examples) and `progress` (outreach-stage progress). Passing `draft=<text>` = submitting the draft: the server re-checks it with the same rules and stores it (`draft_check` / `draft_saved` / `draft_source`) | Free | Header |
