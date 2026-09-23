@@ -145,6 +145,15 @@ loop — do not skip judging and go write drafts.
    The server is zero-LLM and serves **no generic templates** (generic lines are unrelated to the
    lead) — the draft can only come from you.
 
+**Warm-up is the same pipeline (2026-09-23)**: `vibe_warmup_subs()` picks a community with a **measured
+low removal rate** → `vibe_warmup_threads(sub=..., limit=20)` returns the thread list plus each thread's
+**stored draft** in one call → write 1-3 sentences for the threads without a draft and send them back via
+`vibe_warmup_prompt(sub, post_id, title, body, draft=<text>)` → the **user clicks "copy the draft" in the
+app warm-up pane** (no longer copying the task book) → after posting, log it with
+`vibe_warmup_log(sub, post_id, draft, comment_id?)` (with a `comment_id` the server checks whether it is
+still alive). Zero LLM, no templates, drafts only from the agent; warm-up is **not** subject to the
+outreach throttle (those 2/day are for promo-flavoured comments).
+
 ### Cold start: **set the search face first**, then the word list (2026-09-21)
 
 After `vibe_subscribe`, **a missing word list or sub list = the pipeline returns at the gate on every
@@ -343,7 +352,8 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
 | `vibe_outreach_declare` | `delivered_id` | **Declare sent (no network)**: call it right after copying a draft — the lead leaves "to do" for "awaiting confirmation". **Declaring is not sending**: only a verified comment in the thread counts | Free | Header |
 | `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **Confirm via the reply permalink**: when Reddit removed your comment the author becomes `[deleted]` (username discovery can never match it) — paste the permalink and the server verifies the comment id + thread | Free | Header |
 | `vibe_warmup_subs` | (none) | **Karma warm-up sub list** (separate from the lead pool): meme/pet/Q&A subs with our **measured comment/post removal rates**, restricted-commenting flags, an avoid list, plus your tier / daily discipline / ETA | Free | Header |
-| `vibe_warmup_prompt` | `sub`, `post_id?`, `title?`, `body?` | **Warm-up comment task book**: scan (`vibe_sub_corpus`) → task book → copy-paste. Hard rules: no links, no product names, no pitching, and "skip this one if you have nothing to say" | Free | Header |
+| `vibe_warmup_threads` | `sub`, `limit` (default 20), `order` (new/old) | **Warm-up thread list (same as the app)**: posts from the local corpus + the **stored warm-up draft** for each + whether it is logged — one call renders the whole screen | Free | Header |
+| `vibe_warmup_prompt` | `sub`, `post_id?`, `title?`, `body?`, `draft?` (**submission**) | **Warm-up comment task book + submission**: **identical shape to outreach** — pass your 1-3 sentences as `draft=` and the server stores it (`draft_written`/`draft_stored`), then the **user clicks "copy the draft" in the app warm-up pane** (no longer copying the task book). Hard rules: no links, no product names, no pitching, and "skip this one if you have nothing to say" | Free | Header |
 | `vibe_warmup_log` | `sub`, `post_id`, `draft?`, `comment_id?` | **Warm-up ledger** (kept apart from leads/delivery): log what you posted; with `comment_id` the server checks whether it is still alive. Warm-up is **not** subject to the outreach throttle | Free | Header |
 | `vibe_outreach_sent` | `lead_id` (**candidate id**) | **"I posted it" registration**: the server immediately looks for your comment in that thread (one request); on a hit it registers comment id / posted time / alive state / score / reply count and, if you never marked it, **marks the outcome `contacted`**; later re-checks at T+24h/72h/7d. On a miss it records `unknown` and the per-username discovery (every 6h) keeps watching. Requires a Reddit username in the app sidebar | Free | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | Mark lead outcome (valid / invalid / contacted), track outreach quality. Warning: this requires that you **actually posted** (`todo.outreach.sent > 0`) — with nothing sent there is no result to mark, and `next` will point at `vibe_outreach_sent` instead | Free | Header |

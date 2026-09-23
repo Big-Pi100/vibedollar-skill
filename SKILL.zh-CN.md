@@ -128,6 +128,13 @@ outreach（写草稿 → 发出 → 标记结果）
    不承诺代做）并落库; app 的线索卡片会**优先显示**这一版。
    服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写。
 
+**养号是同一条流水线（2026-09-23）**: `vibe_warmup_subs()` 选一个**实测低移除率**的社区 →
+`vibe_warmup_threads(sub=..., limit=20)` 一次拿帖子列表 + 每条**已存的草稿** →
+给没草稿的帖写 1-3 句, 用 `vibe_warmup_prompt(sub, post_id, title, body, draft=<成稿>)` 回传落库 →
+**用户在 app 的「养号」页点「复制草稿」直接发**（不再复制任务书）→ 发出后
+`vibe_warmup_log(sub, post_id, draft, comment_id?)` 记账（带 `comment_id` 服务端会去档案查存活）。
+同样零 LLM、不发通用模板、草稿只能由 agent 写; 养号**不受触达节流限制**（那 2 条/天是推广向评论的）。
+
 ### 冷启动：**先定搜索面**，再谈词表（2026-09-21）
 
 `vibe_subscribe` 之后**缺词表或 sub 清单 = 管线每轮在闸门处直接返回 → 永远不会产出候选**
@@ -296,7 +303,8 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_outreach_declare` | `delivered_id` | **声明已发（零网络）**：复制草稿后调它 → 线索从「待处理」进「待确认」；**声明 ≠ 已发出**，只有服务端在帖里确认到你的评论才算（见 `vibe_outreach_confirm_link`） | 免费 | Header |
 | `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **贴回复链接确认触达**：回复被 Reddit 删掉时作者会变 `[deleted]`，按用户名永远认不出 —— 这时把那条回复的**永久链接**贴进来，服务端按 comment_id 查证（存在性 + 帖归属）后登记为已发出 | 免费 | Header |
 | `vibe_warmup_subs` | `（无）` | **养号社区清单**（与线索池独立）：梗图/猫狗/问答等社区 + 我们**实测的评论/发帖移除率**、评论是否受限、明确劝退清单 + 今日档位/纪律/ETA | 免费 | Header |
-| `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选) | **养号评论任务书**：扫描（`vibe_sub_corpus`）→ 任务书 → 复制粘贴那一环；写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
+| `vibe_warmup_threads` | `sub`, `limit`(默认 20), `order`(new/old) | **养号帖列表（界面同款）**：本地语料里的帖 + 它**已存的养号草稿** + 是否已记账 —— 一次调用渲染整屏（不用逐卡扇出） | 免费 | Header |
+| `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选), `draft`(可选，**交稿**) | **养号评论任务书 + 交稿**：与触达**完全同构** —— 把写好的 1-3 句放进 `draft=` 回传 → 服务端落库（`draft_written`/`draft_stored`），**用户在 app 养号页点「复制草稿」直接发**（不再复制任务书）。写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
 | `vibe_warmup_log` | `sub`, `post_id`, `draft`(可选), `comment_id`(可选) | **养号台账**（与线索/交付分开）：记一次养号动作，带 `comment_id` 就去档案查存活；养号**不受触达节流限制** | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
