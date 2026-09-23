@@ -116,7 +116,12 @@ outreach（写草稿 → 发出 → 标记结果）
 1. 判完 `relevant` 后, 回执里 `progress.next.args.delivered_id`（旧字段 `outreach_next_step.delivered_ids`）
    就是这一批的**交付行 id**（用它, 不要用候选 id）;
 2. `vibe_outreach_advice(delivered_id=<上面那个 id>, include_body=true)` → 拿 `draft_prompt`
-   （写作任务书: 正文摘录 + 四层判定 + 该社区规则要点 + 8 条硬约束 + 12 句范例）;
+   （写作任务书: 正文摘录 + **这条线索要什么(意图)** + 四层判定 + 该社区规则要点 + 8 条硬约束 + 范例）;
+2b. **先看「这条线索要什么」段**（同一份对象也在回执的 `lead_intent` 里, 附判据命中的词）——
+   它回答的是**作者是谁**。判成 `soliciting_feedback`（招测试 / 求反馈 / 推广自己作品）时, 作者是
+   **做产品的人, 不是用户**: **不要**问「你第一次试的时候哪里不清楚」这类把他当用户的问题
+   （这样交稿会被 `intent_fit` 判不通过）; 该给一条**具体第一印象**, 或问**他的做法**。
+   任务书还会按意图给该形状的范例（学形状, 不抄句子）;
 3. 用**你的** LLM 按任务书写一版 **≤18 词**回复（语言看 `lang` 字段, 默认英文）。
    ⚠️ `verdict=dont_reply` 也**要写草稿** —— 分两种, 看 `draft_hold.level`:
    · `account`（`karma_block`/`acct_age_block` 等账号门槛未达, `basis=archive_gate`）:

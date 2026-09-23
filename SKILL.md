@@ -128,8 +128,14 @@ loop — do not skip judging and go write drafts.
    field `outreach_next_step.delivered_ids`) is this batch's **delivery-row id** (use it, not the
    candidate id);
 2. `vibe_outreach_advice(delivered_id=<that id>, include_body=true)` → take `draft_prompt`
-   (the writing brief: body excerpt + the four-layer verdict + this community's key rules +
-   8 hard constraints + 12 example lines);
+   (the writing brief: body excerpt + **what this lead wants (intent)** + the four-layer verdict +
+   this community's key rules + 8 hard constraints + examples);
+2b. **Read the intent section first** (`【这条线索要什么】`; the same object rides on the response as
+   `lead_intent`, with the matched words that produced it). It answers **who the author is**. When it says
+   `soliciting_feedback` (testers / feedback on their own product) the author is a **maker, not a user** —
+   **never** ask "what felt unclear when you first tried it" (submitting that is flagged as an `intent_fit`
+   failure); give one concrete first impression, or ask about **their** build. The brief also lists
+   intent-specific example lines to copy the *shape* of;
 3. write a **≤18 word** reply with **your** LLM from that brief (language per the `lang` field,
    Note: `verdict=dont_reply` **still wants a draft** — check `draft_hold.level`:
    * `account` (`karma_block` / `acct_age_block`, `basis=archive_gate`): the content is fine but
