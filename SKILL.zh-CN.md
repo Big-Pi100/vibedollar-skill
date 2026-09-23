@@ -137,6 +137,10 @@ outreach（写草稿 → 发出 → 标记结果）
 
 养号的几条**硬口径**（2026-09-23 一次隔离跑把歧义挖出来之后写死的）:
 
+- **想找「前 1% 最受欢迎的评论者」那类人**: Reddit 的**徽章查不到**（achievement，不在评论字段里），
+  但 **`vibe_top_commenters(sub)`** 会用我们手里的**真实赞数**算出这个社区里被点赞最多的作者 + 他们的
+  **代表作** —— 这就是同一种人，而且是**你关心的那个社区**里的（比全站徽章更有用）。拿他们的评论当
+  **语气参考**（学结构、不要抄句子），或者看他们在哪条帖下出现（那条帖有流量）。
 - **记账必须带评论链接/ID（否则没有监控）**: `vibe_warmup_log(..., comment_id=<评论永久链接 或 comment_id>)`
   —— 服务端解析出 comment_id **与帖 id**（链接里的帖 id 是权威）、当场查一次存活/赞数，并把它放进
   **监控名单**；`vibe_warmup_logged(sub?, days?)` 就是那份名单（已发清单：存活/赞数/有人回/复查次数/链接）。
@@ -333,6 +337,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_account_ramp` | `subscription_id`(可选) | **账号养号体检 + 路线（只读, 零 LLM）**：量出**门槛差多少**、**哪些社区现在就能发**、**大约多久**。逐社区判定：`postable`（无已归档门槛且本账号未被删）· `gate_unmet`（有数值门槛未达 + `gap`）· `gate_unknown`（归档只说有门槛没给数值）· `self_removed`（**本账号实测被删过**，比归档更硬）· `high_removal`。回执给 `plan{postable_now, ramp_first, target_karma, karma_gap, eta_days, steps}` 与 `next`；每次更新 `vibe_outreach_profile` 会记 karma 快照，`karma_trend` 看趋势。**边界：服务端不代养号**（不代发/不代评/不刷 karma —— 那是 spam），养号只能由本人在真实对话里做 | 免费 | Header |
 | `vibe_outreach_declare` | `delivered_id` | **声明已发（零网络）**：复制草稿后调它 → 线索从「待处理」进「待确认」；**声明 ≠ 已发出**，只有服务端在帖里确认到你的评论才算（见 `vibe_outreach_confirm_link`） | 免费 | Header |
 | `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **贴回复链接确认触达**：回复被 Reddit 删掉时作者会变 `[deleted]`，按用户名永远认不出 —— 这时把那条回复的**永久链接**贴进来，服务端按 comment_id 查证（存在性 + 帖归属）后登记为已发出 | 免费 | Header |
+| `vibe_top_commenters` | `sub`, `limit`(默认 20), `min_n`(默认 3), `include_bots`(默认 false) | **社区头部评论者**（按我们手里的**真实赞数**）：该 sub 内条数 ≥ `min_n` 的作者按**总赞数**排，每人再给一条**代表作**（原文片段 + 链接）+ 条数/总赞/均赞/最高赞。用途：①学这个社区**最会说话的人**（学语气、不抄内容）②看**哪条帖有流量**（这些人出现在哪条帖下）。⚠️ Reddit 的「前 1% 评论者」**徽章本身查不到**（那是 achievement，不在评论对象字段里；实测档案原始行零命中）——这里给的是**行为等价物**，而且是你关心的那个社区里的。**边界**：只给公开事实，**不提供 DM 名单、不代发、不判断该不该联系**（批量私信 = spam） | 免费 | Header |
 | `vibe_warmup_subs` | `recheck`(默认 false) | **养号社区清单**（与线索池独立）：梗图/猫狗/问答等社区 + 我们**实测的评论/发帖移除率**、评论是否受限、明确劝退清单 + 今日档位/纪律/ETA。回执另给 **`pick`**（按实测移除率升序的推荐社区 + 排序规则，解决并列 tie-break）、`tier_note`（`t0/t1/t2` 养号档位 ≠ `rate.tier` 计费档位）、`progress`（今日条数 + 分社区分布）、**`effect`**（养号效果：已发/存活率/累计赞数≈karma/有人回/分社区/最好的几条）；`recheck=true` = 立刻复查一轮（默认由 6h 巡检腿自动跑） | 免费 | Header |
 | `vibe_warmup_threads` | `sub`, `limit`(默认 20), `order`(new/hot), `refresh`(默认 true), `force`(默认 false) | **养号帖列表（界面同款）**：**先按 TTL(10 分钟) 拉一次最新帖**（否则是几周前的快照，老帖没人看、攒不到 karma），再返回帖 + 它**已存的养号草稿** + 是否已记账 —— 一次调用渲染整屏（不用逐卡扇出）。排序写死「**有草稿的在前** → 新的在前」(`order=hot` 换成评论多的在前)；`force=true` 跳过 TTL。回执 `freshness` 段说明这次拉没拉、快照多旧。每行含 `title` **和 `body` 摘要**（写稿要有依据，别只凭标题）、`draft`、`logged`；`next.why` 说明「**不用全写**，今天按纪律 3-5 条」 | 免费 | Header |
 | `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选), `draft`(可选，**交稿**) | **养号评论任务书 + 交稿**：与触达**完全同构** —— 把写好的 1-3 句放进 `draft=` 回传 → 服务端落库（`draft_written`/`draft_stored`）**并做确定性复核**（`draft_check` + `failed_detail[{k,hit,note}]`：链接/产品名/推销/套话开头/复述标题/超 3 句；只报命中、不拦截落库），**用户在 app 养号页点「复制草稿」直接发**（不再复制任务书）。写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
