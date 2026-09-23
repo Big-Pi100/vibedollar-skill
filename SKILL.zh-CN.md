@@ -107,7 +107,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | ① | 目标 / 额度 | `vibe_balance` / `vibe_sub_health` | `claim_quota{month_used,month_limit,daily_used,daily_cap}`、`assessment.gap_reason` |
 | ② | 领取 | `vibe_leads(subscription_id, limit)`（`peek=true` 免费看**手上的待评分**; **未领取的候选 peek 看不到** —— 没有免费的候选预览, 候选只在领取时返回） | `data.posts[]`、`data.pending[]`、`progress.todo.claimable_now`、`progress.next.do` |
 | ③ | 判定 | `vibe_submit_score(scores=[…])`（≤100 条 = 1 个 pipeline token） | `items[].delivered_id`、`progress.round.scored_now`、`progress.todo.to_score`、`progress.next.do` |
-| ④ | 触达 | `vibe_outreach_advice(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传 | `draft_prompt`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
+| ④ | 触达 | `vibe_outreach_advice(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传。⚠️ **任务书里现在带「同类高互动回复参考」**（同帖 + 你订阅的交付帖池，同社区优先）—— **学它的语气与结构，不要抄内容**，更不要用同样的产品名 | `draft_prompt`、`top_replies`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
 | ⑤ | 发出并标记 | 发出后 `vibe_outreach_sent(lead_id)` 登记 → 有真实结果后 `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.outreach.sent`（=0 时先别标结果）、`todo.to_mark` |
 | ⑥ | 复盘 / 迭代 | `vibe_delivered` / `vibe_keywords` / `vibe_opt_log` | 回到 ① |
 
@@ -293,6 +293,11 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_pair_exclude` | `subscription_id`, `kw`, `sub`, `mode`(list/add/remove), `note` | **声明「这个词，但不要在那个 sub」——（词 × sub）排除格（2026-09-21）**。搜索面是（词表 × 清单）的**笛卡尔积**，而质量信号是 per（词, sub）——实测**同一个词能在一个 sub 95%、在另一个 sub 0%**。**服务端只执行不决策**：证据看 `todo.supply.stats.pairs` 的 `hint`（配对问题/词面问题/sub 问题），排除格由你声明。`mode=list` 纯读（read 桶），add/remove 走写桶；撤销是软删；生效在入池前（**写 scored_posts 之前**，撤销后可重新考虑） | 免费 |
 | `vibe_pool_purge` | `subscription_id`, `kw`(可选), `sub`(可选), `out_of_scope`(默认 false), `dry_run`(默认 true) | **清未领取库存**（`status='new'`，从未计费 → 删除**零账目影响**；`sent/delivered/rejected` 一律不动）。供给侧收噪声的第三个动作：**想留的词**其旧库存会垄断领取轮转，**已移出清单的 sub** 的存量行仍能被领出来 —— 这两种都只能靠它清。先 `dry_run=true` 看会删多少 + 抽样，再 `dry_run=false`；做完 `vibe_opt_log` 记一笔 | 免费 | Header |
 | `vibe_account_ramp` | `subscription_id`(可选) | **账号养号体检 + 路线（只读, 零 LLM）**：量出**门槛差多少**、**哪些社区现在就能发**、**大约多久**。逐社区判定：`postable`（无已归档门槛且本账号未被删）· `gate_unmet`（有数值门槛未达 + `gap`）· `gate_unknown`（归档只说有门槛没给数值）· `self_removed`（**本账号实测被删过**，比归档更硬）· `high_removal`。回执给 `plan{postable_now, ramp_first, target_karma, karma_gap, eta_days, steps}` 与 `next`；每次更新 `vibe_outreach_profile` 会记 karma 快照，`karma_trend` 看趋势。**边界：服务端不代养号**（不代发/不代评/不刷 karma —— 那是 spam），养号只能由本人在真实对话里做 | 免费 | Header |
+| `vibe_outreach_declare` | `delivered_id` | **声明已发（零网络）**：复制草稿后调它 → 线索从「待处理」进「待确认」；**声明 ≠ 已发出**，只有服务端在帖里确认到你的评论才算（见 `vibe_outreach_confirm_link`） | 免费 | Header |
+| `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **贴回复链接确认触达**：回复被 Reddit 删掉时作者会变 `[deleted]`，按用户名永远认不出 —— 这时把那条回复的**永久链接**贴进来，服务端按 comment_id 查证（存在性 + 帖归属）后登记为已发出 | 免费 | Header |
+| `vibe_warmup_subs` | `（无）` | **养号社区清单**（与线索池独立）：梗图/猫狗/问答等社区 + 我们**实测的评论/发帖移除率**、评论是否受限、明确劝退清单 + 今日档位/纪律/ETA | 免费 | Header |
+| `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选) | **养号评论任务书**：扫描（`vibe_sub_corpus`）→ 任务书 → 复制粘贴那一环；写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
+| `vibe_warmup_log` | `sub`, `post_id`, `draft`(可选), `comment_id`(可选) | **养号台账**（与线索/交付分开）：记一次养号动作，带 `comment_id` 就去档案查存活；养号**不受触达节流限制** | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(可选), `include_body`(默认 true) | **触达建议 + 写作任务书（零 LLM）**：`delivered_id` 用**交付行 id**（`vibe_delivered`/`vibe_submit_score` 回执里的 `delivered_id`，**不是**候选 `lead_id`）。回执含四层判定（`verdict` 可回/谨慎回/别回）、`rules`（该社区规则要点）、`draft_prompt`（**给 agent 的写作任务书**：正文摘录 + 硬约束 + 范例）、`progress`（触达阶段进度）。把成稿放进 `draft` 参数回传 = 交稿, 服务端按同一套规则复核并落库（`draft_check`/`draft_saved`/`draft_source`）| 免费 | Header |
