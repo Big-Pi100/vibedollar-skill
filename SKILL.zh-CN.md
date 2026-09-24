@@ -123,6 +123,17 @@ outreach（写草稿 → 发出 → 标记结果）
    **做产品的人, 不是用户**: **不要**问「你第一次试的时候哪里不清楚」这类把他当用户的问题
    （这样交稿会被 `intent_fit` 判不通过）; 该给一条**具体第一印象**, 或问**他的做法**。
    任务书还会按意图给该形状的范例（学形状, 不抄句子）;
+ 2c. **再看「他发这条想要什么」段**（同一份对象在回执 `poster_intent` 里）—— 它回答的是**这个帖子
+   此刻想要什么**, 按帖子类型决定"动作":
+   · 发布/成果 → 先**肯定他做对的取舍**, 再**顺着他当下的处境给一条下一步**;
+   · 求助/提问 → 给**最短最具体的答案**（别把问题反问回去）;
+   · 吐槽/情绪 → **共鸣 + 同类经历**（**别给建议**, 那是说教）;
+   · 里程碑/自嘲 → **祝贺 / 鼓励**（别做 KPI 分析）;
+   · 观点/争论 → **一句明确表态**（别骑墙）。
+   纪律: **陈述句为主, 一条回复最多一个问号**; **绝不在发布帖下质疑产品设计**
+   （实测 "How are you handling multi-device users who still want sync?" 被版主删了）。
+   违反会被 `draft_check.move_fit` 判不通过 —— 四种动作（给答案/给经历/给肯定/给情绪）都可以,
+   唯独不该是"考问作者"。
 3. 用**你的** LLM 按任务书写一版 **≤18 词**回复（语言看 `lang` 字段, 默认英文）。
    ⚠️ `verdict=dont_reply` 也**要写草稿** —— 分两种, 看 `draft_hold.level`:
    · `account`（`karma_block`/`acct_age_block` 等账号门槛未达, `basis=archive_gate`）:
@@ -178,6 +189,10 @@ outreach（写草稿 → 发出 → 标记结果）
   **配额**: 包含在所有档（免费档也能开），并**占用你的 leads 配额 —— 发出 1 条评论 = 1 条 lead**；
   计费点在 `vibe_warmup_log`，所以**从 `vibe_leads` 领取养号行是免费的**（别把养号行当成已计费线索）。
   节奏不变：**每天最多 5 条**，分散到 2-3 个社区。
+- **暂停 / 恢复养号**: 它现在是一条**订阅**, 所以能停也能回来 —— `vibe_warmup_status(enabled=false)` →
+  状态 `paused`（不再发帖单、也不再复查；**已发出的评论仍在监控名单里**）,
+  `enabled=true` → 回到 `active`。app 的养号页右上角有「暂停养号 / 恢复养号」按钮。
+  注意: `vibe_unsubscribe` 写的是 `cancelled`（另一种状态）—— 想回来用这个工具。
 - **养号行会从 `vibe_leads` 回来**: 行上带 `track_type='warmup'` 与 `warmup: true`。它们是**用来攒 karma 的帖子**,
   不是需求线索：**不要**评分（它们不进「未判定」闸门）、**不要**写触达草稿 —— 用
   `vibe_warmup_prompt(sub, post_id, title, body, draft=)` 写一句像普通用户的话，再用 `vibe_warmup_log` 记账。
@@ -356,6 +371,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_warmup_subs` | `recheck`(默认 false) | **养号社区清单**（与线索池独立）：梗图/猫狗/问答等社区 + 我们**实测的评论/发帖移除率**、评论是否受限、明确劝退清单 + 今日档位/纪律/ETA。回执另给 **`pick`**（按实测移除率升序的推荐社区 + 排序规则，解决并列 tie-break）、`tier_note`（`t0/t1/t2` 养号档位 ≠ `rate.tier` 计费档位）、`progress`（今日条数 + 分社区分布）、**`effect`**（养号效果：已发/存活率/累计赞数≈karma/有人回/分社区/最好的几条）；`recheck=true` = 立刻复查一轮（默认由 6h 巡检腿自动跑） | 免费 | Header |
 | `vibe_warmup_threads` | `sub`, `limit`(默认 20), `order`(new/hot), `refresh`(默认 true), `force`(默认 false) | **养号帖列表（界面同款）**：**先按 TTL(10 分钟) 拉一次最新帖**（否则是几周前的快照，老帖没人看、攒不到 karma），再返回帖 + 它**已存的养号草稿** + 是否已记账 —— 一次调用渲染整屏（不用逐卡扇出）。排序写死「**有草稿的在前** → 新的在前」(`order=hot` 换成评论多的在前)；`force=true` 跳过 TTL。回执 `freshness` 段说明这次拉没拉、快照多旧。每行含 `title` **和 `body` 摘要**（写稿要有依据，别只凭标题）、`draft`、`logged`；`next.why` 说明「**不用全写**，今天按纪律 3-5 条」 | 免费 | Header |
 | `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选), `draft`(可选，**交稿**) | **养号评论任务书 + 交稿**：与触达**完全同构** —— 把写好的 1-3 句放进 `draft=` 回传 → 服务端落库（`draft_written`/`draft_stored`）**并做确定性复核**（`draft_check` + `failed_detail[{k,hit,note}]`：链接/产品名/推销/套话开头/复述标题/超 3 句；只报命中、不拦截落库），**用户在 app 养号页点「复制草稿」直接发**（不再复制任务书）。写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
+| `vibe_warmup_status` | `enabled`(bool) | **暂停/恢复养号订阅**: `false` → `paused`（不发帖单、不复查；已发出的评论仍在监控名单）, `true` → `active`。幂等；缺订阅时按「默认开」先建。与 `vibe_unsubscribe`（`cancelled`）不是一回事 | 免费 | 头 |
 | `vibe_warmup_logged` | `sub`(可选), `days`(默认 30), `limit`(默认 50) | **已发清单 = 监控名单**：每条养号评论现在的 `state`（alive/removed/self_deleted）、`score`（评论赞 ≈ karma）、`replies_n`、`checks_n`（复查过几次）、`declared_at`/`checked_at`、`permalink`；`stages` 给计数（在监控 / **没 id 查不了证** / 存活 / 被删） | 免费 | Header |
 | `vibe_warmup_log` | `sub`, `post_id`(可选), `draft`(可选), `comment_id`(**推荐**：评论链接或 id), `permalink`(同上) | **养号台账**（与线索/交付分开）：记一次养号动作（= **已发出**；不带 `comment_id` 也照记，算进今天条数）；**这里也是养号配额的计费点：发出 1 条评论 = 1 条 lead**（从 `vibe_leads` 领养号行不计费），回执带 `quota{daily{used,cap,left}}` 与 `subscription`，超 5 条/天会给节奏提示；带 `comment_id` 就**进入监控**：每 6 小时复查存活/赞数(≈karma)/有人回（最近 7 天），回执带 `effect` 汇总；不带 id 也照记（算今天条数）但**查不了证**。养号**不受触达节流限制**，且养号评论**不进**触达熔断（那条 48 小时熔断只数触达评论） | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
