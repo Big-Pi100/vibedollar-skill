@@ -63,16 +63,23 @@ have to reconstruct "where am I in the loop" yourself.
   ⚠️ missing sd or an empty sub list = every round returns at the gate and NOTHING is produced
 
 1 · RUN (per round — driven by progress.next.do)
-intake (claim → judge → return) — inner loop
+  ⚠️ **Check ALL FOUR actions every round — this is a loop, not a pipeline** (2026-09-24 fix: the flow
+     used to read "intake … → move to outreach", and the measured result was 655 delivered leads with
+     only 166 drafts — agents looped inside intake and treated drafting as "later"):
   ├─ progress.todo.supply.gate == true     → vibe_keywords (fix words/scope first, stop claiming noise)
   ├─ progress.todo.to_score > 0            → vibe_submit_score (return what you hold first)
   ├─ to_score == 0 and claimable_now > 0   → vibe_leads (claim another batch, back to judging)
-  └─ to_score == 0 and claimable_now == 0  → stage_done=true → move to outreach
-  🔁 CADENCE (2026-09-22): the inner loop is **not one-shot** — re-enter it on stock
-     (todo.to_score > 0 → submit first, then claimable_now > 0 → claim), every 30–60 min
-     while gap_reason=shortfall, once a day in steady state. See "Loop cadence" below.
-outreach (write draft → send → mark outcome)
-  ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
+  ├─ **drafts_missing > 0**                → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
+  │   (outreach drafting — in the SAME round as intake): read the brief, write ≤18 words with
+  │   **your own LLM**, then send it back with `draft=` on the **same tool**. If
+  │   `draft_check.failed_detail` complains, revise and resubmit. How many per round is bounded by the
+  │   **write bucket** and the **cold-account throttle** (cold: ≤2/day, ≤1 per sub/day, ≥30 min apart).
+  │   Submit each draft as soon as it is written — do not batch them up.
+  └─ all of the above == 0                  → round done
+  🔁 CADENCE (2026-09-22 / 2026-09-24): intake and outreach BOTH move every round;
+     while gap_reason=shortfall, one batch every 30–60 min, once a day in steady state —
+     see "Loop cadence" below.
+after sending (writing the draft is only step one)
   ├─ drafts done but sent == 0 → post the draft first; after posting call vibe_outreach_sent(lead_id)
 │  ⚠️ 2026-09-23: declaring is not sending. Once the copy is handed to the user, call
 │     vibe_outreach_declare(delivered_id) once (no network) so the lead leaves "to do" for

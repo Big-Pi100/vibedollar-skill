@@ -54,16 +54,22 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   ⚠️ 缺 sd 或清单为空 = 每轮在闸门处直接返回, **永远不产出候选**
 
 1 · 运转（每轮 —— 由 progress.next.do 驱动）
-intake（领取 → 判定 → 交回）—— 内循环
+  ⚠️ **每轮四件事都要看一遍, 不是一个接一个的流水线**（2026-09-24 修: 原来写成
+     "intake 做完才 → 进入 outreach", 实测后果是"sub 355 交付 655 条只有 166 条有草稿"
+     —— agent 在 intake 里循环, 草稿那一段被当成"以后的事"）:
   ├─ progress.todo.supply.gate == true     → vibe_keywords（先修词面/清单, 别再领噪声）
   ├─ progress.todo.to_score > 0            → vibe_submit_score（先把手上欠的交回）
   ├─ to_score == 0 且 claimable_now > 0    → vibe_leads（再领一批, 回到判定）
-  └─ to_score == 0 且 claimable_now == 0   → stage_done=true → 进入 outreach
-  🔁 节奏（2026-09-22）：内循环**不是一次性的** —— 按库存重入（todo.to_score > 0 就先交回,
-     再 claimable_now > 0 就领）, gap_reason=shortfall 期间每 30~60 分钟一批, 稳态每天一次。
-     见下面「循环节奏」一节。
-outreach（写草稿 → 发出 → 标记结果）
-  ├─ drafts_missing > 0        → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
+  ├─ **drafts_missing > 0**                → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
+  │   （触达草稿创作 —— 与 intake **同一轮**做）: 读回执/任务书 → 用**你的 LLM** 写 ≤18 词
+  │   → 用**同一个工具** `draft=` 回传落库; 回执的 `draft_check.failed_detail` 不过就按它改一版再交。
+  │   每轮能写几条受**写桶**与**冷号节流**约束 (冷号: 每天 ≤2 条 / 同 sub ≤1 条 / 间隔 ≥30 分钟),
+  │   写完立刻回传, **不要攒着**。
+  └─ 以上都 == 0                            → 本轮 done
+  🔁 节奏（2026-09-22 / 2026-09-24）: intake 与 outreach **同一轮内都要推进**;
+     gap_reason=shortfall 期间每 30~60 分钟一批, 稳态每天一次 —— 见下面「循环节奏」一节。
+发出去之后（写草稿只是第一步）
+  ├─ 草稿齐但 sent == 0        → 把草稿**发出去**, 再 vibe_outreach_sent(lead_id) 登记
   ├─ 草稿齐但 sent == 0        → 先把草稿**发出去**; 发出后 vibe_outreach_sent(lead_id) 登记
   │                             (服务端去找你的评论, 找到即自动标 contacted + 起复查时钟;
   │                              也可以什么都不做 —— 监控腿每 6 小时按用户名自动发现)
