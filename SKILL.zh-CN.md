@@ -106,6 +106,7 @@ outreach（写草稿 → 发出 → 标记结果）
 |---|---|---|---|
 | ① | 目标 / 额度 | `vibe_balance` / `vibe_sub_health` | `claim_quota{month_used,month_limit,daily_used,daily_cap}`、`assessment.gap_reason` |
 | ② | 领取 | `vibe_leads(subscription_id, limit)`（`peek=true` 免费看**手上的待评分**; **未领取的候选 peek 看不到** —— 没有免费的候选预览, 候选只在领取时返回） | `data.posts[]`、`data.pending[]`、`progress.todo.claimable_now`、`progress.next.do` |
+| ②b | **养号行也从这个调用回来** | `vibe_leads(subscription_id=<养号订阅>)` | 行上带 `track_type='warmup'` **与** `warmup: true` → **绝不评分**：直接走 `vibe_warmup_prompt`（见养号一节） |
 | ③ | 判定 | `vibe_submit_score(scores=[…])`（≤100 条 = 1 个 pipeline token） | `items[].delivered_id`、`progress.round.scored_now`、`progress.todo.to_score`、`progress.next.do` |
 | ④ | 触达 | `vibe_outreach_advice(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传。⚠️ **任务书里现在带「同类高互动回复参考」**（同帖 + 你订阅的交付帖池，同社区优先）—— **学它的语气与结构，不要抄内容**，更不要用同样的产品名 | `draft_prompt`、`top_replies`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
 | ⑤ | 发出并标记 | 发出后 `vibe_outreach_sent(lead_id)` 登记 → 有真实结果后 `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.outreach.sent`（=0 时先别标结果）、`todo.to_mark` |
@@ -172,6 +173,14 @@ outreach（写草稿 → 发出 → 标记结果）
 - **和 `vibe_account_ramp` 的分工**: `vibe_warmup_subs`/`vibe_warmup_*` = 在**没有门槛的社区**攒 karma(与线索池
   完全无关); `vibe_account_ramp(subscription_id)` = 体检**你自己的线索社区**能不能发帖(门槛差多少/多久)。
   先养号攒 karma, 够了再用 account_ramp 看推广社区。
+- **养号现在是一条订阅**（2026-09-24）: 它作为**独立条目出现在左侧栏**（`track_type='warmup'`, **默认开**,
+  社区 = 我们实测的低移除率清单），并且能像其它订阅一样**暂停 / 取消** —— 暂停后既不发帖单也不再复查。
+  **配额**: 包含在所有档（免费档也能开），并**占用你的 leads 配额 —— 发出 1 条评论 = 1 条 lead**；
+  计费点在 `vibe_warmup_log`，所以**从 `vibe_leads` 领取养号行是免费的**（别把养号行当成已计费线索）。
+  节奏不变：**每天最多 5 条**，分散到 2-3 个社区。
+- **养号行会从 `vibe_leads` 回来**: 行上带 `track_type='warmup'` 与 `warmup: true`。它们是**用来攒 karma 的帖子**,
+  不是需求线索：**不要**评分（它们不进「未判定」闸门）、**不要**写触达草稿 —— 用
+  `vibe_warmup_prompt(sub, post_id, title, body, draft=)` 写一句像普通用户的话，再用 `vibe_warmup_log` 记账。
 - **台账语义**: `vibe_warmup_log` 记的是**已发出**; 不带 `comment_id` 也照记(算进今天条数), 带的话服务端会去
   档案查存活。养号评论**不进**触达熔断(那条 48 小时熔断只数触达评论), 但被删同样是信号 —— 换社区/换写法。
 
@@ -330,7 +339,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_balance` | `（无）` | 查余额/tier/**双钱包**（`wallets{usd,cny}`）/结算币种/`claim_quota` 领取额度（key 走 Header） | 免费 | Header |
 | `vibe_set_currency` | `currency`（`usd` \| `cny` \| 空=自动） | 选**结算币种**：决定超量从哪个钱包扣（美元钱包 $5/$3.5 每千条 · 人民币钱包 ¥25/¥18 每千条） | 免费 | Header |
 | `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按决策循环扩/停——见"Agent 决策循环"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（订阅本身不收费；线索在领取时计费） | Header |
-| `vibe_leads` | `subscription_id, limit, source, peek` | **领取线索（按首次领取计费）**：返回线索（含系统参考分）+ **`billing` 记账块**（本批条数、免费/计费拆分、`billable_items`/`takeover_items`、扣费、本月用量、每日上限）。`peek=true` = **纯只读预览**（不领取/不计费/不改归属, 字段带 `claimed_by`）—— 看的是**手上已领未判**的清单（**不是**未领取候选; 没有免费的候选预览）。回执还回显 `requested_limit` / `limit_applied` / `limit_clamped`（超档位会被夹到 free 20 / starter 30 / pro 50）。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。回执带 `progress`（阶段/完成程度/下一步）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（你未评分的待处理累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。`source`（**2026-09-11**）：`agent`（默认）或 `web` —— 网页端用 `source='web'` 领取，它未评分的条**不占**你的 50 条闸门，且你可以自己领回（**免费**，首领已计费）；你带 `source='web'` 时会把你自己未评的条目原样回吐给你（不放新货、不计费）。见下方"待处理候选" | **首领即计费**（两端任一端首次领取） | Header |
+| `vibe_leads` | `subscription_id, limit, source, peek` | **领取线索（按首次领取计费）**：返回线索（含系统参考分）+ **`billing` 记账块**；每条还带 `track_type`（`outreach` / `warmup`）—— **养号行（`warmup: true`）领取不计费、也绝不评分**（它们的评论走 `vibe_warmup_prompt`）（本批条数、免费/计费拆分、`billable_items`/`takeover_items`、扣费、本月用量、每日上限）。`peek=true` = **纯只读预览**（不领取/不计费/不改归属, 字段带 `claimed_by`）—— 看的是**手上已领未判**的清单（**不是**未领取候选; 没有免费的候选预览）。回执还回显 `requested_limit` / `limit_applied` / `limit_clamped`（超档位会被夹到 free 20 / starter 30 / pro 50）。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。回执带 `progress`（阶段/完成程度/下一步）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（你未评分的待处理累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。`source`（**2026-09-11**）：`agent`（默认）或 `web` —— 网页端用 `source='web'` 领取，它未评分的条**不占**你的 50 条闸门，且你可以自己领回（**免费**，首领已计费）；你带 `source='web'` 时会把你自己未评的条目原样回吐给你（不放新货、不计费）。见下方"待处理候选" | **首领即计费**（两端任一端首次领取） | Header |
 | `vibe_submit_score` | `scores, override` | **评分回传（免费）**：`relevant` 进交付列表，`irrelevant` 回灌优化。**评分不影响计费**。`override=true`（**2026-09-11**）受理已被判过 `delivered`/`rejected` 的条目并**以本次判定为准**（relevant→irrelevant 会**撤回**交付记录，当月交付数随之回正），响应里 `overridden` 为实际翻转条数；人在网页端推翻你的判定时用得上。不带 `override` 时仍拒收已评分条目 | **免费** | Header |
 | `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
 | `vibe_set_notify` | `enabled` | 邮件提醒开关：候选积压时是否发邮件通知你（默认开启，可关闭）| 免费 | Header |
@@ -348,7 +357,7 @@ outreach（写草稿 → 发出 → 标记结果）
 | `vibe_warmup_threads` | `sub`, `limit`(默认 20), `order`(new/hot), `refresh`(默认 true), `force`(默认 false) | **养号帖列表（界面同款）**：**先按 TTL(10 分钟) 拉一次最新帖**（否则是几周前的快照，老帖没人看、攒不到 karma），再返回帖 + 它**已存的养号草稿** + 是否已记账 —— 一次调用渲染整屏（不用逐卡扇出）。排序写死「**有草稿的在前** → 新的在前」(`order=hot` 换成评论多的在前)；`force=true` 跳过 TTL。回执 `freshness` 段说明这次拉没拉、快照多旧。每行含 `title` **和 `body` 摘要**（写稿要有依据，别只凭标题）、`draft`、`logged`；`next.why` 说明「**不用全写**，今天按纪律 3-5 条」 | 免费 | Header |
 | `vibe_warmup_prompt` | `sub`, `post_id`(可选), `title`(可选), `body`(可选), `draft`(可选，**交稿**) | **养号评论任务书 + 交稿**：与触达**完全同构** —— 把写好的 1-3 句放进 `draft=` 回传 → 服务端落库（`draft_written`/`draft_stored`）**并做确定性复核**（`draft_check` + `failed_detail[{k,hit,note}]`：链接/产品名/推销/套话开头/复述标题/超 3 句；只报命中、不拦截落库），**用户在 app 养号页点「复制草稿」直接发**（不再复制任务书）。写死禁止链接/产品名/推销语气，且「没话说就跳过这条」 | 免费 | Header |
 | `vibe_warmup_logged` | `sub`(可选), `days`(默认 30), `limit`(默认 50) | **已发清单 = 监控名单**：每条养号评论现在的 `state`（alive/removed/self_deleted）、`score`（评论赞 ≈ karma）、`replies_n`、`checks_n`（复查过几次）、`declared_at`/`checked_at`、`permalink`；`stages` 给计数（在监控 / **没 id 查不了证** / 存活 / 被删） | 免费 | Header |
-| `vibe_warmup_log` | `sub`, `post_id`(可选), `draft`(可选), `comment_id`(**推荐**：评论链接或 id), `permalink`(同上) | **养号台账**（与线索/交付分开）：记一次养号动作（= **已发出**；不带 `comment_id` 也照记，算进今天条数），带 `comment_id` 就**进入监控**：每 6 小时复查存活/赞数(≈karma)/有人回（最近 7 天），回执带 `effect` 汇总；不带 id 也照记（算今天条数）但**查不了证**。养号**不受触达节流限制**，且养号评论**不进**触达熔断（那条 48 小时熔断只数触达评论） | 免费 | Header |
+| `vibe_warmup_log` | `sub`, `post_id`(可选), `draft`(可选), `comment_id`(**推荐**：评论链接或 id), `permalink`(同上) | **养号台账**（与线索/交付分开）：记一次养号动作（= **已发出**；不带 `comment_id` 也照记，算进今天条数）；**这里也是养号配额的计费点：发出 1 条评论 = 1 条 lead**（从 `vibe_leads` 领养号行不计费），回执带 `quota{daily{used,cap,left}}` 与 `subscription`，超 5 条/天会给节奏提示；带 `comment_id` 就**进入监控**：每 6 小时复查存活/赞数(≈karma)/有人回（最近 7 天），回执带 `effect` 汇总；不带 id 也照记（算今天条数）但**查不了证**。养号**不受触达节流限制**，且养号评论**不进**触达熔断（那条 48 小时熔断只数触达评论） | 免费 | Header |
 | `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
 | `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
 | `vibe_outreach_advice` | `delivered_id`, `draft`(可选), `include_body`(默认 true) | **触达建议 + 写作任务书（零 LLM）**：`delivered_id` 用**交付行 id**（`vibe_delivered`/`vibe_submit_score` 回执里的 `delivered_id`，**不是**候选 `lead_id`）。回执含四层判定（`verdict` 可回/谨慎回/别回）、`rules`（该社区规则要点）、`draft_prompt`（**给 agent 的写作任务书**：正文摘录 + 硬约束 + 范例）、`progress`（触达阶段进度）。把成稿放进 `draft` 参数回传 = 交稿, 服务端按同一套规则复核并落库（`draft_check`/`draft_saved`/`draft_source`）| 免费 | Header |
