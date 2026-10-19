@@ -3,7 +3,7 @@
 > **何时跑**: 你已经确认某个 sub 的**人群本身就是本订阅的 demand_side**(人群画像 sub), 想让它的人
 > **自己说出来的话**变成词表 —— 而不是从产品描述里猜词。
 > **前置**: 该 sub 的语料已采集 (`vibe_sub_posts` 回执 `total > 0`; 为 0 先
-> `vibe_subscribe(mode="add")` 加清单, 等服务器取货)。
+> `vibe_subscribe(subscription_id=…, update_sublist=[...], sublist_mode="add")` 加清单, 等服务器取货)。
 >
 > **方向与常规相反**: 常规是"先定词 → 词决定捞到谁"; 这条是"**先定人群(sub) → 语料决定词**"。
 > owner 2026-09-21: 「从精准人群画像 sub 中逐贴全量扫描从而进一步提炼 kw 的路径」。
@@ -34,7 +34,7 @@
      已 removed/retire 的词不复活 (除非你有这次语料里的新证据)。
    - 剔除**产品自己的词**: 帖子作者不会写你的产品名/功能名, 那是"搜索目标的描述"不是买家语言。
    - `vibe_keyword_edit(subscription_id, keywords, source=auto)` 落库,
-     `vibe_keyword_edit(outcome="mined", reason=…, n_new_kw=N)` 记一笔,
+     `vibe_keyword_edit(action="log_opt", items=[{"outcome":"mined", "reason":…, "n_new_kw":N}])` 记一笔,
      reason 里写明**从哪个 sub / 扫了多少帖**捞出来的 (审计链)。
 5. **不要顺手把 sub 加进清单** —— 加清单是第 1 步的事, 且必须是你判断过的人群 sub。
    本脚本只产词; 清单变更走 `vibe_subscribe`。

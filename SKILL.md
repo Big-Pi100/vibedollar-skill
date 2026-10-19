@@ -55,7 +55,7 @@ have to reconstruct "where am I in the loop" yourself.
 0 · STARTUP (once, and after any rebuild) — set the search face FIRST, then the word list
   sd_gen.md → vibe_subscribe            four sd fields — demand_side (audience profile) and
                                         demand_pain (buyer language) come from DIFFERENT sources
-  → vibe_catalog / vibe_catalog  find subs; anchor words come ONLY from demand_side
+  → vibe_catalog  find subs; anchor words come ONLY from demand_side
                                         (the server extracts nothing for you — no candidate words)
   → vibe_subscribe(update_sublist=subs, sublist_mode=mode)    the search face = this explicit sub list (server queues pulls)
   → kw_init.md (derive from sd)  /  kw_mine.md (sweep a precision audience sub's own corpus)
@@ -80,13 +80,13 @@ have to reconstruct "where am I in the loop" yourself.
      while gap_reason=shortfall, one batch every 30–60 min, once a day in steady state —
      see "Loop cadence" below.
 after sending (writing the draft is only step one)
-  ├─ drafts done but sent == 0 → post the draft first; after posting call vibe_outreach(lead_id)
+  ├─ drafts done but sent == 0 → post the draft first; after posting call vibe_outreach(what="log", action="sent", lead_id=…)
 │  ⚠️ 2026-09-23: declaring is not sending. Once the copy is handed to the user, call
-│     vibe_outreach(delivered_id) once (no network) so the lead leaves "to do" for
+│     vibe_outreach(what="log", action="declare", delivered_id=…) once (no network) so the lead leaves "to do" for
 │     "awaiting confirmation"; "sent" still requires the server to find your comment in the thread.
   │                             (the server finds your comment, marks it contacted, starts the
   │                              re-check clock; or do nothing — discovery runs every 6h by username)
-  ├─ unmarked_delivered > 0 and sent > 0 → vibe_leads(outcome=valid|invalid|contacted)
+  ├─ unmarked_delivered > 0 and sent > 0 → vibe_leads(mark=[{"lead_id":…, "outcome":"valid|invalid|contacted"}])
   └─ both are 0                → back to intake / review
 
 2 · OPTIMIZE (goal-driven outer loop — runs BETWEEN rounds; details in "Agent decision loop")
@@ -94,7 +94,7 @@ after sending (writing the draft is only step one)
     ├─ committed_ok → wait (the fast loop is absorbing it; no supply action)
     └─ shortfall    → pick ONE action by gap_reason:
         supply_ceiling → widen / refresh the sub list
-                         (vibe_catalog / vibe_catalog → vibe_subscribe)
+                         (vibe_catalog → vibe_subscribe)
         word_face      → retire a noise word (vibe_keyword_edit force) or REGENERATE the word face
                          (sd_gen → kw_init / kw_opt / kw_mine → vibe_keyword_edit)
         capacity       → nothing to do on supply (that is the daily cap)
@@ -125,8 +125,8 @@ loop — do not skip judging and go write drafts.
 | ① | Goal / allowance | `vibe_balance` / `vibe_sub_health` | `claim_quota{month_used,month_limit,daily_used,daily_cap}`, `assessment.gap_reason` |
 | ② | Claim | `vibe_leads(subscription_id, limit)` (`peek=true` gives a free look at **what you already claimed and have not judged**; it does **not** show unclaimed candidates — there is no free candidate preview, candidates come with the claim) | `data.posts[]`, `data.pending[]`, `progress.todo.claimable_now`, `progress.next.do` |
 | ③ | Judge | `vibe_score(scores=[…])` (≤100 items = 1 pipeline token) | `items[].delivered_id`, `progress.round.scored_now`, `progress.todo.to_score`, `progress.next.do` |
-| ④ | Outreach | `vibe_outreach(delivered_id, include_body=true)` → write your own ≤18 words → send it back through the same tool as `draft=`. ⚠️ **The task book now carries high-engagement reference replies** (same thread + your subscription's delivered-thread pool, same-sub first) — learn the **tone/structure**, never copy the wording or reuse their product names | `draft_prompt`, `draft_check`, `draft_source`, `progress.todo.drafts_missing` |
-| ⑤ | Send + mark | after posting: `vibe_outreach(lead_id)` to register, then `vibe_leads(lead_ids, outcome)` once a real result exists | `progress.todo.outreach.sent` (when 0, do not mark results), `todo.to_mark` |
+| ④ | Outreach | `vibe_outreach(what="advice", delivered_id=…)` → write your own ≤18 words → send it back through the same tool as `draft=`. ⚠️ **The task book now carries high-engagement reference replies** (same thread + your subscription's delivered-thread pool, same-sub first) — learn the **tone/structure**, never copy the wording or reuse their product names | `draft_prompt`, `draft_check`, `draft_source`, `progress.todo.drafts_missing` |
+| ⑤ | Send + mark | after posting: `vibe_outreach(what="log", action="sent", lead_id=…)` to register, then `vibe_leads(mark=[{"lead_id":…,"outcome":…}])` once a real result exists | `progress.todo.outreach.sent` (when 0, do not mark results), `todo.to_mark` |
 | ⑥ | Review / iterate | `vibe_delivered` / `vibe_keywords` / `vibe_keyword_edit` | back to ① |
 
 **Step ④ in detail (skip it and the lead shows "no draft yet" in the app forever)**:
@@ -289,9 +289,9 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
   entry points (`todo.supply.stats` + those three tools). Only four things need the human first: **spending
   money / changing the billing model / posting or emailing / deleting billed history**. Measured lesson
   (sub 355): while the gate was open and the agent merely reported and waited, noise kept getting claimed —
-  act there and then, then log it. When you do act: call `vibe_keyword_edit(kw, force=true, note=…)` (**it also purges that word's
+  act there and then, then log it. When you do act: call `vibe_keyword_edit(action="remove", items=[{"kw":…, "force":true}], note=…)` (**it also purges that word's
   unclaimed pool rows** — `pool_purged` in the reply) / `vibe_subscribe(update_sublist=subs, sublist_mode="remove")` /
-  `vibe_doctor(subscription_id, kw=…)` (keep the word, drop its old stock),
+  `vibe_doctor(what="purge", subscription_id=…, kw=…)` (keep the word, drop its old stock),
   log it with `vibe_keyword_edit`, then resume the inner loop.
 - **Result write-back (the server supplies the objective evidence; you make the call)**: the
   monitoring leg re-checks your posted replies at T+24h/72h/7d — alive / removed / self-deleted /
@@ -316,8 +316,8 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
   · Candidates may have **no** system pre-score: `score: null` + `prescored: false` (then `score_note` says so explicitly). Older doc text claiming a system reference score is superseded by `score_note`.
   · `vibe_delivered` rows now carry `has_draft` / `draft_len` (**per-row draft discovery without fanning out advice**), plus `draft_skip`, `outreach_state`, `outreach_replies_n`.
   · `todo.to_mark.delivered_ids` returns at most 20 ids; beyond that `ids_truncated: true` + `ids_limit: 20`.
-  · **Not enough karma / ramping an account**: call `vibe_doctor(subscription_id)` — it splits your communities into "postable now" / "gate short by N" / "gate unknown" / "actually removed here" and gives the target karma, the gap, and an ETA at 5-15 karma/day. **The server never farms karma** (no posting, no voting); ramping means the human keeps providing value in real conversations, then updates `vibe_outreach` (a snapshot is recorded, watch `karma_trend`).
-  · `publish_verdict` = "can my account post in this community" (a different question from `verdict`). The **platform prior (new account / low karma) is advice only** (`prior.advisory=true`, `basis=platform_prior_advisory`) — it is not this community's archived rule, and in practice the same account's comments were **not** removed in several subs. Only **evidence-based** cases yield `hold`/`no`: account profile missing, an archived gate with no numeric value, or a gate you genuinely miss (`blocks: karma_block|acct_age_block`). So once a draft is ready you can **test the waters in a small community** — do not let the prior scare you off.
+  · **Not enough karma**: the warm-up feature was retired on 2026-10-19 (the `vibe_doctor` route split, target karma, gap and ETA all went with it). Use `vibe_community(kind="safety", sub=)` to see a community's rules and removal rate, `vibe_catalog(query=)` to pick communities — whether to post is your call. **The server never farms karma** (no posting, no voting).
+  · `publish_verdict` = "can my account post in this community" (a different question from `verdict`). The **platform-level prior (new account / low karma) is advice only** — when `publish_verdict.basis == "archive_gate"` the conclusion rests on this community's archived rule; otherwise there is no archived basis and it is only a general prior, not this community's rule. Only **evidence-based** cases yield `hold`/`no`: account profile missing, an archived gate with no numeric value, or a gate you genuinely miss (`blocks: karma_block|acct_age_block`). So once a draft is ready you can **test the waters in a small community** — do not let the prior scare you off.
   · Every `vibe_delivered` row carries both `id` and `delivered_id` (same value) — other receipts use `delivered_id`, so you cannot feed the wrong one.
   · A failing `draft_check` now also returns `failed_detail[{k,hit,note}]` — the **offending snippet** shows which phrase tripped it.
   · The three draft flags: `draft_stored` = is a draft in the DB right now (authoritative); `draft_written` = did **this call** write one; `draft_saved` is a deprecated alias of `draft_written` (same value). Reading back a lead that already has a draft gives `stored=true / written=false / saved=false` — that is **not** a contradiction.
@@ -325,7 +325,7 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
   · **Where `progress` lives**: `vibe_leads` → `data.progress`; `vibe_score` and `vibe_outreach` → **top-level** `progress` (historical; read it where this doc says).
   · `vibe_leads(peek=true)` returns only the **claimed-but-unjudged** list (`pending`); unclaimed candidates are not in peek (`posts=[]`, check `pool_stats.new`) — claiming is what returns candidates.
   · When `vibe_outreach` cannot find your comment it records only `outreach_state=unknown` and does **not** write an outcome (no comment found means nothing was reached); auto-marking `contacted` happens only on a real hit.
-  · `progress` rides on **three pipeline tools only** (`vibe_leads` / `vibe_score` / `vibe_outreach`); other read tools (`vibe_balance` / `vibe_delivered` / `vibe_sub_delivery` …) return their own data without `progress`.
+  · `progress` rides on **three pipeline tools only** (`vibe_leads` / `vibe_score` / `vibe_outreach`); other read tools (`vibe_balance` / `vibe_delivered` / `vibe_delivery` …) return their own data without `progress`.
   · If `next` needs something outside your scope (retiring a word, dropping a sub, posting on the customer's behalf), **hand it over**: take `next.alternatives` (usually claiming) or pass it to the human — the server **never blocks** claiming. `next.advisory: true` marks a suggestion (the supply-side feedback gate); `alternatives` will **not** suggest `vibe_leads` while nothing has been sent (with `sent=0` it points at `vibe_outreach` instead).
   · **id cheat sheet (this tripped three clean-agent runs; delivery tools now accept both)**: `delivered_id` (delivery-row id, the `delivered_ids` in receipts) is the **recommended argument** for `vibe_delivered` / `vibe_delivered` / `vibe_outreach` / `vibe_outreach` / `vibe_leads`; candidate ids (`lead_pool.id`, 7 digits, the `lead_ids` in receipts) belong to `vibe_score` / `vibe_recover_lead` — but the delivery tools now accept them too (mapped internally), so a mix-up no longer fails silently.
   · `vibe_delivered(lead_id|delivered_id)` accepts either and returns `has_draft` / `draft_len`; `vibe_leads` lists any id it could not resolve in `unresolved_ids` (no more silent `updated=0`).
@@ -344,7 +344,7 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
 | `progress.todo.claimable_now` | what you can really claim now (min of four terms) | >0 and to_score=0 → `vibe_leads` another batch |
 | `progress.todo.limits.*` | which term caps the claimable number (pool/day/quota/gate) | treat the cause: gate → judge first; pool → wait for intake / widen the list; quota → `vibe_balance` |
 | `items[].delivered_id` | delivery-row id of what you just judged relevant | pass to `vibe_outreach` (**not** the candidate id) |
-| `unmarked_delivered` | sent but outcome not marked | >0 → `vibe_leads(outcome=…)` |
+| `unmarked_delivered` | sent but outcome not marked | >0 → `vibe_leads(mark=[{"lead_id":…, "outcome":…}])` |
 | `data.source_status` | `ok` / `pending` / `locked` / `waiting` / `exhausted` / `config_missing` | only `ok` has new supply; `locked` → judge first; `config_missing` → fix config per `next_steps` |
 | `billing{claimed_batch,billable_items,charge…}` | billing for this claim batch (first claim = billed) | tell the user the cost; overage is charged to the settlement-currency wallet |
 | `data.lang` / `lang_source` | language for this subscription's judging and drafts | write sd four fields, verdict reasons and drafts in it |
@@ -460,7 +460,7 @@ plus `gap_reason`). Every round asks:
 ```
 vibe_sub_health(sid)     → assessment (projected_items_month / commitment_remaining / gap_reason /
                            supply_per_day / daily_need / backlog stock) + stock / gap / collecting_ok / last_opt
-vibe_doctor(sid)  → corpus intake trend / catalog age / arctic.limited
+vibe_doctor(what="supply", subscription_id=sid)  → corpus intake trend / catalog age / arctic.limited
 vibe_keywords(sid, all)  → per word: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → which subreddits actually contribute candidates
@@ -509,7 +509,7 @@ stayed `1/98 = 1%`; `config_missing=false`, stock 97, no 429, quota untouched. N
 
 **Loop (do all four steps, do not stop after step 2):**
 
-1. **Read the per-word evidence, not the total.** `vibe_keywords(sub, all=true)` →
+1. **Read the per-word evidence, not the total.** `vibe_keywords(subscription_id=…)` →
    per word: `hit_count` / `n_pooled` / `n_delivered` / `n_rejected` / `avg_score` /
    `invalid_sample` (the last is a real rejected post — read it: it tells you what the word
    *actually* pulls). A word with `n_rejected ≥ 2, n_delivered = 0` is a noise generator.
@@ -561,8 +561,8 @@ If your last scoring round produced `irrelevant` verdicts for a word with **0 de
 noise generator → **retire it now**:
 
 ```
-vibe_keyword_edit(subscription_id, kw, force=true)   # auto word — your call, no server batch to wait for
-vibe_keyword_edit(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
+vibe_keyword_edit(subscription_id, action="remove", items=[{"kw":…, "force":true}])   # auto word — your call, no server batch to wait for
+vibe_keyword_edit(subscription_id, action="log_opt", items=[{"outcome":"auto_retire", "reason":"0 relevant, N irrelevant"}])
 ```
 
 `n_rejected` is cumulative across scorers — when you can't tell whose rejects they are,
@@ -590,7 +590,7 @@ Decision table (goal-driven, v2.2 sub-anchored — 2026-09-09):
 |---|---|
 | Goal met / exceeded | `wait` (fast loop digests) |
 | Goal not met, stock(new+sent)>0 | score the pool (`score_batch.py`) — results feed this table next round |
-| **sub list empty** | pick your search face: `vibe_catalog` (A: subs with real deliveries — in-corpus, searchable now; B/C: niche candidates, may need pull) → `vibe_subscribe(subs, mode="replace")` → server bulk-fetches `needs_pull` subs automatically |
+| **sub list empty** | pick your search face: `vibe_catalog` (A: subs with real deliveries — in-corpus, searchable now; B/C: niche candidates, may need pull) → `vibe_subscribe(subscription_id=…, update_sublist=subs, sublist_mode="replace")` → server bulk-fetches `needs_pull` subs automatically |
 | **list subs all silent** (`pipeline_recent` matched=0 several rounds, corpus growing) | widen the list — the demand lives in subs you haven't listed: `vibe_catalog(query=<product/niche words>)` → add candidates (B/C may need a one-time fetch, ~min/sub) |
 | word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_edit` force + `vibe_keyword_edit` |
 | face cleared after retires, goal still short | **regenerate**: sd_gen (if sd missing) → kw_init/kw_opt → `vibe_keyword_edit` |
@@ -806,7 +806,7 @@ kw_init / kw_opt) reads one file and injects it:
 # first time / after rebuild — generate sd:
 scripts/sd_gen.md        → LLM (product text) → 4 fields
 python3 scripts/sd_doc.py write --sub <sid> --json '{...}'   → data/sd_<sid>.md
-vibe_subscribe(subscription_id, supply_side=..., demand_side=..., ...)  # backend copy
+vibe_subscribe(subscription_id, update_sd={"supply_side":..., "demand_side":..., ...})  # backend copy
 
 # any later step — read + inject (agent's native read; no replace):
 python3 scripts/sd_doc.py show --sub <sid> --values   → prints only the 4 field values
@@ -860,7 +860,7 @@ Read them when the user asks how to turn leads into conversations/customers/cont
 
 ## Agent usage tips
 
-- **Lost API key?** Guide recovery: `vibe_account(email)` → `vibe_account(email, code)` — or point to https://vibedollar.net/account.html → "Lost your API key? Recover it". No re-registration needed.
+- **Lost API key?** Guide recovery: `vibe_account(action="recover_send", email=…)` → `vibe_account(action="recover_verify", email=…, code=…)` — or point to https://vibedollar.net/account.html → "Lost your API key? Recover it". No re-registration needed.
 - **Watch the `claim_quota` block**: `vibe_balance()` returns `claim_quota {month_used, month_limit, currency, over_price_per_1k, daily_used, daily_cap, wallet, wallet_usd}` plus `wallets{usd,cny}` and `settlement_currency` — proactively tell the user where they stand (allowance used, daily cap, which wallet overage comes from) instead of letting them discover a charge. If they fund the other currency, point them at `vibe_balance`.
 - **Registration & payment flow**: `references/billing.md` (agent does the full flow; the only user actions are providing the email/code and scanning a QR / clicking a link).
 - **Typical workflow**: `vibe_subscribe` → `vibe_leads` → your agent scores with its own LLM → `vibe_score` → passed leads in delivered list (validate demand + find first customers).
