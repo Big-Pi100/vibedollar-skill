@@ -29,7 +29,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 1. **连接服务**（远程托管，无需本地部署）: 在 MCP 客户端添加端点
    `https://mcp.vibedollar.net/mcp`（FastMCP HTTP transport）
-2. **注册（仅首次）**: `vibe_register(email)` 发送 6 位验证码；`vibe_verify(email, code)`
+2. **注册（仅首次）**: `vibe_register(email)` 发送 6 位验证码；`vibe_register(email, code)`
    返回 api_key（同时邮件发送）。升级 Starter/Pro 或充值钱包后解锁。完整注册、解锁、
    支付与激活流程见 `references/billing.zh-CN.md`。
 3. **配置鉴权 Header**: 把拿到的 key 配到 MCP 客户端请求头（`Authorization: Bearer <key>`；
@@ -45,12 +45,12 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 ```
 0 · 启动（一次性 / 重建后）—— **先定搜索面, 再定词表**
-  sd_gen.md → vibe_sd_update            供需四段 —— demand_side(人群画像) 与 demand_pain(买家语言)
+  sd_gen.md → vibe_subscribe            供需四段 —— demand_side(人群画像) 与 demand_pain(买家语言)
                                         **不同源**
-  → vibe_sub_catalog / vibe_sub_search  找 sub; 锚点词**只能从 demand_side** 提 (服务端不抽词)
-  → vibe_sub_list_update(subs, mode)    定搜索面 = 这份显式 sub 清单 (服务端排队取货)
+  → vibe_catalog / vibe_catalog  找 sub; 锚点词**只能从 demand_side** 提 (服务端不抽词)
+  → vibe_subscribe(update_sublist=subs, sublist_mode=mode)    定搜索面 = 这份显式 sub 清单 (服务端排队取货)
   → kw_init.md (从 sd 推词)  /  kw_mine.md (扫高精度人群 sub 自己的语料)
-  → vibe_keyword_add_batch(source=auto)
+  → vibe_keyword_edit(source=auto)
   ⚠️ 缺 sd 或清单为空 = 每轮在闸门处直接返回, **永远不产出候选**
 
 1 · 运转（每轮 —— 由 progress.next.do 驱动）
@@ -58,9 +58,9 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
      "intake 做完才 → 进入 outreach", 实测后果是"sub 355 交付 655 条只有 166 条有草稿"
      —— agent 在 intake 里循环, 草稿那一段被当成"以后的事"）:
   ├─ progress.todo.supply.gate == true     → vibe_keywords（先修词面/清单, 别再领噪声）
-  ├─ progress.todo.to_score > 0            → vibe_submit_score（先把手上欠的交回）
+  ├─ progress.todo.to_score > 0            → vibe_score（先把手上欠的交回）
   ├─ to_score == 0 且 claimable_now > 0    → vibe_leads（再领一批, 回到判定）
-  ├─ **drafts_missing > 0**                → vibe_outreach_advice(delivered_id=progress.next.args.delivered_id)
+  ├─ **drafts_missing > 0**                → vibe_outreach(delivered_id=progress.next.args.delivered_id)
   │   （触达草稿创作 —— 与 intake **同一轮**做）: 读回执/任务书 → 用**你的 LLM** 写 ≤18 词
   │   → 用**同一个工具** `draft=` 回传落库; 回执的 `draft_check.failed_detail` 不过就按它改一版再交。
   │   每轮能写几条受**写桶**与**冷号节流**约束 (冷号: 每天 ≤2 条 / 同 sub ≤1 条 / 间隔 ≥30 分钟),
@@ -69,15 +69,15 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   🔁 节奏（2026-09-22 / 2026-09-24）: intake 与 outreach **同一轮内都要推进**;
      gap_reason=shortfall 期间每 30~60 分钟一批, 稳态每天一次 —— 见下面「循环节奏」一节。
 发出去之后（写草稿只是第一步）
-  ├─ 草稿齐但 sent == 0        → 把草稿**发出去**, 再 vibe_outreach_sent(lead_id) 登记
-  ├─ 草稿齐但 sent == 0        → 先把草稿**发出去**; 发出后 vibe_outreach_sent(lead_id) 登记
+  ├─ 草稿齐但 sent == 0        → 把草稿**发出去**, 再 vibe_outreach(lead_id) 登记
+  ├─ 草稿齐但 sent == 0        → 先把草稿**发出去**; 发出后 vibe_outreach(lead_id) 登记
   │                             (服务端去找你的评论, 找到即自动标 contacted + 起复查时钟;
   │                              也可以什么都不做 —— 监控腿每 6 小时按用户名自动发现)
   │      ⚠️ 口径 (2026-09-23): **声明 ≠ 已发出**。文案一旦交给用户/复制走, 调
-  │         vibe_outreach_declare(delivered_id) 只需一次、零网络 —— 线索从"待处理"进
+  │         vibe_outreach(delivered_id) 只需一次、零网络 —— 线索从"待处理"进
   │         "待确认"(否则队列只进不出); "已发出"仍以**服务端在帖里找到你的评论**为准
-  │         (vibe_outreach_sent = 声明 + 立即核对, 没找到就停在待确认, 不会误记已发出)。
-  ├─ unmarked_delivered > 0 且 sent > 0 → vibe_mark_leads(outcome=valid|invalid|contacted)
+  │         (vibe_outreach = 声明 + 立即核对, 没找到就停在待确认, 不会误记已发出)。
+  ├─ unmarked_delivered > 0 且 sent > 0 → vibe_leads(outcome=valid|invalid|contacted)
   └─ 两项都为 0                → 回 intake / 复盘
 
 2 · 优化（目标驱动的外循环 —— 插在**运转之间**; 细则见「Agent 决策循环」）
@@ -85,9 +85,9 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
     ├─ committed_ok → wait（快环在消化, 无需供给动作）
     └─ shortfall    → 按 gap_reason 选**一个**动作:
         supply_ceiling → 扩 / 换 sub 清单
-                         (vibe_sub_catalog / vibe_sub_search → vibe_sub_list_update)
-        word_face      → 退役噪声词 (vibe_keyword_remove force) 或 **重生成词面**
-                         (sd_gen → kw_init / kw_opt / kw_mine → vibe_keyword_add_batch)
+                         (vibe_catalog / vibe_catalog → vibe_subscribe)
+        word_face      → 退役噪声词 (vibe_keyword_edit force) 或 **重生成词面**
+                         (sd_gen → kw_init / kw_opt / kw_mine → vibe_keyword_edit)
         capacity       → 供给侧无事可做（那是每日节流）
         collecting     → alert（采集停 —— 扩词无用）
   act → 写下 expect → 下一轮 verify → 回到目标检查
@@ -101,10 +101,10 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 - `vibe_leads(peek=true)` 的 `data.pending[]` / `data.unjudged_total`（`pending_count_agent` 与
   `to_score` 同口径）= **你手上欠账的权威清单**。收尾就是把它读到 0, 并看到
   `progress.stage_done=true`; 只看到 `drain.unclaimed_total=0`（那只说明「未领取的领完了」）**不算收尾**。
-- ⚠️ `vibe_submit_score` 的 `errors[]` 是**逐条**口径: 回执里 `id=A, code=already_scored`
+- ⚠️ `vibe_score` 的 `errors[]` 是**逐条**口径: 回执里 `id=A, code=already_scored`
   只说明 **A 这一条**被别处判过。**永远不要**拿它解释 `pending` 里的**另一个 id**（实测: 一个 agent
   把 A 的 `already_scored` 当成 `pending(id=B)` 收不掉的证据, 写进报告说这是「消不掉的计数伪影」,
-  于是带着 `to_score=1` 收工 —— 而 B 其实从未被判定, 补一条 `vibe_submit_score` 立刻清零）。
+  于是带着 `to_score=1` 收工 —— 而 B 其实从未被判定, 补一条 `vibe_score` 立刻清零）。
   判不了的真原因只有两种: `not_yours` / `not_claimed`（不是你的 / 没领到）, 或 `already_scored`
   **且报出的 id 就是 `pending` 那一条**。
 
@@ -112,16 +112,16 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 |---|---|---|---|
 | ① | 目标 / 额度 | `vibe_balance` / `vibe_sub_health` | `claim_quota{month_used,month_limit,daily_used,daily_cap}`、`assessment.gap_reason` |
 | ② | 领取 | `vibe_leads(subscription_id, limit)`（`peek=true` 免费看**手上的待评分**; **未领取的候选 peek 看不到** —— 没有免费的候选预览, 候选只在领取时返回） | `data.posts[]`、`data.pending[]`、`progress.todo.claimable_now`、`progress.next.do` |
-| ③ | 判定 | `vibe_submit_score(scores=[…])`（≤100 条 = 1 个 pipeline token） | `items[].delivered_id`、`progress.round.scored_now`、`progress.todo.to_score`、`progress.next.do` |
-| ④ | 触达 | `vibe_outreach_advice(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传。⚠️ **任务书里现在带「同类高互动回复参考」**（同帖 + 你订阅的交付帖池，同社区优先）—— **学它的语气与结构，不要抄内容**，更不要用同样的产品名 | `draft_prompt`、`top_replies`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
-| ⑤ | 发出并标记 | 发出后 `vibe_outreach_sent(lead_id)` 登记 → 有真实结果后 `vibe_mark_leads(lead_ids, outcome)` | `progress.todo.outreach.sent`（=0 时先别标结果）、`todo.to_mark` |
-| ⑥ | 复盘 / 迭代 | `vibe_delivered` / `vibe_keywords` / `vibe_opt_log` | 回到 ① |
+| ③ | 判定 | `vibe_score(scores=[…])`（≤100 条 = 1 个 pipeline token） | `items[].delivered_id`、`progress.round.scored_now`、`progress.todo.to_score`、`progress.next.do` |
+| ④ | 触达 | `vibe_outreach(delivered_id, include_body=true)` → 自己写 ≤18 词 → 同工具 `draft=` 回传。⚠️ **任务书里现在带「同类高互动回复参考」**（同帖 + 你订阅的交付帖池，同社区优先）—— **学它的语气与结构，不要抄内容**，更不要用同样的产品名 | `draft_prompt`、`top_replies`、`draft_check`、`draft_source`、`progress.todo.drafts_missing` |
+| ⑤ | 发出并标记 | 发出后 `vibe_outreach(lead_id)` 登记 → 有真实结果后 `vibe_leads(lead_ids, outcome)` | `progress.todo.outreach.sent`（=0 时先别标结果）、`todo.to_mark` |
+| ⑥ | 复盘 / 迭代 | `vibe_delivered` / `vibe_keywords` / `vibe_keyword_edit` | 回到 ① |
 
 **④ 的细节（不做这步 = 该线索在 app 上永远显示"暂无草稿"）**:
 
 1. 判完 `relevant` 后, 回执里 `progress.next.args.delivered_id`（旧字段 `outreach_next_step.delivered_ids`）
    就是这一批的**交付行 id**（用它, 不要用候选 id）;
-2. `vibe_outreach_advice(delivered_id=<上面那个 id>, include_body=true)` → 拿 `draft_prompt`
+2. `vibe_outreach(delivered_id=<上面那个 id>, include_body=true)` → 拿 `draft_prompt`
    （写作任务书: 正文摘录 + **这条线索要什么(意图)** + 四层判定 + 该社区规则要点 + 8 条硬约束 + 范例）;
 2b. **先看「这条线索要什么」段**（同一份对象也在回执的 `lead_intent` 里, 附判据命中的词）——
    它回答的是**作者是谁**。判成 `soliciting_feedback`（招测试 / 求反馈 / 推广自己作品）时, 作者是
@@ -151,7 +151,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
    服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写。
 
 **养号功能已于 2026-10-19 下线。** 相关工具（`vibe_warmup_*`、`vibe_account_ramp`）现在返回 `tool_removed`。
-账号怎么养由你自己判断：用 `vibe_sub_catalog(query=)` 选社区，用 `vibe_community(kind="safety", sub=)`
+账号怎么养由你自己判断：用 `vibe_catalog(query=)` 选社区，用 `vibe_community(kind="safety", sub=)`
 看社区规则，用 `vibe_sub_posts(order="score")` / `vibe_community(kind="commenters")` 看什么内容被认可。
 
 
@@ -161,7 +161,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 （回执里 `setup.config_missing` / `source_status=config_missing`）。这**不是**「在跑但这一轮没料」。
 
 - 匹配**只在你的 sub 清单内的语料里跑**（v2.2 彻底 sub 锚点）—— 清单为空，词表再好也是 0 候选。
-  所以空搜索面时 `progress.next.do` 直接指向 `vibe_sub_list_update`、`todo.face.config_missing=true`、
+  所以空搜索面时 `progress.next.do` 直接指向 `vibe_subscribe`、`todo.face.config_missing=true`、
   `next.args.audience_profile` / `demand_pain` 把两段原文**原样**给你（服务端**不抽词、不给候选词** —— 锚点词由你自己提，也可以直接问客户要 sub）、
   且 `stage_done=false`（阶段不可能走完）。
 - **⚠️ sub 锚点词与帖子搜索词不同源（最容易搞错的一步）**：sub 是按**行业 / 人群 / 兴趣 /
@@ -171,10 +171,10 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   **绝不能**拿它当 sub 定位词（`first customers` 不可能是任何 sub 的定位）。
   回执的 `next.args` 把两段原文与来源都给你（`audience_profile` / `demand_pain` /
   `anchor_words_from` / `keyword_words_from`）—— **词由你自己定**，服务端只给原料。
-- **怎么搜目录**：`vibe_sub_catalog(query=<人群/行业短词>)` ——
+- **怎么搜目录**：`vibe_catalog(query=<人群/行业短词>)` ——
   无 query → **A 面**：真实 `relevant` 交付过的 sub（库内已有货，加入清单立即可搜）；
   带 query → **B/C 面**：名录按 **sub 名 + 简介**词法匹配（可能需取货）。要更全用
-  `vibe_sub_search(query, sort)`（全量目录 + 分页 + **相关度优先**：先 `name_hits`(名字就叫这个)
+  `vibe_catalog(query, sort)`（全量目录 + 分页 + **相关度优先**：先 `name_hits`(名字就叫这个)
   再 `rules_hits`(规则原文写着这个) 最后 `desc_hits`，所以用**短领域词**而不是整句产品描述；
   排序里 `name_hits` 最高的那条通常就是你要锚的 sub）。
 - **判定位看 rules 原文，不是看简介**：每条候选带 `rules[]`（`{short_name, description, priority}`，
@@ -187,10 +187,10 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   在旧口径下 **3.2%** (7/220) 被移出清单; 口径修正 + 重判 213 条历史后是 **95%** (209/220) ——
   全订阅最对口的 sub。所以 (a) **口径变更后 per-sub 历史必须重算**才能拿来决策;
   (b) `n<10` 本来就不够下结论。与口径无关的确认法是**读他们自己写的话**:
-  `vibe_sub_corpus(sub=<候选>, limit=200)` —— 标题若成片是"我在招第一批用户/测试者",
+  `vibe_sub_posts(sub=<候选>, limit=200)` —— 标题若成片是"我在招第一批用户/测试者",
   这个 sub 的人群就是你的 demand_side (`r/alphaandbetausers`: 3417 帖里 `beta testers` 出现 390 次)。
   这一步不看任何评分结果, 也不受口径影响。
-- **写完就迭代，不要一次拍死**：`vibe_sub_list_update(subscription_id, subs=[…], mode="replace")`
+- **写完就迭代，不要一次拍死**：`vibe_subscribe(subscription_id, update_sublist=[…], sublist_mode="replace")`
   （也可 `add` / `remove`）→ 之后每轮看 `todo.supply.stats.subs`（每个 sub 的入池/交付/拒绝/**交付率**/
   未领取 + `in_list`）与 `gap_reason=supply_ceiling`：0 交付的移出，候选补进来。
 - ⚠️ **存量订阅的初始清单是 `source=backfill` 的历史命中面**（v2.2 上线时按「过去碰巧搜到过的 sub」
@@ -209,7 +209,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
            "limits": {"pool_available": 57, "daily_left": 988,
                       "quota_left": 793, "gate_left": 32, "gate_limit": 50}},
   "summary": "本阶段(领取 → 判定 → 交回) 本轮: 领 2 / 判 0 / 交付 0; 还差: 待评分 18, 可领 32",
-  "next": {"do": "vibe_submit_score", "why": "…", "args": {"n_items": 18}, "gate": "…"}
+  "next": {"do": "vibe_score", "why": "…", "args": {"n_items": 18}, "gate": "…"}
 }
 ```
 
@@ -245,16 +245,16 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   **但注意边界**: 供给侧收噪声（停词 / 移 sub / 清旧库存）**是 agent 的活, 不是等人批准的事** ——
   服务端只给数据与入口（`todo.supply.stats` + 三个工具）。只有这四类才需要先问人: **花钱 / 改计费口径 /
   发帖发信 / 删除已计费历史**。实测教训（355）: 门开着时如果 agent 只是报告并等, 噪声会一直被领出来 ——
-  该做的是当场 `vibe_keyword_remove(force=true, note=理由)`（自带清库存）/
-  `vibe_sub_list_update(mode="remove")` / `vibe_pool_purge(...)`（留词清库存）, 再 `vibe_opt_log` 记账。
-  要动手时: 先 `vibe_keyword_remove(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
-  回执里 `pool_purged` 是条数）/ `vibe_sub_list_update(subs, mode="remove")`, 再
-  `vibe_opt_log` 记一笔, 然后回内循环继续领。
+  该做的是当场 `vibe_keyword_edit(force=true, note=理由)`（自带清库存）/
+  `vibe_subscribe(mode="remove")` / `vibe_doctor(...)`（留词清库存）, 再 `vibe_keyword_edit` 记账。
+  要动手时: 先 `vibe_keyword_edit(kw, force=true, note=理由)`（**会自动清掉该词未领取的旧库存**,
+  回执里 `pool_purged` 是条数）/ `vibe_subscribe(update_sublist=subs, sublist_mode="remove")`, 再
+  `vibe_keyword_edit` 记一笔, 然后回内循环继续领。
 - **结果回填（客观证据服务端给, 判定你来做）**: 监控腿按 T+24h/72h/7d 自动复查你发出去的回复 ——
   存活 / 被删 / 自删 / 赞数 / **有人回**。回执里同时给两样: `todo.outreach{sent,alive,removed,
   replied,reply_rate,replied_ids,last_checked_at}`（客观证据）与 `todo.to_mark{n,delivered_ids,
   outcome_legend}`（还剩多少条没标 + 具体 id）。草稿写完后 `next.do` 会指向
-  `vibe_mark_leads`（outcome = valid | invalid | contacted）—— **有人回 = 强有效信号**, 但
+  `vibe_leads`（outcome = valid | invalid | contacted）—— **有人回 = 强有效信号**, 但
   valid/成交仍由你判。判定"不该回"的条目（如 karma 不够）会被标 `draft_skip`, 它们
   **不会卡住流程**（`todo.vetoed_n` 单列）, 而 `drafts_missing` 口径不变。
   客户端要看的价值证据在 `vibe_delivered` 的 `outreach_stats`（已发 → 存活 → 有人回 → 回复率）。
@@ -269,20 +269,20 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   · 候选可能**没有**系统预评分: `score: null` + `prescored: false`（此时 `score_note` 会明说「本批无系统预评分」）—— 旧文案说「含系统参考分」, 以 `score_note` 为准。
   · `vibe_delivered` 每行现在带 `has_draft` / `draft_len`（**逐行判断缺草稿不用再扇出 advice**）、`draft_skip`、`outreach_state`、`outreach_replies_n`。
   · `todo.to_mark.delivered_ids` 每次最多 20 个, 超过时 `ids_truncated: true` + `ids_limit: 20`。
-  · **karma 不够**: 养号功能已于 2026-10-19 下线。用 `vibe_community(kind="safety", sub=)` 看社区规则、`vibe_sub_catalog(query=)` 选社区 —— 发不发由你判断。
+  · **karma 不够**: 养号功能已于 2026-10-19 下线。用 `vibe_community(kind="safety", sub=)` 看社区规则、`vibe_catalog(query=)` 选社区 —— 发不发由你判断。
   · `publish_verdict` = 「我这个账号在这个社区发得出去吗」(与 verdict 是两个问题)。**平台级先验 (新号/低 karma) 只是建议**（`prior.advisory=true`, `basis=platform_prior_advisory`）—— 它不是该社区归档里的规则; 实测同账号在多个社区发评论**并未被删**。会 `hold`/`no` 的只有**有证据**的情形: 账号没填 / 归档门槛抽不到数值 / 归档门槛确实不达标（`blocks: karma_block|acct_age_block`）。所以草稿写好后**可以先在小社区试水**，别被先验吓住。
   · `vibe_delivered` 每行同时给 `id` 与 `delivered_id`（同一个值）—— 别的回执都叫 `delivered_id`, 免得喂错。
   · `draft_check` 失败时除 `failed` 还给 `failed_detail[{k,hit,note}]` —— **命中片段**直接告诉你哪个词踩线。
   · 草稿三字段: `draft_stored` = 库里现在有没有稿（权威）; `draft_written` = **本次调用**是否写入; `draft_saved` 是 `draft_written` 的兼容别名（同值, 已弃用）。读回一条已有草稿的条目时三者是 `stored=true / written=false / saved=false` —— **不矛盾**。
   · `next.advisory: true` = 这条 next 是**供给侧建议**（回灌门）: 停词/移 sub 不在你的职责范围时, 直接按 `next.alternatives` 继续领取即可, 服务端不拦。
-  · `progress` 的**路径**: `vibe_leads` 在 `data.progress`; `vibe_submit_score` 与 `vibe_outreach_advice` 在**顶层** `progress`（历史原因, 两种都按文档写的位置读）。
+  · `progress` 的**路径**: `vibe_leads` 在 `data.progress`; `vibe_score` 与 `vibe_outreach` 在**顶层** `progress`（历史原因, 两种都按文档写的位置读）。
   · `vibe_leads(peek=true)` 只回**已领取未判定**的清单（`pending`）; 未领取的候选不在 peek 里（`posts=[]`, 用 `pool_stats.new` 看库存）—— 领取才会拿到候选。
-  · `vibe_outreach_sent` 找不到评论时只记 `outreach_state=unknown`（**不会**写 outcome —— 没找到评论就没有"已触达"）; 真找到才会自动标 `contacted`。
-  · `progress` 只挂在**三个管道工具**上（`vibe_leads` / `vibe_submit_score` / `vibe_outreach_advice`）; 其余只读工具（`vibe_balance`/`vibe_delivered`/`vibe_sub_delivery` 等）各自返回自己的数据面, 不带 progress。
-  · `next` 若超出你的职责/授权（例如停词、移 sub、替客户发布）——**换个手**: 按 `next.alternatives` 走（通常是继续领取）或交给负责人; 服务端**从不拦**你领取。`next.advisory: true` = 这条 next 是建议（供给侧回灌门）; `alternatives` 里**不会**在你还没发出任何东西时推 `vibe_mark_leads`（sent=0 时改成推 `vibe_outreach_sent`）。
-  · **id 速查（实测踩过三次, 现在交付类工具两种 id 都认）**: `delivered_id`（交付行 id, 回执里的 `delivered_ids`）是 `vibe_delivered` / `vibe_get_delivered` / `vibe_outreach_advice` / `vibe_outreach_sent` / `vibe_mark_leads` 的**推荐参数**; 候选 id（`lead_pool.id`, 7 位, 回执里的 `lead_ids`）只给 `vibe_submit_score` / `vibe_recover_lead` 用 —— 但交付类工具现在也接受它（内部自动映射）, 传错不会静默失败。
-  · `vibe_get_delivered(lead_id|delivered_id)` 两种都认, 并返回 `has_draft`/`draft_len`; `vibe_mark_leads` 解析不到的 id 会在 `unresolved_ids` 里显式列出（不再静默 `updated=0`）。
-  · `vibe_submit_score` 回执里的 `unmarked_delivered` 是**账号口径**（带 `unmarked_delivered_scope: account`）; 本次涉及订阅的欠账看 `progress.todo.to_mark`（带 `scope` 与 id 清单）。
+  · `vibe_outreach` 找不到评论时只记 `outreach_state=unknown`（**不会**写 outcome —— 没找到评论就没有"已触达"）; 真找到才会自动标 `contacted`。
+  · `progress` 只挂在**三个管道工具**上（`vibe_leads` / `vibe_score` / `vibe_outreach`）; 其余只读工具（`vibe_balance`/`vibe_delivered`/`vibe_sub_delivery` 等）各自返回自己的数据面, 不带 progress。
+  · `next` 若超出你的职责/授权（例如停词、移 sub、替客户发布）——**换个手**: 按 `next.alternatives` 走（通常是继续领取）或交给负责人; 服务端**从不拦**你领取。`next.advisory: true` = 这条 next 是建议（供给侧回灌门）; `alternatives` 里**不会**在你还没发出任何东西时推 `vibe_leads`（sent=0 时改成推 `vibe_outreach`）。
+  · **id 速查（实测踩过三次, 现在交付类工具两种 id 都认）**: `delivered_id`（交付行 id, 回执里的 `delivered_ids`）是 `vibe_delivered` / `vibe_delivered` / `vibe_outreach` / `vibe_outreach` / `vibe_leads` 的**推荐参数**; 候选 id（`lead_pool.id`, 7 位, 回执里的 `lead_ids`）只给 `vibe_score` / `vibe_recover_lead` 用 —— 但交付类工具现在也接受它（内部自动映射）, 传错不会静默失败。
+  · `vibe_delivered(lead_id|delivered_id)` 两种都认, 并返回 `has_draft`/`draft_len`; `vibe_leads` 解析不到的 id 会在 `unresolved_ids` 里显式列出（不再静默 `updated=0`）。
+  · `vibe_score` 回执里的 `unmarked_delivered` 是**账号口径**（带 `unmarked_delivered_scope: account`）; 本次涉及订阅的欠账看 `progress.todo.to_mark`（带 `scope` 与 id 清单）。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
   `unmarked_delivered` / `to_mark` / `outreach` / `delivered_total`。
 - 语言与口径提示（`lang` / `lang_source` / `sd_missing`）与进度块并存, 各管一摊。
@@ -292,11 +292,11 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 | 回执字段 | 含义 | 你的动作 |
 |---|---|---|
 | `progress.next.do` | 服务端按当前阶段算出的下一个工具 | **直接调它**（本管线的主驱动） |
-| `progress.todo.to_score` | 已领取未判定（闸门口径, 只数 agent 领的） | >0 → `vibe_submit_score`（一次批量回传） |
+| `progress.todo.to_score` | 已领取未判定（闸门口径, 只数 agent 领的） | >0 → `vibe_score`（一次批量回传） |
 | `progress.todo.claimable_now` | 现在真能领多少（四项取最小） | >0 且 to_score=0 → `vibe_leads` 再领一批 |
 | `progress.todo.limits.*` | 可领数被哪一项卡住（池/日/额度/闸门） | 对症: 闸门→先判定; 池→等采集/扩清单; 额度→`vibe_balance` |
-| `items[].delivered_id` | 本次判 relevant 的交付行 id | 传给 `vibe_outreach_advice`（**不是**候选 id） |
-| `unmarked_delivered` | 已发出但没标结果的条数 | >0 → `vibe_mark_leads(outcome=…)` |
+| `items[].delivered_id` | 本次判 relevant 的交付行 id | 传给 `vibe_outreach`（**不是**候选 id） |
+| `unmarked_delivered` | 已发出但没标结果的条数 | >0 → `vibe_leads(outcome=…)` |
 | `data.source_status` | `ok` / `pending` / `locked` / `waiting` / `exhausted` / `config_missing` | 只有 `ok` 有新货; `locked` → 先判定; `config_missing` → 按 `next_steps` 补配置 |
 | `billing{claimed_batch,billable_items,charge…}` | 本批领取计费（首领即计费） | 告知用户成本; 超额度从结算币种钱包扣 |
 | `data.lang` / `lang_source` | 该订阅的判定与草稿语言 | 供需四段、判定理由、草稿都照它写 |
@@ -305,62 +305,36 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 | 工具 | 参数 | 说明 | 成本 | 鉴权 |
 |------|------|------|------|------|
-| `vibe_register` | `email` | 注册第 1 步: 发送 6 位邮箱验证码 | 免费 | 无需 |
-| `vibe_verify` | `email, code` | 注册第 2 步: 验证码验证, 返回 api_key（同时邮件发送） | 免费 | 无需 |
-| `vibe_balance` | `（无）` | 查余额/tier/**双钱包**（`wallets{usd,cny}`）/结算币种/`claim_quota` 领取额度（key 走 Header） | 免费 | Header |
-| `vibe_set_currency` | `currency`（`usd` \| `cny` \| 空=自动） | 选**结算币种**：决定超量从哪个钱包扣（美元钱包 $5/$3.5 每千条 · 人民币钱包 ¥25/¥18 每千条） | 免费 | Header |
-| `vibe_subscribe` | `product`, `enable_competitor_kw`(可选), `track_type`(可选) | **订阅持续监控**：输入产品描述，系统持续抓取匹配入池（词表由你的 agent 按决策循环扩/停——见"Agent 决策循环"）。**产品描述必须完整（40+ 字）**：名称 + 一句定位 + 目标用户 + 网站 URL。过短描述会生成泛词与低相关候选，会被拒绝。`enable_competitor_kw`（默认开）：设 `false` 只收直接需求线索，排除竞品对比帖。`track_type`（内部用：outreach/seo/hot_content） | 免费（订阅本身不收费；线索在领取时计费） | Header |
-| `vibe_leads` | `subscription_id, limit, source, peek` | **领取线索（按首次领取计费）**：返回线索（含系统参考分）+ **`billing` 记账块**；每条还带 `track_type`（`outreach` / `warmup`）—— **养号行（`warmup: true`）领取不计费、也绝不评分**（它们的评论走 `vibe_warmup_prompt`）（本批条数、免费/计费拆分、`billable_items`/`takeover_items`、扣费、本月用量、每日上限）。`peek=true` = **纯只读预览**（不领取/不计费/不改归属, 字段带 `claimed_by`）—— 看的是**手上已领未判**的清单（**不是**未领取候选; 没有免费的候选预览）。回执还回显 `requested_limit` / `limit_applied` / `limit_clamped`（超档位会被夹到 free 20 / starter 30 / pro 50）。**单次上限：free 20 / Starter 30 / Pro 50 条**（实际返回 = min(limit, 档位上限)）。回执带 `progress`（阶段/完成程度/下一步）。响应含 `posts`（新线索）、`pending`（已领未评分，含 `id`）与 `source_status: locked`（你未评分的待处理累积到 50 条时暂停领取；`daily_cap` = 当日上限已满、次日自动继续）。`source`（**2026-09-11**）：`agent`（默认）或 `web` —— 网页端用 `source='web'` 领取，它未评分的条**不占**你的 50 条闸门，且你可以自己领回（**免费**，首领已计费）；你带 `source='web'` 时会把你自己未评的条目原样回吐给你（不放新货、不计费）。**赞数在哪**：每行还带 `heat_score` / `heat_comments` = 这条帖在 Reddit 的赞数/评论数。**注意口径**：这两个数取自 Reddit 档案，而入库用的是 `INSERT OR IGNORE`（抓到之后不再更新），所以行里存的是**首次抓取快照**；服务端会用有限的后台预算重读其中一部分，而且**按榜上名次挑**（每个活跃社区的头名先刷，然后第 2、第 3……）。请当历史热度、不是实时计数。它不是系统相关度分（`score` 才是 0-100 参考分，`null` = 未预评分）；要看某个 sub 按赞数排的整榜用 `vibe_sub_top_posts`（需要"现在准"就传 `refresh=true`）。见下方"待处理候选" | **首领即计费**（两端任一端首次领取） | Header |
-| `vibe_submit_score` | `scores, override` | **评分回传（免费）**：`relevant` 进交付列表，`irrelevant` 回灌优化。**评分不影响计费**。`override=true`（**2026-09-11**）受理已被判过 `delivered`/`rejected` 的条目并**以本次判定为准**（relevant→irrelevant 会**撤回**交付记录，当月交付数随之回正），响应里 `overridden` 为实际翻转条数；人在网页端推翻你的判定时用得上。不带 `override` 时仍拒收已评分条目 | **免费** | Header |
-| `vibe_score_discuss` | `limit, respond_id, response` | **评分分歧对齐（可选）**：查看你与系统参考评分不一致的候选，可说明你的理由——我们据此校准标准，推送更贴合你的判断 | 免费 | Header |
-| `vibe_set_notify` | `enabled` | 邮件提醒开关：候选积压时是否发邮件通知你（默认开启，可关闭）| 免费 | Header |
-| `vibe_list_subs` | `（无）` | 查看我的订阅列表及候选线索积累状态 | 免费 | Header |
-| `vibe_unsubscribe` | `subscription_id` | 取消订阅（已积累的线索保留） | 免费 | Header |
-| `vibe_cancel_plan`（指引） | — | **付费档位（Starter/Pro）通过支付平台取消**（Creem 客户门户 / 微信支付管理），不走本 API。取消后档位保留到当期结束再降级 free；已领取的线索保留。产品订阅用 `vibe_unsubscribe` 取消 | 免费 | Header |
-| `vibe_pair_exclude` | `subscription_id`, `kw`, `sub`, `mode`(list/add/remove), `note` | **声明「这个词，但不要在那个 sub」——（词 × sub）排除格（2026-09-21）**。搜索面是（词表 × 清单）的**笛卡尔积**，而质量信号是 per（词, sub）——实测**同一个词能在一个 sub 95%、在另一个 sub 0%**。**服务端只执行不决策**：证据看 `todo.supply.stats.pairs` 的 `hint`（配对问题/词面问题/sub 问题），排除格由你声明。`mode=list` 纯读（read 桶），add/remove 走写桶；撤销是软删；生效在入池前（**写 scored_posts 之前**，撤销后可重新考虑） | 免费 |
-| `vibe_pool_purge` | `subscription_id`, `kw`(可选), `sub`(可选), `out_of_scope`(默认 false), `dry_run`(默认 true) | **清未领取库存**（`status='new'`，从未计费 → 删除**零账目影响**；`sent/delivered/rejected` 一律不动）。供给侧收噪声的第三个动作：**想留的词**其旧库存会垄断领取轮转，**已移出清单的 sub** 的存量行仍能被领出来 —— 这两种都只能靠它清。先 `dry_run=true` 看会删多少 + 抽样，再 `dry_run=false`；做完 `vibe_opt_log` 记一笔 | 免费 | Header |
-| `vibe_outreach_declare` | `delivered_id` | **声明已发（零网络）**：复制草稿后调它 → 线索从「待处理」进「待确认」；**声明 ≠ 已发出**，只有服务端在帖里确认到你的评论才算（见 `vibe_outreach_confirm_link`） | 免费 | Header |
-| `vibe_outreach_confirm_link` | `delivered_id`, `permalink` | **贴回复链接确认触达**：回复被 Reddit 删掉时作者会变 `[deleted]`，按用户名永远认不出 —— 这时把那条回复的**永久链接**贴进来，服务端按 comment_id 查证（存在性 + 帖归属）后登记为已发出 | 免费 | Header |
-| `vibe_commenter_profile` | `author`, `focus_sub`(可选), `limit`(默认 100) | **某个人在哪些社区活跃**：`our_corpus`（我们采集过的社区里的条数/赞数 + 代表作）+ `archive`（**档案里他最近 ≤100 条评论按社区聚合** = 真实活跃面）。传 `focus_sub` 给 **常驻(≥30%) / 兼有(10-30%) / 路过(<10%)** 的确定性判定 —— **学语气要挑目标社区的常驻写手**：实测 r/Accounting 的 `Helpful_Dev` 主战场其实是 r/Warhammer、r/3Dprinting（Accounting 只占 11%），属路过型高手 | 免费 | Header |
-| `vibe_top_commenters` | `sub`, `limit`(默认 20), `min_n`(默认 3), `sort`(total/avg，默认 total), `min_avg`(默认 0), `include_bots`(默认 false) | **社区头部评论者**（按我们手里的**真实赞数**）：该 sub 内条数 ≥ `min_n` 的作者按**总赞数**排，每人再给一条**代表作**（原文片段 + 链接）+ 条数/总赞/均赞/最高赞。用途：①学这个社区**最会说话的人**（学语气、不抄内容）②看**哪条帖有流量**（这些人出现在哪条帖下）。⚠️ Reddit 的「前 1% 评论者」**徽章本身查不到**（那是 achievement，不在评论对象字段里；实测档案原始行零命中）——这里给的是**行为等价物**，而且是你关心的那个社区里的。**边界**：只给公开事实，**不提供 DM 名单、不代发、不判断该不该联系**（批量私信 = spam）。**这份达人参考已经真的进任务书了**：触达的 `draft_prompt` 与养号任务书里都有一段「这个社区里写得最好的人是怎么说话的」（默认 ≤14 条，**轮转取满**——保证每位被选中的达人都出现）。**养号社区常常选不出人**（我们库里它们的评论很少、且多数 0 赞）→ 按下面规则换成**同类目养号社区**的达人，任务书里会标「[来自同类社区 r/X]」。**选人（每个 sub 各自选，看平均值 + 剔偶发爆款）**：选人键是**该 sub 内的中位赞**（不是均赞、更不是总赞 —— 均赞/总赞会被一条 187 赞的爆款拉飞），并**剔掉**「单条占他总赞 ≥50%」与「有赞评论 <3 条」的人（偶发爆款 / 薄记录）。**目标社区选不出 2 个人时不降标准**，自动改用**同类社区**（触达 = 该订阅清单里的其它社区；养号 = 同类目的养号社区），所以任何订阅都能拿到足量范例。回执里 `target_sub_picks` / `fallback_used` / `excluded_one_hit` 讲清这次用的是谁的案例。**挑人看「常驻」**：`vibe_commenter_profile(author, focus_sub)` 告诉你这个人是目标社区的**常驻**还是**路过**型高手 —— 学语气要挑常驻。**学法（owner 定调）**：回执里的 **`style_corpus`** = 该社区**几个**写得最好的作者（默认 4 位、按均赞；冷社区门槛自适应降到 3 条）+ 每人**多条**真实评论（默认每人 8 条、共 24 条）+ 确定性**风格统计**（平均句数/字数、含数字比例、第一人称比例、结尾问句比例、高频开头词）—— 这份**案例富集**（集中几个人 + 每人多条）已经写进任务书（触达 `draft_prompt` 和养号任务书），拿来**模仿**语气与结构，不许抄句子 | 免费 | Header |
-| `vibe_sub_top_posts` | `sub`, `window_days`(默认 90，**0 = 不限时间**), `limit`(默认 20，**读多少条由你决定，上限 1000**), `sort`(score/comments/new，默认 score), `offset`(默认 0), `include_body`(默认 false), `body_max_chars`(默认 4000，上限 20000), `refresh`(默认 false), `refresh_max`(默认 50，硬上限 50) | **某个社区的热帖榜**（2026-10-18）：按我们库里记录的 **Reddit 赞数**（`score`）/ 评论数（`comments`）/ 时间（`new`）排该 sub 的帖子。**服务端只排序、只返回 —— 读前多少条由你决定**：`limit` 要多少给多少（1000 只是安全阀，`limit_applied` / `limit_clamped` 会回显实际条数），要更深就翻 `offset`，`total_in_window` / `has_more` 告诉你在窗口内一共有多少条。`include_body=true` 可**同一次调用**就带每帖 `body`（免费）—— 这就是「先按热度挑、再读正文」的用法：没有可读内容时 `body` 为 `null`，`body_status` 说明原因（`ok` / `removed` / `deleted` / `link_only` / `missing`），另给 `body_len`（截断前长度）与 `body_truncated`；HTML 标签与 `&amp;` 类实体已剥离。用途：①判断这个社区值不值得投入（榜上帖子多少赞）②挑真正有流量的帖**并直接读它**③看这个社区什么话题被认可（配合 `vibe_top_commenters`）。⚠️ **赞数有多新（引用数字前必读）**：赞数/评论数取自 Reddit 档案，而入库是"有则跳过"（`INSERT OR IGNORE`，抓到之后不再更新），所以行里存的是**首次抓取快照** —— 常常是帖子才发几小时时拍的，于是真正成功的帖反而显得很弱。服务端会用有限的后台预算重读一部分，**按榜上名次挑**（每个活跃社区的头名先刷，然后第 2、第 3……），所以**榜头的数比榜尾准**。每行 `heat_age_h` = 这个赞数**多久前真的读到过**（`null` = 一次都没读到 = 首次快照）；`heat_attempts > 0` 而 `heat_age_h = null` = 试过，但档案里查不到这条帖。请当"**历史热度**"看，不是实时热榜 —— **要现在准，就传 `refresh=true`**：服务端会当场重读**这个榜的前 `refresh_max` 条**（≤50），重排后再返回，代价 5~15 秒（回执多一个 `refresh` 块，含 `refreshed_n` / `missing` / `skipped`）。它也**不是**系统相关度分。⚠️ `window_days < 90` 时榜上最高赞会偏低（新帖被抓时还没攒到赞）—— 想看这个社区的天花板用 90 或 0。回执另带 `corpus_posts`（该 sub 在库里的帖数 = 这个榜的"底"有多厚）与 `undated_posts`。**不依赖养号订阅**（这正是与 `vibe_warmup_threads` 的区别：那个按评论数排，且养号订阅暂停/取消时返回空）。每行含 `post_id / title / author / url / score / comments / created_utc / age_h / seen_at / heat_age_h / heat_attempts`。边界：只给公开事实，不判断该不该联系、不代发 | 免费 | Header |
-| `vibe_post_body` | `post_id`, `sub`(可选，做作用域校验), `max_chars`(默认 8000，上限 20000) | **按 id 精确取一条帖的正文**（2026-10-18）：用来回头读你从榜上挑中的那条（配合 `vibe_sub_top_posts` 翻页），或任何你手里已有的帖子 id（`t3_` 前缀、含 `/comments/<id>/` 的链接都认）。为什么不用 `vibe_sub_corpus`：它的游标是**开区间** `(created_utc, post_id)`，语义是「从这页之后继续」，**没法定位到某一条** —— 猜一个时间戳当游标只能靠运气撞上。正文契约与上面一致（`body: null` + `body_status`），author 已清洗（部分作者名里历史遗留的 `Score: N` 后缀会被去掉）。免费 | 免费 | Header |
-| `vibe_outreach_sent` | `lead_id`（**候选 id**） | **「我已发出」登记**：服务端立刻去那条帖里找你账号的评论（1 个请求），找到就登记 `comment_id`/发布时间/存活/赞数/回复数，并在你没标过时**自动把结果标成 `contacted`**；之后按 T+24h/72h/7d 自动复查。找不到就先记 `unknown`，交给按用户名的增量发现（每 6 小时）继续盯。前置：app 侧栏填过 Reddit 用户名 | 免费 | Header |
-| `vibe_mark_leads` | `lead_ids, outcome` | 标记线索结果（valid 有效 / invalid 无效 / contacted 已触达）——帮你跟踪线索跟进质量。⚠️ 前提是**真的发出过**（`todo.outreach.sent > 0`）：没发过就没有结果可标，回执此时会把 `next` 指向 `vibe_outreach_sent` | 免费 | Header |
-| `vibe_outreach_advice` | `delivered_id`, `draft`(可选), `include_body`(默认 true) | **触达建议 + 写作任务书（零 LLM）**：`delivered_id` 用**交付行 id**（`vibe_delivered`/`vibe_submit_score` 回执里的 `delivered_id`，**不是**候选 `lead_id`）。回执含四层判定（`verdict` 可回/谨慎回/别回）、`rules`（该社区规则要点）、`draft_prompt`（**给 agent 的写作任务书**：正文摘录 + 硬约束 + 范例）、`progress`（触达阶段进度）。把成稿放进 `draft` 参数回传 = 交稿, 服务端按同一套规则复核并落库（`draft_check`/`draft_saved`/`draft_source`）| 免费 | Header |
-| `vibe_get_delivered` | `lead_id` | 单条已交付线索详情（回访用），含**完整正文** | 免费 | Header |
-| `vibe_delivered` | `limit, offset` | 已交付线索列表（回访历史客户） | 免费 | Header |
-| `vibe_recover_key` | `email` | **丢了 API key？** 第 1 步：给已注册邮箱发验证码（无鉴权）| 免费 | 无 |
-| `vibe_recover_verify` | `email, code` | 第 2 步：验证码验证后，key 邮件发送到邮箱（无鉴权）| 免费 | 无 |
+| `vibe_register` | `email`, `mode`(`send` \| `verify`), `code` | 注册（两步合一）：`send` 发 6 位验证码；`verify` 用码换 API key（Free 档） | 免费 |
+| `vibe_account` | `action`(`recover_send` \| `recover_verify`), `email`, `code` | 丢了 key：`recover_send` 发码，`recover_verify` 把 key 邮件发回 | 免费 |
+| `vibe_balance` | `set_currency`(可选 `usd`/`cny`/空=自动), `lang`(可选 `en`/`zh`/空=自动), `subscription_id`(可选) | 余额/tier/双钱包/结算币种/月额度。传 `set_currency` 或 `lang` 会顺带应用该设置（走写桶）；都不传是纯读 | 免费 |
+| `vibe_set_notify` | `enabled` | 邮件提醒开关：候选积压时是否发邮件 | 免费 |
+| `vibe_subscribe` | `product`, `action`(`create` \| `cancel`), `subscription_id`, `enable_competitor_kw`, `track_type`, `update_sd`, `update_sublist`, `sublist_mode`, `note` | **订阅的写操作全在这一个工具**：`create`（需 `product`）/ `cancel`（需 `subscription_id`）/ `update_sd={supply_side,demand_side,core_friction,demand_pain}` / `update_sublist=[...]` 配 `sublist_mode=replace\|add\|remove\|list` | 免费 |
+| `vibe_subs` | `subscription_id`(可选) | **订阅全貌一次拿齐**：列表 + 每订阅统计(new/sent/delivered/rejected) + **逐 sub 命中统计** | 免费 |
+| `vibe_catalog` | `query`, `offset`, `limit`, `sort` | 目录。`sort` **空** = 推荐（A 已交付验证 + B/C 词法候选）；`sort` **非空**（`subscribers`/`active`/`name`/`volume`）= 全量目录检索 | 免费 |
+| `vibe_sub_health` | `subscription_id` | **这个订阅为什么产出不够**：配额 / 日线 / 库存 / 缺口 / `gap_reason` / 配置完备度 / 交付累计 | 免费 |
+| `vibe_leads` | `subscription_id`, `status`(`new` \| `rejected`), `limit`, `offset`, `source`, `peek`, `include_body`, `format`, `mark` | **领取线索（首次领取计费）**。另：`status=rejected` = 回收列表；`format=export` = 导出；`mark=[{lead_id,outcome}]` = 标记结果；`peek=true` = **免费只读**看已领未评清单 | 首次领取计费 |
+| `vibe_score` | `scores`, `override`, `discuss`, `limit`, `respond_id`, `response` | 给已领线索评分（`relevant` 进交付）。`discuss=true` 或 `respond_id` = 查看/回应评分分歧（免费） | 评分免费 |
+| `vibe_delivered` | `lead_id`, `delivered_id`, `limit`, `offset`, `subscription_id`, `order` | 已交付线索。**传 id = 单条详情**（两种 id 都认），不传 = 列表 | 免费 |
+| `vibe_recover_lead` | `lead_ids` | 把被误滤的候选恢复回待评分 | 免费 |
+| `vibe_keywords` | `subscription_id`, `status`, `history`, `limit` | 词表 + 命中统计；`history=true` = 变更史（谁改的、改前改后、manual/auto） | 免费 |
+| `vibe_keyword_edit` | `subscription_id`, `action`(`add`\|`remove`\|`exclude_pair`\|`log_opt`), `items`, `source`(`manual`\|`auto`), `note` | **词表唯一写入口**。`items` 是数组，元素结构随 `action` 变：add `{kw,kw_type}` / remove `{kw,force,purge_pool}` / exclude_pair `{kw,sub,mode}` / log_opt `{outcome,reason,n_new_kw,n_replaced}` | 免费 |
+| `vibe_sub_posts` | `sub`, `order`(`score`\|`comments`\|`new`\|`old`), `window_days`, `limit`, `offset`, `cursor`, `body_max_chars`, `refresh`, `refresh_max` | **某社区的帖子**。`score`/`comments` = 服务端排序榜（`offset` 翻页）；`new`/`old` = **零语义时间翻页**（`cursor` 翻页）。**默认返回完整帖含正文** | 按领取计费（完整帖=一条线索） |
+| `vibe_community` | `kind`(`commenters`\|`profile`\|`safety`), `sub`, `author`, `focus_sub`, `limit`, `min_n`, `min_avg`, `sort`, `include_bots` | 社区里的人与规则：头部评论者 / 某人活跃的社区 / 安全参考数据 | 免费 |
+| `vibe_outreach` | `what`(`advice`\|`profile`\|`log`), `action`(`sent`\|`declare`\|`confirm`), `delivered_id`, `lead_id`, `permalink`, `draft`, `include_body`, `include_prompt`, `reddit_username`, `reddit_karma`, `reddit_account_age_days` | 触达助手 + 发送台账。**可信度递进**：`declare`（只是声明）→ `sent`（自我确认）→ `confirm`（服务端按 comment id 查证） | 免费 |
+| `vibe_bundle` | `calls` | 一次往返跑 N 个只读工具 | 免费 |
+| `vibe_app_bootstrap` | — | 首屏聚合读 | 免费 |
+| `vibe_delivery` | `subscription_id`, `format`, `limit`, `include_body`, `fields`, `since`, `before_id` | 交付物（JSON 是唯一真源） | 免费 |
+| `vibe_doctor` | `what`(`perf`\|`supply`\|`purge`), `minutes`, `subscription_id`, `kw`, `sub`, `out_of_scope`, `dry_run` | **内部诊断**（性能 p50/p95 / 供给快照 / 清库存）。判断"我的订阅为什么产出不够"要用 `vibe_sub_health`，不是这个 | 免费 |
 
 > 除 `vibe_register` 外，所有工具通过 HTTP 请求头 `Authorization: Bearer <api_key>` 鉴权，
 > **工具参数中不再出现 api_key**（key 不裸奔、不进调用日志）。
 
-### 管理工具（2026-09-05 —— 词表 / 健康 / 回收 / 判定口径）
+### 管理工具 —— 见上面的主表
 
-| 工具 | 参数 | 作用 | 费用 | 鉴权 |
-|------|------|------|------|------|
-| `vibe_keywords` | `subscription_id`, `status`(可选: all/active/monitor/removed/retire) | **词表 + 命中统计**（query/hit/pooled/avg-score/source）：当前靠哪些词在匹配、每个词表现如何——扩/停前先读它 | 免费 | Header |
-| `vibe_keyword_add` | `subscription_id, kw, kw_type`(tail/entity/competitor/comment), `source`(manual 默认 / auto), `note`(可选) | **加词扩召回**。`source=manual`（默认）= 你的词、受保护不会被自动停；`source=auto` = 编排器加的词（未来弱了可被停）。同词覆盖 auto 词 = 你接管（变 manual）。**每次真实变更自动写词级变更日志**（谁/何时/哪个词/做了什么），`note` 记理由 | 免费 | Header |
-| `vibe_keyword_add_batch` | `subscription_id, keywords`(list of `{kw, kw_type}`), `source`(默认 auto), `note`(可选) | **一次调用加 N 词**（逐条语义同 `vibe_keyword_add`）——初始词/扩词列表请用批量而非循环，留在账号限流窗内（free 5 / starter 10 / pro 20 每 60s）。单词失败不影响整批；返回 `{added, total, batch_id, results}`。同批共享一个 `batch_id`，日志里可整批归组 | 免费 | Header |
-| `vibe_keyword_remove` | `subscription_id, kw, force`(默认 false), `note`(可选) | **停用词**（→ removed 不再匹配）。默认只停 manual 词；`force=true` 仅供编排器停 auto 弱词——手动勿用。**建议传 `note`**：这是"为什么停这个词"唯一按词留痕的地方 | 免费 | Header |
-| `vibe_sd_update` | `subscription_id, supply_side, demand_side, core_friction, demand_pain` | **设供需判定口径**（四段，服务端持久化）——这是评分引擎的官方判定上下文，每次评分注入为 [SUPPLY/DEMAND]。空字段保留旧值；你编辑后后端永不覆盖 | 免费 | Header |
-| `vibe_sub_health` | `subscription_id` | **供给健康 + 交付评估（零 LLM）**：`assessment`（当前搜索面能否填满月领取额度：`projected_items_month` vs `commitment_remaining`、`gap_reason`、`supply_per_day`、`daily_need`）/ 候选存量(new+sent) / 缺口 / 采集是否足量 / 上次优化。**先读它**：`gap_reason=supply_ceiling` 时扩 **sub 清单**比动词更有效 | 免费 | Header |
-| `vibe_opt_log` | `subscription_id, outcome, reason, n_new_kw, n_replaced` | **记录一次扩词/优化事件**（按次：outcome + reason ≤800 字，写入优化历史，健康页的"上次优化"读它）——扩/停后调用，闭环可审计。注意分工：**按词的变更流水由 `vibe_keyword_*` 自动记录**（`kw_change_log`，无需你手动写）；本工具记的是**决策叙事**（为什么这么调） | 免费 | Header |
-| `vibe_kw_history` | `subscription_id, limit`(默认 30, 上限 200) | **变更历史（按词 + 按次，时间倒序）**：`kind=kw` 是词级变更（哪时/哪个词/新增|复活|更新|停用/来源/批次），`kind=opt` 是你自己记的按次决策（outcome/reason）。**回顾"我上一轮对这个订阅做过什么"用这个**——按词的操作无需你补记，工具会自动留痕 | 免费 | Header |
-| `vibe_rejected` | `subscription_id, limit` | **回收历史**：引擎判不相关的候选（含理由分），跨会话持久 | 免费 | Header |
-| `vibe_export_leads` | `subscription_id`, `status`(delivered/rejected/new), `limit`, `offset`, `include_body` | **导出客户数据（2026-09-08，零 LLM）**：已交付客户 / 回收 / 候选，每条带 kw + kw_type + 最近评分 score/reason（你的评分反馈）+ outcome/marked_at 跟进状态 + 可选正文。权威存储在 PG（delivered_log/lead_pool/scoring_feedback）——本工具经 MCP 暴露给你，不用碰数据库。用于触达名单、产出分析、下游（访谈/SEO）素材 | 免费 | Header |
-| `vibe_recover_lead` | `lead_ids`（列表） | **恢复误判线索**：从回收池回到待评分队列，可重新评分（领取时已计费，不重复扣费）| 免费 | Header |
-| `vibe_subs` | `subscription_id` | **来源 sub 命中统计**（各 sub 入池/状态分布）——哪些 subreddit 真在贡献。注意与 `vibe_list_subs`（你的订阅列表）区分 | 免费 | Header |
-| `vibe_supply_status` | `subscription_id` | **语料供给状态快照（零 LLM，2026-09-07）**：拉取池规模 / 储备分层 / **近 7 天 post_store 入帖趋势**（语料是否还在增长）/ 名录新鲜度（总量 + 最后更新）/ ArcticShift 限流态（共享熔断，跨进程）。用于区分：*词面耗尽*（应扩词）vs *语料边界窄*（应扩 sub）vs *名录旧*（catalog 需月度刷新）vs *采集停* vs *限流中*（2026-09-09：词搜腿字段已移除——词全语料匹配看下方 `pipeline_recent`） | 免费 | Header |
-| `vibe_sub_list_update` | `subscription_id`, `subs`(list), `mode`(replace/add/remove/list) | **维护本订阅的 sub 清单——它的显式搜索面（v2.2 sub 锚点，2026-09-09）**：匹配只在清单 sub 语料内跑。每条返回 `in_pool`（库内可立即搜，帖+评论）或 `needs_pull`（服务器将批量取货）。**这也是获取你没有的语料的唯一途径**：加 sub 即入服务端取货队列；agent 侧没有拉取工具（原 `vibe_search_probe` 已于 2026-09-11 下线） | 免费 | Header |
-| `vibe_sub_catalog` | `query`(可选), `limit` | **定清单前的候选 sub（v2.2，2026-09-09）**：无 query → A 有货面（真实 `relevant` 交付过的 sub，delivered 降序——库内已有货可直接搜）；带产品/领域词 → B/C 名录词法候选（可能需取货）。每条标注 `stock`(in_pool/needs_pull)、`tier`(deep/shallow)、`delivered` 数，以及 **`description`**（sub 简介，2026-09-11 起返回） | 免费 | Header |
-| `vibe_sub_search` | `query`(可选), `offset`, `limit`(≤100), `sort`(subscribers/active/name/volume) | **全量目录检索（2026-09-11 新增）**：全量目录（体量看回执 `total`）按**名称或简介**匹配（多词 OR 并集）+ 分页。每条：`description`、`subscribers`、`num_posts`、`posts_90d` + `volume_measured`、`stock`(in_pool/needs_pull)、`tier`、`delivered`、`listed`（已被某订阅清单引用）。用来**精准找 sub**，再用 `vibe_sub_list_update` 加入。每条带 **`rules[]` 版主规则原文** + `submit_text`（**判 sub 定位用原文**；`rules_missing=true` = 问过但 Reddit 侧无公开规则，≠ 无限制） | 免费 | Header |
-
-> 费用说明：上面 16 个是读写状态操作——**线索在首次领取时计费**（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**；每日上限超出顺延次日。
->
-> 限流是**每账号三个独立桶**（2026-09-11），读不会再吃掉你的管道预算：**读**（delivered / keywords / subs / sub_health / sub_catalog / sub_search / supply_status / balance…）free·starter·pro = **120 · 240 · 480** 次/分钟；**管道**（`vibe_leads` / `vibe_submit_score` / `vibe_recover_lead`）= **10 · 20 · 40**；**写**（subscribe / keyword_* / sd_update / mark_leads / sub_list_update…）= **15 · 30 · 60**。所以一轮感知（5 次读）很便宜 —— 节奏要压在写桶上。**桶按「调用」计数，不按条目数**：一次 `vibe_submit_score` 最多收 **100** 条，只吃 **1 个** pipeline token —— 领 N 条后**一次**回传 N 条（`vibe_leads(limit=N)` + 一次 `vibe_submit_score(scores=[…])` = **2 次** pipeline 调用，不是 N+1 次）。一次超过 100 条返回 `code=batch_too_large`，**整单不落库**。
-
+> 2026-10-19: 原「管理工具」这张表已删除 —— 与主表**完全重复**，而且工具面合并后同一个工具
+> 会在一张表里出现多次、每次一套旧参数（`vibe_keyword_edit` 出现过 6 次），照着调必错。
+> **参数以主表为准**，每个工具的完整语义看 tool docstring。
 ### 循环节奏 —— 按**库存**重入，不按钟表（2026-09-22）
 
 这条循环**不是一次性配置**：服务端每 ~30 分钟往池子里补候选，所以"面配好了但从此不再跑"会静默
@@ -372,14 +346,14 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 
 | 你读到什么 | 含义 | 现在做什么 |
 |---|---|---|
-| `progress.todo.to_score > 0`（任一回执）或 `vibe_leads(peek=true).data.unjudged_total > 0` | 手上压着"已领未判" | `vibe_submit_score` —— **先把这批交回，再谈领取** |
+| `progress.todo.to_score > 0`（任一回执）或 `vibe_leads(peek=true).data.unjudged_total > 0` | 手上压着"已领未判" | `vibe_score` —— **先把这批交回，再谈领取** |
 | `to_score == 0` 且 `progress.todo.claimable_now > 0` | 有货、额度也空着 | `vibe_leads(subscription_id, limit)` → 判 → 交回 |
 | `vibe_sub_health.stock` 在涨而 `assessment.projected_items_month` 一直不达 | 面在产出，但没人判定 | 立刻跑；你是宿主 agent 就**把它排进调度** |
 | `to_score == 0`、`claimable_now == 0`、`progress.stage_done == true` | 本阶段暂时做完了 | 去 outreach；下一拍再回来看 |
 
 - **节奏**：`assessment.gap_reason=shortfall`（目标未达）期间**每 30~60 分钟至少一批**；
   稳态（`committed_ok`）**每天一次**就够 —— 每天一趟也顺带避免 `sent` 撞 7 天过期。
-- **批量**：一次 `vibe_leads(limit)` + 一次 `vibe_submit_score`（≤100 条 = **1 个 pipeline
+- **批量**：一次 `vibe_leads(limit)` + 一次 `vibe_score`（≤100 条 = **1 个 pipeline
   token**）。按档位领满（free 20 / starter 30 / pro 50），判完交回，再领下一批。**不要**一次
   领一大摞留着"回头判"：`to_score` 会占着你自己的下一次领取（闸门是账号口径）。
 - **每个订阅都要跑，不只第一个**：`to_score` 是账号口径，而待判清单是逐订阅的 —— 用
@@ -387,7 +361,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
 - **现成的定时器：`scripts/loop_runner.py`**（2026-09-22）。技能包现在**连定时器一起给**，不再只给执行器：
   它跑 **intake**（内部调 `score_batch.py`：领取→判真→交回）和 **outreach 的机械一半**
   （取任务书 → 你的 LLM 写 ≤18 词 → 服务端复核落库）。**它绝不自动发帖** —— 发出仍归你/你的 agent
-  （`vibe_outreach_sent` → `vibe_mark_leads`）。BYOK：`VIBEDOLLAR_API_KEY` + `LLM_API_KEY`
+  （`vibe_outreach` → `vibe_leads`）。BYOK：`VIBEDOLLAR_API_KEY` + `LLM_API_KEY`
   （自建端点再加 `VIBEDOLLAR_MCP_URL`）；成本闸门 `--limit`/`--daily-cap`/`--outreach-per-sub`；
   `--stage intake|outreach|both`；cron 与 systemd timer 的安装片段写在脚本 docstring 里。
   **实测为什么必须有它**：没有定时器时循环会停在半路 —— 8 个非营销订阅里 6 个判定停在
@@ -429,11 +403,11 @@ vibedollar 是**数据/状态层 —— 服务端零决策**。它采集 Reddit�
 ```
 vibe_sub_health(sid)     → assessment（projected_items_month / commitment_remaining / gap_reason /
                            supply_per_day / daily_need / 存量）+ stock / gap / collecting_ok / last_opt
-vibe_supply_status(sid)  → 语料入库趋势 / 名录新鲜度 / arctic.limited
+vibe_doctor(sid)  → 语料入库趋势 / 名录新鲜度 / arctic.limited
 vibe_keywords(sid, all)  → 每词: status/source/query/hit/pooled/avg_score/
                            n_delivered/n_rejected/invalid_sample/created_at
 vibe_subs(sid)           → 哪些 subreddit 真在贡献候选
-vibe_sub_list_update(sid, subs=[], mode="list")  → 你当前的 sub 清单（v2.2：你的显式搜索面）
+vibe_subscribe(sid, update_sublist=[], sublist_mode="list")  → 你当前的 sub 清单（v2.2：你的显式搜索面）
 vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.pairs / low_yield.pairs:
                            (词 × sub) 网格 —— **同一个词能在一个 sub 95%、在另一个 sub 0%**
                            (实测 closed testing 全局 95% / 在 b2bmarketing 13%)。每格带
@@ -442,7 +416,7 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 ```
 
 **v2.2（2026-09-09）——搜索面 = 你的 sub 清单。** 匹配现在**只在你列出的 sub
-语料内跑**（`vibe_sub_list_update`），不再全语料。循环的供给侧变成：*把清单养
+语料内跑**（`vibe_subscribe`），不再全语料。循环的供给侧变成：*把清单养
 健康*——交付过的 sub 留下；从未评过 relevant 的 sub 是噪声；没列进清单的 sub
 根本不会被搜。扩词前先看清单：
 
@@ -455,8 +429,8 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 | `assessment.gap_reason` | 供给为什么填不满额度：`supply_ceiling`（搜索面太窄 / 垂直语料薄）· `word_face`（相关率 < 15%）· `capacity`（需求速度超过每日上限）· `collecting` · `no_data` · `ok` | **`supply_ceiling` → 扩 sub 清单**（加 sub，通常就是这一步）· `word_face` → 退役/重生成词面 · `capacity` → 供给侧无事可做（那是每日节流）· `collecting` → alert，等采集恢复 |
 | `projected_items_month` vs `commitment_remaining` | 当前搜索面能否填满月领取额度（**条目**口径 = 计费单位）| **目标检查**：`committed_ok` → wait；`shortfall` → act（驱动一切）|
 | `hit_count` = 0 | 该短语**还没命中** —— **首轮 0 命中非结论**（2026-09-08 Snag 实证：declutter home q1=0 → q2 命中；语料增量入库，词可能等帖子出现才命中）| 别凭单轮 0 命中退役：观察到 qc≥3；语料在长仍多轮 0 → probe 目标 sub / 换词 / 退役（持续 0 命中 + 语料新鲜 = 表达确实不存在）|
-| `hit_count` > 0 但你的评分全 `irrelevant` | 表达存在但**匹配的是噪声**——是词错了，不是需求到头了 | 退役该词，然后**从 sd 重生成词面**（sd 缺→`sd_gen.md`；`kw_init.md` → `vibe_keyword_add_batch`）——词错用重生成修，不是放弃 |
-| `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` 跨主题 | 噪声制造机 | `vibe_keyword_remove` force + `vibe_opt_log`（见 Plan A）|
+| `hit_count` > 0 但你的评分全 `irrelevant` | 表达存在但**匹配的是噪声**——是词错了，不是需求到头了 | 退役该词，然后**从 sd 重生成词面**（sd 缺→`sd_gen.md`；`kw_init.md` → `vibe_keyword_edit`）——词错用重生成修，不是放弃 |
+| `n_rejected` ≥ 2 + 0 delivered + `invalid_sample` 跨主题 | 噪声制造机 | `vibe_keyword_edit` force + `vibe_keyword_edit`（见 Plan A）|
 | `avg_score`（负）| 评分反馈聚合信号（每条你的 irrelevant −3，服务端只记录）| 越负 = 被拒越多 → 支持退役/重生成判断；**服务端不据它自动退役** |
 | `query_count` < 3 | 观测不足 | 先别判（防单次误杀）|
 | `created_at` 近期 | NEW30 组（判据②输入）| 近 30 天新词的命中率 → 继续扩或停 |
@@ -479,16 +453,16 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
    `n_pooled` / `n_delivered` / `n_rejected` / `avg_score` / `invalid_sample`
    (最后一个是真实的被拒帖 —— 读它, 它告诉你这个词**实际**捞到什么)。
    `n_rejected ≥ 2 且 n_delivered = 0` 的词 = 噪声发生器。
-2. **动词表**: 噪声词 `vibe_keyword_remove`; 然后**按 `sd.demand_side` + `demand_pain` 重新生成
+2. **动词表**: 噪声词 `vibe_keyword_edit`; 然后**按 `sd.demand_side` + `demand_pain` 重新生成
    词面** —— `kw_init.md`(从 sd 推) 或 `kw_mine.md`(扫一个高精度人群 sub 的语料、提它自己的说法)
-   → `vibe_keyword_add_batch`。若某个 sub 只贡献拒绝, **面也要动**:
-   `vibe_sub_list_update(mode=add|remove)` —— 同一个词能在一个 sub 95%、在另一个 sub 0%
-   (先看 `stats.pairs`, 用 `vibe_pair_exclude` 而不是把一个在别处有效的词整个删掉)。
+   → `vibe_keyword_edit`。若某个 sub 只贡献拒绝, **面也要动**:
+   `vibe_subscribe(sublist_mode=add|remove)` —— 同一个词能在一个 sub 95%、在另一个 sub 0%
+   (先看 `stats.pairs`, 用 `vibe_keyword_edit` 而不是把一个在别处有效的词整个删掉)。
 3. **再跑一轮, 用同一把尺子重测**: `score_batch.py --sub <sid> --limit <档位上限>` →
    读回每个词的 `relevant/judged`。**成功判据**: 新词的
    `n_delivered / (n_delivered + n_rejected)` 在**≥5 条已判**下 **≥ 20%**
    (低于这个数, 那就是换了个拼写的同一堆噪声), 且该订阅交付率不再往 0 走。
-4. **把"改了什么、为什么"写下来** —— `vibe_opt_log` 或你自己的笔记: 退役了哪些词、加了哪些、
+4. **把"改了什么、为什么"写下来** —— `vibe_keyword_edit` 或你自己的笔记: 退役了哪些词、加了哪些、
    前后测到的比率。下一个 agent(或下周的你自己)必须能区分"这修好了"和"这只是又跑了一遍"。
 
 ⚠️ **绝不因为一批全无关就断言"这个市场没需求"** —— 这正是本配方要防的实测失效模式
@@ -499,19 +473,19 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 由**客户侧 agent** 自己修 `word_face` 订阅时发现（362: 交付率 1.9% → 5.5%，新词
 `facebook marketplace` 3/10 = 30%）。两条值得照抄的习惯：
 
-- **领取前先免费看库存。** `vibe_export_leads`（库存标题/正文）与
-  `vibe_pool_purge(out_of_scope=true, dry_run=true)` 能在**不领取**的前提下看清池子里到底是什么；
+- **领取前先免费看库存。** `vibe_leads`（库存标题/正文）与
+  `vibe_doctor(out_of_scope=true, dry_run=true)` 能在**不领取**的前提下看清池子里到底是什么；
   **领取才计费**。用它先判"这个词该退役 / 这批库存该清"，**别让一条垃圾花掉额度**。
   实测的坑：执行器的 `--dry-run` 也不免费（老版本甚至照样领取）；
-  真正免费的是 `vibe_leads(peek=true)`、`vibe_export_leads`、`vibe_pool_purge(dry_run=true)`。
+  真正免费的是 `vibe_leads(peek=true)`、`vibe_leads`、`vibe_doctor(dry_run=true)`。
 - **这套匹配是 AND（所有词都出现才命中）—— 泛词就是毒药。** 362 实测：`free stuff` /
   `free items` / `buy nothing` / `moving boxes` / `needing furniture` / `nextdoor` /
   `freecycle` 全部把池子灌成噪声 —— 每一条都是**读了标题**才证伪并退役的。
   词里必须带**领域名词**（`free furniture`、`curb alert`、`facebook marketplace`），
   不能只有意图。
 - **弱词是 (词 × sub) 的问题，不是词的问题**：`free furniture` 全局 7%，在城市 sub 有用、
-  在 `minimalism`/`Mommit`/`ZeroWaste` 全是拒绝 —— 该用 `vibe_pair_exclude` 排格子，
-  不是 `vibe_keyword_remove` 删词。
+  在 `minimalism`/`Mommit`/`ZeroWaste` 全是拒绝 —— 该用 `vibe_keyword_edit` 排格子，
+  不是 `vibe_keyword_edit` 删词。
 
 #### 3. Plan —— 一个动作，目标驱动
 
@@ -521,8 +495,8 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 噪声制造机 → **立即退役**：
 
 ```
-vibe_keyword_remove(subscription_id, kw, force=true)   # auto 词 —— 你的决定，没有服务端批可等
-vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
+vibe_keyword_edit(subscription_id, kw, force=true)   # auto 词 —— 你的决定，没有服务端批可等
+vibe_keyword_edit(subscription_id, outcome="auto_retire", reason="0 relevant, N irrelevant")
 ```
 
 `n_rejected` 是跨评分者累计——分不清是谁的拒绝时，让 `invalid_sample` 仲裁：明显
@@ -536,8 +510,8 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 
 **C. 全 irrelevant ≠ 市场到头 —— 重生成词面。** 若你退役了一批噪声词（0 relevant）
 且交付仍缺 → 是词错了，不是需求没了。从供需画像重生成：sd 缺失 → `sd_gen.md` →
-`vibe_sd_update`；再 `kw_init.md`（或带现词行用 `kw_opt.md`）→ 新词面 →
-`vibe_keyword_add_batch`。**只有重生成的词面也失败**（新词又 0 命中或全 irrelevant）
+`vibe_subscribe`；再 `kw_init.md`（或带现词行用 `kw_opt.md`）→ 新词面 →
+`vibe_keyword_edit`。**只有重生成的词面也失败**（新词又 0 命中或全 irrelevant）
 才转向语料探索或报告。
 
 决策表（目标驱动，v2.2 sub 锚点 —— 2026-09-09）：
@@ -546,16 +520,16 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 |---|---|
 | 目标达成 / 超额 | `wait`（快环消化）|
 | 目标未达成、stock(new+sent)>0 | 评池（`score_batch.py`）——结果喂下轮本表 |
-| **sub 清单空** | 定搜索面：`vibe_sub_catalog`（A：真实交付过的 sub——库内已有货立即可搜；B/C：垂直/名录候选——可能需取货）→ `vibe_sub_list_update(subs, mode="replace")` → 服务器自动批量取货 needs_pull sub |
-| **清单 sub 全静默**（`pipeline_recent` 多轮 matched=0 且语料在长）| 扩清单——需求住在你没列的 sub 里：`vibe_sub_catalog(query=<产品/领域词>)` → 加候选（B/C 可能需一次性取货，~分钟/sub）|
-| 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题 | `vibe_keyword_remove` force + `vibe_opt_log` |
-| 退役后词面清空、目标仍缺 | **重生成**：sd_gen（sd 缺）→ kw_init/kw_opt → `vibe_keyword_add_batch` |
-| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → **扩/换搜索面**：`vibe_sub_search` / `vibe_sub_catalog` 找候选 sub → `vibe_sub_list_update` 加入（服务端排队取货）→ 下一轮从 `vibe_keywords` 命中统计判断表达好坏。**已无 agent 侧 probe**（`vibe_search_probe` 2026-09-11 下线：语料只经 sub 清单进来）|
-| NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_add_batch` |
+| **sub 清单空** | 定搜索面：`vibe_catalog`（A：真实交付过的 sub——库内已有货立即可搜；B/C：垂直/名录候选——可能需取货）→ `vibe_subscribe(subs, mode="replace")` → 服务器自动批量取货 needs_pull sub |
+| **清单 sub 全静默**（`pipeline_recent` 多轮 matched=0 且语料在长）| 扩清单——需求住在你没列的 sub 里：`vibe_catalog(query=<产品/领域词>)` → 加候选（B/C 可能需一次性取货，~分钟/sub）|
+| 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题 | `vibe_keyword_edit` force + `vibe_keyword_edit` |
+| 退役后词面清空、目标仍缺 | **重生成**：sd_gen（sd 缺）→ kw_init/kw_opt → `vibe_keyword_edit` |
+| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → **扩/换搜索面**：`vibe_catalog` / `vibe_catalog` 找候选 sub → `vibe_subscribe` 加入（服务端排队取货）→ 下一轮从 `vibe_keywords` 命中统计判断表达好坏。**已无 agent 侧 probe**（`vibe_search_probe` 2026-09-11 下线：语料只经 sub 清单进来）|
+| NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_edit` |
 | NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间记录尝试 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
 | `arctic.limited` | 暂停供给动作 —— 物理等待，非冷却 |
-| **`stats.pairs` 某格低产**（判过 ≥5 且交付率 <20%） | **先看 `hint` 再动手**: `配对问题`（词与 sub 各自在别处都不错）→ `vibe_pair_exclude` 声明排除该格; `词面问题` → 改词（`vibe_keyword_remove`）或换**更窄的词形**（`closed testing` → `closed testing testers`）; `sub 问题` → 考虑移 sub（`vibe_sub_list_update mode=remove`）。**别只看那个低数字就删 sub** —— 实测因此差点删掉 4 个**人群没问题**的 sub。 **⑦ 只在划算时才声明**: 必须 ① `hint=配对问题`（`词面问题`→改词; `sub 问题`→排除格治不了, 那要移 sub）② 该格 `unclaimed>0`（已捞干的格声明排除**零收益**）③ 若 `sub_rate_other_kw` 只有 0.2–0.3 且**各词都低** = 整个 sub 均匀低产而非某格塌陷 → 排除格治不了, 按「delivered>0 不自退」留着或考虑移 sub |
+| **`stats.pairs` 某格低产**（判过 ≥5 且交付率 <20%） | **先看 `hint` 再动手**: `配对问题`（词与 sub 各自在别处都不错）→ `vibe_keyword_edit` 声明排除该格; `词面问题` → 改词（`vibe_keyword_edit`）或换**更窄的词形**（`closed testing` → `closed testing testers`）; `sub 问题` → 考虑移 sub（`vibe_subscribe mode=remove`）。**别只看那个低数字就删 sub** —— 实测因此差点删掉 4 个**人群没问题**的 sub。 **⑦ 只在划算时才声明**: 必须 ① `hint=配对问题`（`词面问题`→改词; `sub 问题`→排除格治不了, 那要移 sub）② 该格 `unclaimed>0`（已捞干的格声明排除**零收益**）③ 若 `sub_rate_other_kw` 只有 0.2–0.3 且**各词都低** = 整个 sub 均匀低产而非某格塌陷 → 排除格治不了, 按「delivered>0 不自退」留着或考虑移 sub |
 
 **穷尽（唯一合法停止）** —— 交付仍缺 且 你已依序尝试并逐步验证：评分 → retire 噪声 →
 扩/刷新 sub 清单（catalog A/B/C）→ 从 sd 重生成词面 → probe → 报告。然后诚实报告试过
@@ -565,7 +539,7 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 #### 4. Act
 
 执行**一个**动作。加/停词**本身会自动留痕**（`kw_change_log`，按词记谁/何时/哪个词/做了什么，
-你只需要传 `note` 写理由）；再调 `vibe_opt_log(...)` 记录这一次的**决策叙事**（健康页可审计）。
+你只需要传 `note` 写理由）；再调 `vibe_keyword_edit(...)` 记录这一次的**决策叙事**（健康页可审计）。
 写下 **expect**：
 动作若有效，下一轮应看到什么（如"重生成的词一轮内命中" / "退役词停止入池垃圾" /
 "delivered 增 N"）？
@@ -580,11 +554,11 @@ vibe_opt_log(subscription_id, outcome="auto_retire", reason="0 relevant, N irrel
 **纪律**（无时间冷却 / 每日次数 —— v2 §5.3）：
 - 每轮一个方向性动作（收敛纪律，非节流）
 - verify 门控而非时钟门控：act → 看结果 → 决定下一步
-- **扩面而不是探面**：语料只经 sub 清单进来 —— `vibe_sub_search` / `vibe_sub_catalog` 挑 sub，
-  `vibe_sub_list_update` 加入（服务端排队取货），下一轮从 `vibe_keywords` 命中统计与
+- **扩面而不是探面**：语料只经 sub 清单进来 —— `vibe_catalog` / `vibe_catalog` 挑 sub，
+  `vibe_subscribe` 加入（服务端排队取货），下一轮从 `vibe_keywords` 命中统计与
   `pipeline_recent` 读结果。原 `vibe_search_probe`（agent 触发的同步拉取）已于 2026-09-11 下线，
   所以 "0 命中" 只能读作*在你清单 sub 之内*；要验证别处就把那个 sub 加进清单，等一轮管线。
-- 唯一硬等待是 ArcticShift 物理限流，经 `vibe_supply_status` 感知
+- 唯一硬等待是 ArcticShift 物理限流，经 `vibe_doctor` 感知
 
 #### 6. 审计日志（每轮）
 
@@ -603,7 +577,7 @@ vibe_leads(subscription_id=12, limit=10)          # peek=true 只读预览（免
                  todo{to_score,claimable_now,limits{…}}, next{do,why,args}}
     （limit 传超过档位上限时按上限返回: free 20 / Starter 30 / Pro 50）
 
-vibe_submit_score(scores=[
+vibe_score(scores=[
     {"id": 1, "verdict": "relevant",   "score": 90, "reason": "直接求方案"},
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "与产品无关"},
     ...
@@ -612,19 +586,19 @@ vibe_submit_score(scores=[
       # batch: {"submitted": 2, "max_batch": 100, "calls": 1, "bucket": "pipeline", "bucket_tokens": 1}
       # items: [{"id": 1, "verdict": "relevant", "delivered_id": 3488}]  ← 判 relevant 才有 delivered_id
       # progress: {stage:"intake", round:{scored_now:2, delivered_now:1},
-      #            todo:{to_score:16, claimable_now:34}, next:{do:"vibe_submit_score"|"vibe_leads"|…}}
-      # unmarked_delivered: 15   ← 已发出未标结果的条数 (>0 → vibe_mark_leads)
+      #            todo:{to_score:16, claimable_now:34}, next:{do:"vibe_score"|"vibe_leads"|…}}
+      # unmarked_delivered: 15   ← 已发出未标结果的条数 (>0 → vibe_leads)
       # 整批塞进这一次调用（最多 100 条）：N 条判定 = 1 次调用 = 1 个 pipeline token
       # 单条失败进 errors（带 index/id/code/err），不影响其余条目落库
 ```
 
 规则：
-- **首领即计费**：`vibe_leads` 返回 `billing` 块；同一条目由**先领的一端**计费，另一端领回免费；在月额度内为 $0，超出部分从**结算币种对应的钱包**扣 —— 美元钱包 `$5/千条`（Starter）/ `$3.50/千条`（Pro），或人民币钱包 `¥25/千条` / `¥18/千条`。两个钱包分开充值（Creem 充美元、微信充人民币 ¥1=¥1），用户可用 `vibe_set_currency` 切换。**告诉用户一次领取花多少是你的职责**。
-- **评分免费**：`vibe_submit_score` 无论如何判定都不产生费用；`relevant` 进交付列表（`vibe_delivered` 可查）。
+- **首领即计费**：`vibe_leads` 返回 `billing` 块；同一条目由**先领的一端**计费，另一端领回免费；在月额度内为 $0，超出部分从**结算币种对应的钱包**扣 —— 美元钱包 `$5/千条`（Starter）/ `$3.50/千条`（Pro），或人民币钱包 `¥25/千条` / `¥18/千条`。两个钱包分开充值（Creem 充美元、微信充人民币 ¥1=¥1），用户可用 `vibe_balance` 切换。**告诉用户一次领取花多少是你的职责**。
+- **评分免费**：`vibe_score` 无论如何判定都不产生费用；`relevant` 进交付列表（`vibe_delivered` 可查）。
 - **不相关也请回传**（`irrelevant`）：这是状态层学习你评价标准的方式——每次 `irrelevant`
   会降权产生该候选的词（服务端纯 SQL 状态迁移，不做 LLM）。**你的评分质量驱动词表质量**：
   认真评、读完整正文、按真实买家画像判断。敷衍或批量乱评会被一致性护栏识别并降权你的反馈影响。
-- **每条候选每轮领取评一次；判 `irrelevant` 的进回收池**（`vibe_rejected` 可查）——若事后
+- **每条候选每轮领取评一次；判 `irrelevant` 的进回收池**（`vibe_leads` 可查）——若事后
   （如点开原文后）觉得判错了，用 `vibe_recover_lead` 恢复再评。判 `relevant` 即最终（领取时已计费）
 - **领了就要全评**：你领取的候选进入 `pending`（**你自己**未评分的累积到 50 条时暂停领取）。`locked` 响应带
   `pending` 列表是**正常流程不是报错**——把每个 pending 候选评完（relevant 或 irrelevant）
@@ -645,7 +619,7 @@ vibe_submit_score(scores=[
   → 服务端**不交付**它们（该候选直接从池中删掉、不计费），响应里的 `skipped_no_body` 就是这批条数：
   **不用重试、也不是错误**，直接按实际返回的 `posts` 处理即可。
 - **保存返回的每个字段**：每个候选完整记录（id/title/url/subreddit/score，含正文）都要持久化。
-  `id` 之后 `vibe_get_delivered` 要用；不要只留标题。
+  `id` 之后 `vibe_delivered` 要用；不要只留标题。
 - 候选的 `score` 是系统参考分（仅供你参考，以你的判断为准）
 
 ## 待处理候选（`locked` 是正常流程）
@@ -690,7 +664,7 @@ vibe_submit_score(scores=[
 
 ```bash
 export VIBEDOLLAR_API_KEY=...        # 你的 vibedollar key
-export LLM_API_KEY=...               # **你自己的** LLM key（脚本可选: 不用脚本也行 —— 用你自己的模型判真后 vibe_submit_score 回传）
+export LLM_API_KEY=...               # **你自己的** LLM key（脚本可选: 不用脚本也行 —— 用你自己的模型判真后 vibe_score 回传）
 export LLM_BASE_URL=https://api.deepseek.com/v1
 export LLM_MODEL=deepseek-chat
 python3 scripts/score_batch.py --sub 12 --limit 20 --parallel 8 [--out ./evidence]
@@ -729,7 +703,7 @@ python3 score_batch.py --sub 355 --limit 20 --engine jev \
 python3 score_batch.py --sub 355 --engine jev --replay-answers run1.json   # 离线复跑（零 API）
 ```
 
-- **`confidence`**：按最强证据离 0.5 边界的距离折算到 [0,1]，回传给 `vibe_submit_score`。
+- **`confidence`**：按最强证据离 0.5 边界的距离折算到 [0,1]，回传给 `vibe_score`。
   服务端**只存不用**（不改 verdict/score、不参与计费）。
 - **`escalate_ids`**：**落在不确定带 `max(p1,p2) ∈ [0.3,0.7]`** 的条目 —— 建议你用 `judge_prompt` 复核一遍；
   （2026-09-21 判据调整：原来是"两个问句答案不一致"，实测 1145 条带独立盲判基准的真实线索 ——
@@ -761,22 +735,22 @@ python3 score_batch.py --sub 355 --engine jev --replay-answers run1.json   # 离
 # 首次 / 重建后 —— 生成 sd:
 scripts/sd_gen.md        → LLM（产品文案）→ 四段
 python3 scripts/sd_doc.py write --sub <sid> --json '{...}'   → data/sd_<sid>.md
-vibe_sd_update(subscription_id, supply_side=..., demand_side=..., ...)  # 后端副本
+vibe_subscribe(subscription_id, supply_side=..., demand_side=..., ...)  # 后端副本
 
 # 之后任何步骤 —— 读 + 注入（agent 原生读文件，无 replace）:
 python3 scripts/sd_doc.py show --sub <sid> --values   → 只出四字段值（剥离自描述头 —
    可直接放进 LLM user 消息，防记号泄漏）
-   （或 vibe_list_subs → sd_json —— 同数据，后端权威）
+   （或 vibe_subs → sd_json —— 同数据，后端权威）
 ```
 
 | 资产 | 何时加载 | 产出 → 持久化 |
 |---|---|---|
 | `scripts/sd_doc.py` | fetch/show/write sd 文档（`data/sd_<sid>.md`）—— 纯机械文件操作 | 是否生成/更新由你决定 |
-| `scripts/sd_gen.md` | 订阅无 sd（缺 supply_side/demand_side/demand_pain）—— 首次建立或重建后 | 供需四段 → sd_doc.py write + `vibe_sd_update` |
-| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd 文档 | 初始词表 → `vibe_keyword_add_batch`（source=auto）；去重对全状态 |
-| `scripts/kw_mine.md` | 已锁定**高精度人群 sub**（其人群 = 本订阅 demand_side），想要"他们真正会打的字" | 用 `vibe_sub_corpus` **逐贴全量扫**该 sub 语料（标题优先；实测 `r/alphaandbetausers` 3417 帖 = 7 次调用 / 13 秒），你的 LLM 按脚本里的 `sys` 提词 → 去重 → `vibe_keyword_add_batch(source=auto)` + `vibe_opt_log`。**服务端零语义**：只翻页，不筛选/不排序/不抽词 |
-| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd 文档 + 现词（active+monitor 行）| `{add, weak}` → add 走 `vibe_keyword_add_batch`（去重对全状态 —— 勿复活 removed 死词）; weak 按决策表守卫 |
-| `scripts/judge_prompt.md` | `score_batch.py` 默认判真模板（profile 可编辑、契约固定）| 逐条 verdict → `vibe_submit_score` |
+| `scripts/sd_gen.md` | 订阅无 sd（缺 supply_side/demand_side/demand_pain）—— 首次建立或重建后 | 供需四段 → sd_doc.py write + `vibe_subscribe` |
+| `scripts/kw_init.md` | 词表为空（初始建立）—— 需先有 sd 文档 | 初始词表 → `vibe_keyword_edit`（source=auto）；去重对全状态 |
+| `scripts/kw_mine.md` | 已锁定**高精度人群 sub**（其人群 = 本订阅 demand_side），想要"他们真正会打的字" | 用 `vibe_sub_posts` **逐贴全量扫**该 sub 语料（标题优先；实测 `r/alphaandbetausers` 3417 帖 = 7 次调用 / 13 秒），你的 LLM 按脚本里的 `sys` 提词 → 去重 → `vibe_keyword_edit(source=auto)` + `vibe_keyword_edit`。**服务端零语义**：只翻页，不筛选/不排序/不抽词 |
+| `scripts/kw_opt.md` | 决策循环判"扩词" / 一轮退役后 —— 需有 sd 文档 + 现词（active+monitor 行）| `{add, weak}` → add 走 `vibe_keyword_edit`（去重对全状态 —— 勿复活 removed 死词）; weak 按决策表守卫 |
+| `scripts/judge_prompt.md` | `score_batch.py` 默认判真模板（profile 可编辑、契约固定）| 逐条 verdict → `vibe_score` |
 | `scripts/eng_sys_core.md` | **只读**评分核心（计费契约）。原样引用，禁止编辑 | judge 对齐参考 |
 
 **顺序重要**：先 sd 后词。`sd_gen.md` 产出需求侧画像（买家语言）——`kw_init`/`kw_opt`
@@ -789,7 +763,7 @@ python3 scripts/sd_doc.py show --sub <sid> --values   → 只出四字段值（�
 vibe_subscribe(product="team wiki tool for small teams")   # 创建订阅（只需产品描述）
     → {"ok": true, "subscription_id": 12, "message": "订阅创建成功, 后台正在跟踪..."}
     ↓ 系统持续跟踪，线索积累（无需你操作）
-vibe_list_subs()                                          # 查看订阅状态 + 待领取数
+vibe_subs()                                          # 查看订阅状态 + 待领取数
     → {"ok": true, "data": {"subscriptions": [{"id": 12, "product": "...", "new_leads": 7}]}}
     ↓
 vibe_leads(subscription_id=12, limit=10)                  # 领取候选（按领取计费，秒回）
@@ -798,7 +772,7 @@ vibe_leads(subscription_id=12, limit=10)                  # 领取候选（按�
                    "claimed_this_month": 1207, "claimed_quota": 5000, "over_price_per_1k": 5.0,
                    "daily_used": 87, "daily_cap": 1000, "wallet": 0.0, "wallet": 0.0, "wallet_usd": 0.0}}
     ↓ 你的 agent 评分后回传（评分免费）
-vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason": "..."}])
+vibe_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason": "..."}])
     → {"ok": true, "passed": 1, "quota_used": 1, ...}
 ```
 
@@ -808,7 +782,7 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 - **线索在首次领取时计费（两端任一端先领即算），评分免费**；订阅本身不额外收费
 - **先处理再取下一批**：已领取的候选需全部评分（相关/不相关都算）后，才能领取下一批；未处理完时再次领取会返回**待处理候选列表（含 id）**——直接用这些 id 评分即可解锁下一批（id 丢了也能找回，不会锁死订阅）。长期未评分的候选（7 天）会自动过期释放。
 
-**取消订阅**用 `vibe_unsubscribe`（已积累线索保留）。
+**取消订阅**用 `vibe_subscribe`（已积累线索保留）。
 
 ## 数据分析用法（下游 —— 需要时再读）
 
@@ -818,11 +792,11 @@ vibe_submit_score(scores=[{"id": 1, "verdict": "relevant", "score": 90, "reason"
 
 ## Agent 使用提示
 
-- **丢了 API key？** 引导找回：`vibe_recover_key(email)` → `vibe_recover_verify(email, code)`
+- **丢了 API key？** 引导找回：`vibe_account(email)` → `vibe_account(email, code)`
   （或引导打开 https://vibedollar.net/account.html → "Lost your API key? Recover it"），无需重新注册。
-- **盯住 `claim_quota` 块**：`vibe_balance()` 返回 `claim_quota {month_used, month_limit, currency, over_price_per_1k, daily_used, daily_cap, wallet, wallet_usd}`，以及 `wallets{usd,cny}` 与 `settlement_currency` —— 主动告诉用户当前状态（额度用了多少、每日上限、超量从哪个钱包扣），别等他自己发现被扣费；若他充的是另一个币种，引导他用 `vibe_set_currency`。
+- **盯住 `claim_quota` 块**：`vibe_balance()` 返回 `claim_quota {month_used, month_limit, currency, over_price_per_1k, daily_used, daily_cap, wallet, wallet_usd}`，以及 `wallets{usd,cny}` 与 `settlement_currency` —— 主动告诉用户当前状态（额度用了多少、每日上限、超量从哪个钱包扣），别等他自己发现被扣费；若他充的是另一个币种，引导他用 `vibe_balance`。
 - **注册与支付流程**：见 `references/billing.zh-CN.md`（agent 完成全流程；用户的唯一动作是提供邮箱/验证码、扫码或点链接）。
-- **典型工作流**：`vibe_subscribe`（订阅产品，后台持续抓取）→ `vibe_leads` 领候选（此时计费）→ 你的 agent 用自己的 LLM 评分（免费）→ `vibe_submit_score` 回传 → 相关线索进交付列表（验证需求 + 找到第一批客户）。
+- **典型工作流**：`vibe_subscribe`（订阅产品，后台持续抓取）→ `vibe_leads` 领候选（此时计费）→ 你的 agent 用自己的 LLM 评分（免费）→ `vibe_score` 回传 → 相关线索进交付列表（验证需求 + 找到第一批客户）。
 
 ## 定价 / 支付 / 接入（参考文档）
 
