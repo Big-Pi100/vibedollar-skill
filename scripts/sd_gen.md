@@ -1,7 +1,7 @@
 # sd_gen.md — supply/demand structure generator (product → sd four fields)
 
 > **How to use (no placeholder replacement — the sd is a runtime data doc):**
-> 1. Fetch the subscription's current product: `vibe_list_subs` → product text.
+> 1. Fetch the subscription's current product: `vibe_subs` → product text.
 > 2. Call your LLM with `sys` below as system and a `user` message of:
 >    `PRODUCT:\n<product text>`
 > 3. Parse the JSON reply → the four fields (supply_side / demand_side /
@@ -10,8 +10,8 @@
 >    optimization) inject it without re-generating:
 >    - local: `python3 scripts/sd_doc.py write --sub <sid> --json '<sd json>'`
 >      → `data/sd_<sid>.md` (the file your agent reads when injecting)
->    - backend (authoritative store): `vibe_sd_update(subscription_id=..., ...)`
-> 5. Later scoring / kw_init / kw_opt read `data/sd_<sid>.md` (or `vibe_list_subs`
+>    - backend (authoritative store): `vibe_subscribe(subscription_id=..., ...)`
+> 5. Later scoring / kw_init / kw_opt read `data/sd_<sid>.md` (or `vibe_subs`
 >    sd_json) and put its content into their LLM user message as
 >    `[SUPPLY/DEMAND STRUCTURE]` — no template placeholders anywhere.
 >
@@ -19,13 +19,13 @@
 >    the four fields MUST be written in the subscription's **target language**, never mixed.
 >    Read it from any of these (same value, 订阅级 → 账号级 → 按产品描述自动判):
 >      · `vibe_leads(...)` response → `data.lang` / `data.lang_source`
->      · `vibe_sd_update(...)` response → `lang` / `lang_source` (and `lang_mismatch:true` if you got it wrong)
->    Want a different default? `vibe_set_lang(lang='en'|'zh'|'', subscription_id=0)` —
+>      · `vibe_subscribe(...)` response → `lang` / `lang_source` (and `lang_mismatch:true` if you got it wrong)
+>    Want a different default? `vibe_balance(lang='en'|'zh'|'', subscription_id=0)` —
 >    `0` = account-wide default, `>0` = override for that one subscription; `''` = auto (by product text).
 >    ⚠️ The backend **does not generate** sd_json and **will not translate** it: if you write the wrong
 >    language, the server returns `lang_mismatch` and the scope stays inconsistent until you rewrite it.
 >
-> When to run: sd_json empty / incomplete (check `vibe_list_subs` sd_json or
+> When to run: sd_json empty / incomplete (check `vibe_subs` sd_json or
 > `data/sd_<sid>.md`). Front-end source of truth: `site/js/app.js` orchPrompts().sdGen.
 
 `sys`:
@@ -45,4 +45,4 @@ Reply ONLY with a JSON object (no markdown), keys exactly: supply_side, demand_s
 
 TARGET_LANG: [en | zh — from vibe_leads.data.lang (never guess)]
 PRODUCT:
-[product text from vibe_list_subs]
+[product text from vibe_subs]

@@ -3,13 +3,13 @@
 > **How to use (no placeholder replacement — sd is a runtime data doc):**
 > 1. Ensure the subscription has an sd doc: `python3 scripts/sd_doc.py show --sub <sid>`
 >    (if absent: run `sd_gen.md` first, or `sd_doc.py fetch --sub <sid>`).
-> 2. Read the sd content from `data/sd_<sid>.md` (or vibe_list_subs sd_json) and the
->    product text (vibe_list_subs).
+> 2. Read the sd content from `data/sd_<sid>.md` (or vibe_subs sd_json) and the
+>    product text (vibe_subs).
 > 3. Call your LLM with `sys` below as system and a `user` message built by injecting
 >    that content — see the `user` template below.
 > 4. Parse JSON → dedup against current keywords (any status; never re-add an existing
 >    auto word — that would take manual ownership) → agent decides → persist via
->    `vibe_keyword_add_batch(subscription_id, keywords, source=auto)`.
+>    `vibe_keyword_edit(subscription_id, keywords, source=auto)`.
 >
 > When to run: keyword face empty (initial setup after `vibe_subscribe`, or after a
 > full sweep). Requires sd present. Front-end source of truth:

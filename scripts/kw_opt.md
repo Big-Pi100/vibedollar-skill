@@ -13,17 +13,17 @@
 > 4. Parse JSON → then (agent decides, SKILL.md decision table governs):
 >    - **add — dedup against ALL statuses before persisting**: a proposed word whose
 >      exact lowercase already exists as removed/retire is a dead word (0-hit retired
->      earlier) — adding it revives it via `vibe_keyword_add`. Drop it unless you have
+>      earlier) — adding it revives it via `vibe_keyword_edit`. Drop it unless you have
 >      probe evidence the phrasing now surfaces posts. Never re-add an existing active
 >      auto word (would take manual ownership).
->    - add (kept) → `vibe_keyword_add_batch(source=auto)`
+>    - add (kept) → `vibe_keyword_edit(source=auto)`
 >    - weak → **candidate only, NOT an auto-retire verdict** — retiring still follows
 >      SKILL.md decision-table row-1: only words with **0 delivered + ≥2 rejected +
->      invalid_sample off-topic** may be removed (`vibe_keyword_remove` force). A word
+>      invalid_sample off-topic** may be removed (`vibe_keyword_edit` force). A word
 >      with n_delivered>0 is kept even if kw_opt flags it weak (it has produced buyers;
 >      flagging weak means "watch it", not "kill it"). Verify invalid_sample before
 >      retiring; manual words never touched.
->    - log via `vibe_opt_log(outcome, reason, n_new_kw, n_replaced)`
+>    - log via `vibe_keyword_edit(outcome, reason, n_new_kw, n_replaced)`
 >
 > When to run: decision loop says "expand" (NEW30 hitting but stock low) or after a
 > retire sweep — optimize the word face. Front-end source of truth:
@@ -41,14 +41,14 @@ You are a keyword optimizer for Reddit demand discovery. Given a product, its su
 "weak" = CURRENT keywords that are clearly underperforming: near-zero hits/pooled, OR umbrella/category words that mostly pool generic chatter unrelated to the demand profile (even if pooled>0, flag them as weak when their wording is a category umbrella, not the pain language), OR words whose delivered leads are mostly marked invalid or rejected.
 Reply ONLY with a JSON object: {"add":[{"kw":"...","kw_type":"entity|tail|competitor|comment"}], "weak":["kw1","kw2"]}. max 5 add, max 3 weak. Same language as the sd/product.
 
-`user` (assemble from `data/sd_<sid>.md` + product (vibe_list_subs.product) + rows (active/monitor only) — nothing here is literal):
+`user` (assemble from `data/sd_<sid>.md` + product (vibe_subs.product) + rows (active/monitor only) — nothing here is literal):
 
 SUPPLY: [supply_side value from sd doc]
 DEMAND (target audience): [demand_side value from sd doc]
 PAIN (first person): [demand_pain value from sd doc]
 
 PRODUCT (reference only):
-[product text from vibe_list_subs]
+[product text from vibe_subs]
 
 CURRENT KEYWORDS (active + monitor only):
 [rows — one per line: kw | type= | query= | hit= | pooled= | avgScore= | delivered= | invalid= | rejected= | invalidSample="..."]

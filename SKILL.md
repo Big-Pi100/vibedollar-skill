@@ -167,7 +167,7 @@ loop — do not skip judging and go write drafts.
    The server is zero-LLM and serves **no generic templates** (generic lines are unrelated to the
    lead) — the draft can only come from you.
 
-**Warm-up was removed in 2026-10-19.** The warm-up tools (`vibe_warmup_*`, `vibe_account_ramp`)
+**Warm-up was removed in 2026-10-19.** The warm-up tools (`vibe_warmup_*`, `vibe_doctor`)
 now return `tool_removed`. Building up an account is left to you: pick communities with
 `vibe_catalog(query=)`, check per-community rules with `vibe_community(kind="safety", sub=)`,
 and study what gets engagement via `vibe_sub_posts(order="score")` / `vibe_community(kind="commenters")`.
@@ -316,7 +316,7 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
   · Candidates may have **no** system pre-score: `score: null` + `prescored: false` (then `score_note` says so explicitly). Older doc text claiming a system reference score is superseded by `score_note`.
   · `vibe_delivered` rows now carry `has_draft` / `draft_len` (**per-row draft discovery without fanning out advice**), plus `draft_skip`, `outreach_state`, `outreach_replies_n`.
   · `todo.to_mark.delivered_ids` returns at most 20 ids; beyond that `ids_truncated: true` + `ids_limit: 20`.
-  · **Not enough karma / ramping an account**: call `vibe_account_ramp(subscription_id)` — it splits your communities into "postable now" / "gate short by N" / "gate unknown" / "actually removed here" and gives the target karma, the gap, and an ETA at 5-15 karma/day. **The server never farms karma** (no posting, no voting); ramping means the human keeps providing value in real conversations, then updates `vibe_outreach` (a snapshot is recorded, watch `karma_trend`).
+  · **Not enough karma / ramping an account**: call `vibe_doctor(subscription_id)` — it splits your communities into "postable now" / "gate short by N" / "gate unknown" / "actually removed here" and gives the target karma, the gap, and an ETA at 5-15 karma/day. **The server never farms karma** (no posting, no voting); ramping means the human keeps providing value in real conversations, then updates `vibe_outreach` (a snapshot is recorded, watch `karma_trend`).
   · `publish_verdict` = "can my account post in this community" (a different question from `verdict`). The **platform prior (new account / low karma) is advice only** (`prior.advisory=true`, `basis=platform_prior_advisory`) — it is not this community's archived rule, and in practice the same account's comments were **not** removed in several subs. Only **evidence-based** cases yield `hold`/`no`: account profile missing, an archived gate with no numeric value, or a gate you genuinely miss (`blocks: karma_block|acct_age_block`). So once a draft is ready you can **test the waters in a small community** — do not let the prior scare you off.
   · Every `vibe_delivered` row carries both `id` and `delivered_id` (same value) — other receipts use `delivered_id`, so you cannot feed the wrong one.
   · A failing `draft_check` now also returns `failed_detail[{k,hit,note}]` — the **offending snippet** shows which phrase tripped it.

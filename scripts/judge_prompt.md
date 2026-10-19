@@ -4,7 +4,7 @@
 **下文的评分契约与计费绑定 —— verdict/score 分段不可改** (规范见
 `eng_sys_core.md`, 只读的评分核心)。每个订阅可编辑的是需求侧画像 —— sd 四段来自
 该订阅的供需分析文档 `data/sd_<sid>.md` (生成/校准见 `sd_gen.md` + `scripts/sd_doc.py`;
-后端权威副本在 product_subs.sd_json, `vibe_sd_update` 写)。
+后端权威副本在 product_subs.sd_json, `vibe_subscribe` 写)。
 
 口径的来历与实测见 `docs/lead-relevance-caliber-20260921.md` (**改本文件前先读它**)。
 
@@ -60,4 +60,4 @@ Judgment rules (aligned with ENG_SYS_CORE — the billing contract):
      changes your verdict (see the model-layer split principle).
 
 (score_batch.py appends the subscription's [SUPPLY/DEMAND STRUCTURE] block after this
-template when sd_json exists — see vibe_list_subs; generate sd via sd_gen.md if empty.)
+template when sd_json exists — see vibe_subs; generate sd via sd_gen.md if empty.)

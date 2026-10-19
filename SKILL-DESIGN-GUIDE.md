@@ -164,7 +164,7 @@ SKILL.md 回答三个问题：
       只有两段零散提示，agent 跑到"stock>0 → score first"后无下一步（345 A2 实测暴露）。
       本次：新增 **"Agent decision loop (per subscription, per round)"** 节（EN/ZH 同步）——
       perceive/plan/act/verify 四步 + 决策表；**A. 评分反馈优先闭环**（词 0 delivered +
-      ≥2 irrelevant → 当轮 `vibe_keyword_remove(force)` 退役，不等服务端每日批）；
+      ≥2 irrelevant → 当轮 `vibe_keyword_edit(force)` 退役，不等服务端每日批）；
       B. NEW30 边际产出（created_at 近 30 天词命中率 → 扩或停）；C. collecting_ok/catalog
       判据③；决策表 6 行；verify 门控 + 策略切换纪律（无时钟冷却）；审计日志要求。
       替换旧 "Delivery-health tuning"（gap 驱动已过时）+ "Supply-side decisions" 两节；
@@ -181,7 +181,7 @@ SKILL.md 回答三个问题：
       模板，判真也不注入 sd（前端带 [SUPPLY/DEMAND]，skill score_batch 只拼 product）。
       本次：资产化 `scripts/sd_gen.md` / `kw_init.md` / `kw_opt.md` /
       `eng_sys_core.md`（只读 — 计费契约）；judge_prompt.md 对齐 ENG_SYS_CORE（炫耀帖/
-      成熟卖家排除 0-29，契约段不可改）；score_batch.py 从 vibe_list_subs 读 sd_json 注入
+      成熟卖家排除 0-29，契约段不可改）；score_batch.py 从 vibe_subs 读 sd_json 注入
       system；SKILL.md/zh 新增 "Setup & tuning prompts" 资产表（顺序：sd → kw → judge），
       修复旧节名交叉引用；前端单源迁移仍待做（app.js 与 scripts/*.md 并存，阶段 C 收口）。
 - [x] **A2.5. 决策循环 v2.1 交付驱动重写（2026-09-08，用户裁决⑥⑦）**：旧决策循环
@@ -196,7 +196,7 @@ SKILL.md 回答三个问题：
       块用 `{supply_side}` 等占位符 —— 那是前端 JS 拼模板的产物；agent 场景无替换机制，
       子 agent 被迫现场手写 151 行执行器填占位符。本次：sd 四段文档化为运行时数据
       `data/sd_<sid>.md`（git-ignored 每宿主私有，`.gitignore` 排除）；新增纯执行器
-      `scripts/sd_doc.py`（fetch/show/write —— 从 vibe_list_subs 拉 sd_json 写本地文档）；
+      `scripts/sd_doc.py`（fetch/show/write —— 从 vibe_subs 拉 sd_json 写本地文档）；
       sd_gen/kw_init/kw_opt 的 user 块改"注入说明"（读 data/sd_<sid>.md 组装 user 消息），
       模板零占位符；kw_init/kw_opt sys 补 tail 形态硬约束（2-4 词名词短语，禁
       "at home nails"/"kit hard to use" 场景句 —— 345 噪声实证）；SKILL.md/zh 资产表
@@ -230,7 +230,7 @@ SKILL.md 回答三个问题：
       用户但 active-struggle 契约判低 → sd_gen demand_side 补双边市场双侧描述要求。
 - [x] **A2.10. sd 静默截断修复（2026-09-08，字符截断全仓排查）**：DB schema 全 TEXT
       无 DB 层截断, 截断全在应用层。sd 600 上限前后端一致但超限无提示 → 上限 600→800
-      (后端 vibe_sd_update + 前端 app.js 4 处 slice 同步); vibe_sd_update 超限返回
+      (后端 vibe_subscribe + 前端 app.js 4 处 slice 同步); vibe_subscribe 超限返回
       truncated 信号; sd_gen sys 加每段 ≤800 硬约束; sd_doc write/fetch 加超限警告 +
       本地比后端长漂移检测; opt_log reason 120→800/outcome→80, submit_score reason
       300→800 (进 invalid_sample 仲裁依据)。实测 900 字 → truncated 提示 + 存 800。
@@ -238,7 +238,7 @@ SKILL.md 回答三个问题：
       relevant 才计费（pay-per-outcome）"在服务端**无法核验**——评分是用户 agent 在自己
       LLM 上做的，判真标准不可审计，绕过即免费。新口径 = **按账号合计的"首次领取候选条目"
       计费**（`usage_log.leads_used`，服务端计量）。本轮 skill 侧同步：
-      **SKILL.md / SKILL.zh-CN.md**（工具表 `vibe_leads`/`vibe_submit_score`/`vibe_balance`/
+      **SKILL.md / SKILL.zh-CN.md**（工具表 `vibe_leads`/`vibe_score`/`vibe_balance`/
       `vibe_sub_health`、规则块"领取即计费 / 评分免费"、订阅模式示例带 `billing` 块 +
       "**Paid on pass only** → billed when claimed" 修正、pending 段"claiming costs money,
       scoring is free"、Agent tips 改盯 `claim_quota`、脚本 `费用` 行）；

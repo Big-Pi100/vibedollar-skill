@@ -92,7 +92,7 @@
 
 1. **先跑一批真实的**: `score_batch.py --sub <sid> --limit 30 --engine jev --record-answers run.json`,
    然后**只复核升级带** (`escalate_ids`), 按 `judge_prompt.md` 自己判 —— 不一致的用
-   `vibe_submit_score(override=True)` 覆盖。
+   `vibe_score(override=True)` 覆盖。
 2. **聚类你改判的那些条目** —— 如果它们**集中在同一个类**(vibedollar 那次 14 条里 11 条是同一类),
    那就是你的问句**漏掉了一个边界清晰的类** → 给它加一对 `gate`。
    (如果改判的条目**散在各处**, 那是噪声, 不是缺类, 别乱加问句。)

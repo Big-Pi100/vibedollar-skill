@@ -2,13 +2,13 @@
 
 > **何时跑**: 你已经确认某个 sub 的**人群本身就是本订阅的 demand_side**(人群画像 sub), 想让它的人
 > **自己说出来的话**变成词表 —— 而不是从产品描述里猜词。
-> **前置**: 该 sub 的语料已采集 (`vibe_sub_corpus` 回执 `total > 0`; 为 0 先
-> `vibe_sub_list_update(mode="add")` 加清单, 等服务器取货)。
+> **前置**: 该 sub 的语料已采集 (`vibe_sub_posts` 回执 `total > 0`; 为 0 先
+> `vibe_subscribe(mode="add")` 加清单, 等服务器取货)。
 >
 > **方向与常规相反**: 常规是"先定词 → 词决定捞到谁"; 这条是"**先定人群(sub) → 语料决定词**"。
 > owner 2026-09-21: 「从精准人群画像 sub 中逐贴全量扫描从而进一步提炼 kw 的路径」。
 >
-> **服务端零语义**: `vibe_sub_corpus` 只做确定性翻页 (不筛选 / 不排序语义 / 不抽词 / 不打分)。
+> **服务端零语义**: `vibe_sub_posts` 只做确定性翻页 (不筛选 / 不排序语义 / 不抽词 / 不打分)。
 > **提词是你的 LLM 的活** —— owner 定调:「机械抽词就不应该存在, 要不就是 agent 去做」。别指望服务端给候选词。
 
 ## 步骤
@@ -16,12 +16,12 @@
 1. **选 sub (必须是人群画像 sub)**。判据: 这个 sub 里的人**正在经历产品要解决的问题**, 而不是
    同行/供应商/新闻读者。反例: 一个"卖 AI 工具"的订阅, `r/artificial` 是话题 sub, 不是人群 sub;
    而 `r/alphaandbetausers` (都在招 beta 测试者)、`r/microsaas` (都在找首批用户) 是人群 sub。
-   找法: `vibe_sub_search(query=<demand_side 里的短领域词>)` 或 `vibe_sub_catalog`。
+   找法: `vibe_catalog(query=<demand_side 里的短领域词>)` 或 `vibe_catalog`。
 2. **标题优先, 全量扫完**:
    ```
    cur = ""
    while True:
-       d = vibe_sub_corpus(sub=S, limit=500, cursor=cur)   # 不带正文 —— 便宜且标题已承载"我在找什么"
+       d = vibe_sub_posts(sub=S, limit=500, cursor=cur)   # 不带正文 —— 便宜且标题已承载"我在找什么"
        <把 d["posts"] 的 title 交给你的 LLM, 用下面的 sys>
        cur = d["next_cursor"]
        if not d["has_more"]: break
@@ -33,11 +33,11 @@
    - 与现有词表去重: `vibe_keywords(subscription_id, status="all")` —— **任何状态都算重复**;
      已 removed/retire 的词不复活 (除非你有这次语料里的新证据)。
    - 剔除**产品自己的词**: 帖子作者不会写你的产品名/功能名, 那是"搜索目标的描述"不是买家语言。
-   - `vibe_keyword_add_batch(subscription_id, keywords, source=auto)` 落库,
-     `vibe_opt_log(outcome="mined", reason=…, n_new_kw=N)` 记一笔,
+   - `vibe_keyword_edit(subscription_id, keywords, source=auto)` 落库,
+     `vibe_keyword_edit(outcome="mined", reason=…, n_new_kw=N)` 记一笔,
      reason 里写明**从哪个 sub / 扫了多少帖**捞出来的 (审计链)。
 5. **不要顺手把 sub 加进清单** —— 加清单是第 1 步的事, 且必须是你判断过的人群 sub。
-   本脚本只产词; 清单变更走 `vibe_sub_list_update`。
+   本脚本只产词; 清单变更走 `vibe_subscribe`。
 
 ## ⚠️ 容量警戒 (2026-09-21 首跑踩到的坑)
 
@@ -64,7 +64,7 @@
    再决定要不要落那些**双泛词组合** (`honest feedback` / `feedback wanted` 这类)。
 2. **单批有上限意识**: 一批落库若让未领库存**超过本订阅剩余领取配额 (回执 `limits.quota_left`)**,
    就该停手 —— 超出配额的部分这一周期永远领不到。
-3. **泛词要么不落, 要么落完立刻用 `vibe_pool_purge` 控面** (先 `dry_run`; 清未领取库存
+3. **泛词要么不落, 要么落完立刻用 `vibe_doctor` 控面** (先 `dry_run`; 清未领取库存
    **零账目影响**, 不动已计费历史)。
 
 
@@ -91,14 +91,14 @@
 
 **流程**: ① 分层抽样库存 (不领取 = 不计费) → ② 剥掉 kw 列盲判 → ③ 按精度决定
 删词 / 清库存 (低精度但对口的词**保词清库存**; 低精度且词形本身泛的**删词**) →
-④ `vibe_opt_log` 记全因。判分前**不要**替客户做这个判断。
+④ `vibe_keyword_edit` 记全因。判分前**不要**替客户做这个判断。
 
 ### 清单级扫描（2026-09-21 首跑）—— 它**首先是个筛 sub 的工具**
 
 **何时跑**: 清单里有些 sub 只被少数关键词覆盖(说明我们不会说那伙人的话), 或想复核某个 sub 该不该留在清单。
 
 **怎么跑**:
-- 每个 sub 抽 **200 条 = 100 最新 + 100 最旧** (`vibe_sub_corpus(order="new")` + `order="old"`) ——
+- 每个 sub 抽 **200 条 = 100 最新 + 100 最旧** (`vibe_sub_posts(order="new")` + `order="old"`) ——
   只看最新会漏掉半年前的表达。实测整个清单 16 个 sub = **16 次调用 ≈ 4.8 万 token**, 语言季度级稳定,
   所以这是**季度级一次性活**, 不是每轮跑。
 - 优先级由**覆盖矩阵**定: 先扫「被少数词命中」的 sub (首跑: AffiliateMarket 6 / startup 6 /

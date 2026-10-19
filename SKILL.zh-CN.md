@@ -150,7 +150,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
    不承诺代做）并落库; app 的线索卡片会**优先显示**这一版。
    服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写。
 
-**养号功能已于 2026-10-19 下线。** 相关工具（`vibe_warmup_*`、`vibe_account_ramp`）现在返回 `tool_removed`。
+**养号功能已于 2026-10-19 下线。** 相关工具（`vibe_warmup_*`、`vibe_doctor`）现在返回 `tool_removed`。
 账号怎么养由你自己判断：用 `vibe_catalog(query=)` 选社区，用 `vibe_community(kind="safety", sub=)`
 看社区规则，用 `vibe_sub_posts(order="score")` / `vibe_community(kind="commenters")` 看什么内容被认可。
 

@@ -26,16 +26,16 @@
 
 | 工具 | 能干什么 | 成本 |
 |:-----|:---------|:-----|
-| `vibe_register` / `vibe_verify` | 两步注册获取 API key | 免费 |
+| `vibe_register` / `vibe_register` | 两步注册获取 API key | 免费 |
 | `vibe_balance` | 查余额 / tier / 本月领取额度与每日上限 | 免费 |
 | `vibe_subscribe` | 订阅产品（输入描述，后台持续抓取候选） | 免费 |
 | `vibe_leads` | 领取线索（含作者/正文/系统参考分 + `billing` 记账块） | **按领取条数计费** |
-| `vibe_submit_score` | 评分回传：`relevant` 进交付列表，`irrelevant` 回灌优化 | **免费** |
+| `vibe_score` | 评分回传：`relevant` 进交付列表，`irrelevant` 回灌优化 | **免费** |
 | `vibe_score_discuss` | 查看/回应你与系统参考评分的分歧（标准对齐） | 免费 |
-| `vibe_list_subs` / `vibe_unsubscribe` | 订阅管理 | 免费 |
-| `vibe_delivered` / `vibe_get_delivered` | 已交付线索（回访） | 免费 |
-| `vibe_mark_leads` | 标记线索结果（valid/contacted） | 免费 |
-| `vibe_recover_key` / `vibe_recover_verify` | 找回 API key（邮箱验证后发到邮箱）| 免费 |
+| `vibe_subs` / `vibe_subscribe` | 订阅管理 | 免费 |
+| `vibe_delivered` / `vibe_delivered` | 已交付线索（回访） | 免费 |
+| `vibe_leads` | 标记线索结果（valid/contacted） | 免费 |
+| `vibe_account` / `vibe_account` | 找回 API key（邮箱验证后发到邮箱）| 免费 |
 
 **计费说明**：线索在**首次领取**时计费（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**。每日交付上限（Free/Starter 1,000、Pro 3,000）超出部分顺延次日，永不丢失。
 
@@ -47,7 +47,7 @@
 2. **注册获取 API key**（两步）：
    ```
    vibe_register(email="you@example.com")   # 发送 6 位邮箱验证码
-   vibe_verify(email="you@example.com", code="123456")  # 验证码验证, 返回 api_key
+   vibe_register(email="you@example.com", code="123456")  # 验证码验证, 返回 api_key
    ```
    API key 同时通过邮件发送到你的邮箱。解锁领取额度：订阅 Starter/Pro，或自由充值钱包（微信 ¥1~¥1000 / Creem $1~$200）。Free 档本身已含每月 1,000 条。
 3. **配置鉴权 Header**：`Authorization: Bearer <key>`（部分客户端不支持自定义 Authorization 时用 `Api-Key: <key>`）
@@ -61,13 +61,13 @@
 ```
 vibe_subscribe(product="team wiki tool for small teams")
     → {"ok": true, "subscription_id": 12, "message": "订阅创建成功, 后台正在跟踪..."}
-vibe_list_subs()                          # 查看订阅状态 + 待领取数
+vibe_subs()                          # 查看订阅状态 + 待领取数
 vibe_leads(subscription_id=12, limit=10)  # 领取 10 条（按领取计费）
     → {"id": 1, "title": "...", "url": "...", "score": 90, "reason": "...", ...,
        "billing": {"claimed_batch": 10, "free_items": 10, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                    "claimed_this_month": 10, "claimed_quota": 5000,
                    "daily_used": 10, "daily_cap": 1000}}
-vibe_submit_score(scores=[
+vibe_score(scores=[
     {"id": 1, "verdict": "relevant",   "score": 90, "reason": "直接求方案"},
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "与产品无关"},
 ])
@@ -109,7 +109,7 @@ vibe_submit_score(scores=[
 
 **用户唯一需要做的动作是「扫码付款」**——注册、下单、生成二维码、确认开通全部由你（Agent）完成。
 
-1. **确认/注册 api_key**：`vibe_balance()` 确认 → 未注册则 `vibe_register(email)` → 用户给验证码 → `vibe_verify` 拿 key。**不要要求用户自己注册**。
+1. **确认/注册 api_key**：`vibe_balance()` 确认 → 未注册则 `vibe_register(email)` → 用户给验证码 → `vibe_register` 拿 key。**不要要求用户自己注册**。
 2. **按用户位置选择支付渠道**：
    | 用户位置 | 渠道 | 价格 |
    |---------|------|------|
@@ -156,7 +156,7 @@ vibe_submit_score(scores=[
 - **按领取计费（2026-09-10）**：线索在**首次领取**时计费；评分、重复查看、导出免费（服务端按领取记账，可核验）
 - **数据服务架构**：服务端 = 纯数据/状态层（采集 + 匹配 + SQL 状态迁移）；评分与词表调优归你（你的 LLM）
 - **2026-09-05 工具扩展**：新增 9 个管理工具——keywords/keyword_add/keyword_remove（词表管理）、sd_update（供需判定口径）、sub_health/opt_log（交付健康驱动调优）、rejected/recover_lead（回收复核）、subs（来源统计）
-- **2026-09-06 keyword_add_batch**：`vibe_keyword_add_batch` 一次调用加 N 词（逐条语义同 keyword_add）——初始词/扩词用批量而非循环，留在账号限流窗内
+- **2026-09-06 keyword_add_batch**：`vibe_keyword_edit` 一次调用加 N 词（逐条语义同 keyword_add）——初始词/扩词用批量而非循环，留在账号限流窗内
 - **交付评估（2026-09-10）**：`vibe_sub_health.assessment` 给出"当前搜索面能否填满你的领取额度"（`projected_items_month` vs `commitment_remaining`）与瓶颈归因（supply_ceiling/word_face/capacity/collecting/no_data/ok）
-- **回收流程**：判 `irrelevant` 进 `vibe_rejected`；可用 `vibe_recover_lead` 恢复重评
+- **回收流程**：判 `irrelevant` 进 `vibe_leads`；可用 `vibe_recover_lead` 恢复重评
 - **防滥用**：每日交付上限 + 入库公平使用上限 + 已领取校验

@@ -29,16 +29,16 @@ Give vibedollar your product description and it continuously monitors Reddit for
 
 | Tool | What it does | Cost |
 |------|-------------|------|
-| `vibe_register` / `vibe_verify` | Two-step signup → API key (email code → key) | Free |
+| `vibe_register` / `vibe_register` | Two-step signup → API key (email code → key) | Free |
 | `vibe_balance` | Check balance / tier / monthly claim allowance and daily cap | Free |
 | `vibe_subscribe` | Subscribe a product (describe it; background tracking starts) | Free |
 | `vibe_leads` | Claim leads (author / body / system reference score) | **Billed per lead claimed** |
-| `vibe_submit_score` | Score claimed leads with your own judgment: `relevant` → delivered list; `irrelevant` → feedback for tuning | **Free** |
+| `vibe_score` | Score claimed leads with your own judgment: `relevant` → delivered list; `irrelevant` → feedback for tuning | **Free** |
 | `vibe_score_discuss` | View/respond to disagreements with system reference score (calibration) | Free |
-| `vibe_list_subs` / `vibe_unsubscribe` | Subscription management | Free |
-| `vibe_delivered` / `vibe_get_delivered` | Delivered leads (follow-up) | Free |
-| `vibe_mark_leads` | Mark lead outcome (valid / invalid / contacted) | Free |
-| `vibe_recover_key` / `vibe_recover_verify` | Lost your API key? Recover it via email verification | Free |
+| `vibe_subs` / `vibe_subscribe` | Subscription management | Free |
+| `vibe_delivered` / `vibe_delivered` | Delivered leads (follow-up) | Free |
+| `vibe_leads` | Mark lead outcome (valid / invalid / contacted) | Free |
+| `vibe_account` / `vibe_account` | Lost your API key? Recover it via email verification | Free |
 
 **Billing**: a lead is billed when you **first claim it** (Free 1,000/mo · Starter 5,000/mo then $5 per 1,000 · Pro 30,000/mo then $3.50 per 1,000). Scoring, re-reading and exporting are free. Daily delivery caps (Free/Starter 1,000, Pro 3,000) carry over to the next day.
 
@@ -50,7 +50,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
 2. **Register** (two-step):
    ```
    vibe_register(email="you@example.com")     # sends a 6-digit code
-   vibe_verify(email="you@example.com", code="123456")   # returns api_key
+   vibe_register(email="you@example.com", code="123456")   # returns api_key
    ```
    Your API key is also emailed to you. Unlock lead allowance: subscribe Starter/Pro, or top up the wallet (WeChat ¥1–¥1000 / Creem $1–$200). Free tier already includes 1,000 claimed leads/month.
 3. **Configure auth**: put the key in your MCP client request header — `Authorization: Bearer <key>` (or `Api-Key: <key>` if your client disallows custom Authorization headers).
@@ -64,13 +64,13 @@ Give vibedollar your product description and it continuously monitors Reddit for
 ```
 vibe_subscribe(product="team wiki tool for small teams")
     → {"ok": true, "subscription_id": 12, "message": "tracking started..."}
-vibe_list_subs()                          # check status + pending count
+vibe_subs()                          # check status + pending count
 vibe_leads(subscription_id=12, limit=10)  # claims 10 leads (billed per lead)
     → {"id": 1, "title": "...", "url": "...", "score": 90, "reason": "...", ...,
        "billing": {"claimed_batch": 10, "free_items": 10, "currency": "usd", "charge": 0.0, "charge_usd": 0.0,
                    "claimed_this_month": 10, "claimed_quota": 5000,
                    "daily_used": 10, "daily_cap": 1000}}
-vibe_submit_score(scores=[
+vibe_score(scores=[
     {"id": 1, "verdict": "relevant",   "score": 90, "reason": "directly asking for a solution"},
     {"id": 2, "verdict": "irrelevant", "score": 10, "reason": "unrelated"},
 ])
@@ -112,7 +112,7 @@ Rules:
 
 The only user action is **scanning a QR code / clicking a link**. You (the agent) do the rest:
 
-1. **Confirm/register api_key**: `vibe_balance()` → if "Missing API key", register via `vibe_register` → user gives you the emailed 6-digit code → `vibe_verify`. Don't ask the user to self-register.
+1. **Confirm/register api_key**: `vibe_balance()` → if "Missing API key", register via `vibe_register` → user gives you the emailed 6-digit code → `vibe_register`. Don't ask the user to self-register.
 2. **Pick channel by user location**:
    | Location | Channel | Price |
    |----------|---------|-------|
@@ -158,7 +158,7 @@ Connect → `vibe_register` → put the key in the header → call data tools. W
 - **Claim-based billing (2026-09-10)**: a lead is billed when **first claimed**; scoring, re-reading and exporting are free (server-metered, nothing self-reported)
 - **Data-service architecture**: server = pure data/state layer (collection + matching + SQL state); judging & keyword tuning are yours (your LLM)
 - **2026-09-05 tools expansion**: 9 management tools added — keywords/keyword_add/keyword_remove (word management), sd_update (judgement scope), sub_health/opt_log (delivery-health-driven tuning), rejected/recover_lead (recycle), subs (source stats)
-- **2026-09-06 keyword_add_batch**: `vibe_keyword_add_batch` adds N keywords in one call (same per-word semantics as keyword_add) — use it for init/expand lists instead of looping, to stay inside the per-account rate window
-- **Delivery-health loop**: read `vibe_sub_health` → expand/retire keywords on commitment gap → record with `vibe_opt_log` (replaces old "system auto-tunes")
-- **Recycle flow**: `irrelevant` lands in `vibe_rejected`; recover & re-score with `vibe_recover_lead` (no double billing)
+- **2026-09-06 keyword_add_batch**: `vibe_keyword_edit` adds N keywords in one call (same per-word semantics as keyword_add) — use it for init/expand lists instead of looping, to stay inside the per-account rate window
+- **Delivery-health loop**: read `vibe_sub_health` → expand/retire keywords on commitment gap → record with `vibe_keyword_edit` (replaces old "system auto-tunes")
+- **Recycle flow**: `irrelevant` lands in `vibe_leads`; recover & re-score with `vibe_recover_lead` (no double billing)
 - **Abuse protection**: batch unlocking + claim validation + consistency guardrails

@@ -15,13 +15,13 @@
 - **Billing unit = a lead you claim.** A lead (1 post or 1 comment — poster/commenter are both prospects) is billed the **first time you claim it**. Scoring it, re-reading it, or exporting it is **free**.
 - **Daily delivery cap**: Free/Starter 1,000 leads/day, Pro 3,000/day. Anything beyond the cap **carries over to the next day — nothing is lost** (delivery slows for that day, it is not billed again).
 - **Beyond the monthly allowance**: extra leads deduct from the wallet of the account's **settlement currency** — **$5 / 1,000** (Starter) or **$3.50 / 1,000** (Pro) from the USD wallet, or **CNY 25 / 1,000** (Starter) / **CNY 18 / 1,000** (Pro) from the CNY wallet. Insufficient wallet → delivery pauses and the leads stay reserved. Free tier has no overage: when the 1,000 is used up, upgrade to continue.
-- **Two wallets (2026-09-10)**: a **USD wallet** (funded via Creem, paid $1 = $1 credit) and a **CNY wallet** (funded via WeChat, paid CNY 1 = CNY 1 credit — no FX conversion). `vibe_balance()` returns both balances plus `settlement_currency`; `vibe_set_currency(currency='usd'|'cny'|'')` chooses it (empty = auto: whichever wallet holds credit, else the subscription channel).
+- **Two wallets (2026-09-10)**: a **USD wallet** (funded via Creem, paid $1 = $1 credit) and a **CNY wallet** (funded via WeChat, paid CNY 1 = CNY 1 credit — no FX conversion). `vibe_balance()` returns both balances plus `settlement_currency`; `vibe_balance(currency='usd'|'cny'|'')` chooses it (empty = auto: whichever wallet holds credit, else the subscription channel).
 - **Fair use (not billed)**: we cap the amount we pull/match for an account per day (Free 5,000 / Starter 25,000 / Pro 50,000 items). This is invisible in normal use and only prevents extreme configurations; anything over simply spills to the next day.
 - **No usage-inducement**: how many subreddits or keywords you track is entirely your call — we do not sell allowance you don't need, and a bigger plan is never required just to "unlock" more.
 - **Reading your rate budget**: every **successful** response carries the bucket this call used —
   `"rate": {"bucket":"write|pipeline|read", "tier", "limit", "used", "remaining", "window_s":60}`
   (`used` **includes this call**; the three buckets are counted independently, so `remaining` is per-bucket).
-  `pipeline` counts **calls**, not scores: one `vibe_submit_score(scores=[...])` with up to 100 entries = **1** token.
+  `pipeline` counts **calls**, not scores: one `vibe_score(scores=[...])` with up to 100 entries = **1** token.
   On limit you get `{"ok":false,"code":"rate_limited","bucket","limit","used","retry_after_s","hint"}` —
   sleep `retry_after_s`, then retry **once** (batching is the better fix).
 - **Upgrade (Starter/Pro)**: Creem (global) or WeChat Pay (CN) at `mcp.vibedollar.net`; auto-activation after payment. **Annual 20% off** (coming soon). **No trial**.
@@ -30,7 +30,7 @@
 
 **The only user action is scanning a QR / clicking a link**: registration, ordering, generating the QR, confirming activation are all done by the agent.
 
-1. **Confirm/register api_key**: `vibe_balance()` → "Missing API key" means no header configured. If the user has no key: `vibe_register(email=...)` → user gives the emailed 6-digit code → `vibe_verify(email, code)` → api_key. **Do not ask the user to self-register** — the agent does it; the user only provides email and code.
+1. **Confirm/register api_key**: `vibe_balance()` → "Missing API key" means no header configured. If the user has no key: `vibe_register(email=...)` → user gives the emailed 6-digit code → `vibe_register(email, code)` → api_key. **Do not ask the user to self-register** — the agent does it; the user only provides email and code.
 2. **Pick channel by location**:
    | Location | Channel | Price |
    |----------|---------|-------|

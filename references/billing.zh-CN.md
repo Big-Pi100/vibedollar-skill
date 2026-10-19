@@ -15,13 +15,13 @@
 - **计费单位 = 你领取的线索**：1 个帖子或 1 条评论 = 1 线索（发帖人/评论者都是潜在客户），**首次领取时计费**；**评分、重复查看、导出全部免费**（服务端按领取记账，可核验）。
 - **每日交付上限**：Free/Starter 1,000 条/日、Pro 3,000 条/日；**超出部分顺延次日，永不丢失**（当天只是慢一点，不会重复计费）。
 - **超出月额度**：从**结算币种对应的钱包**扣 —— 美元钱包 **$5/千条**（Starter）/ **$3.50/千条**（Pro），或人民币钱包 **¥25/千条** / **¥18/千条**；钱包不足则暂停交付、线索继续保留。Free 档无超额：1,000 条用完请升级。
-- **两个钱包（2026-09-10）**：**美元钱包**（Creem 充值，付 $1 = 得 $1 额度）与**人民币钱包**（微信充值，付 ¥1 = 得 ¥1 额度，不折汇率）。`vibe_balance()` 返回两个余额与 `settlement_currency`；用 `vibe_set_currency(currency='usd'|'cny'|'')` 选择（空=自动：哪个钱包有钱用哪个，否则看订阅渠道）。
+- **两个钱包（2026-09-10）**：**美元钱包**（Creem 充值，付 $1 = 得 $1 额度）与**人民币钱包**（微信充值，付 ¥1 = 得 ¥1 额度，不折汇率）。`vibe_balance()` 返回两个余额与 `settlement_currency`；用 `vibe_balance(currency='usd'|'cny'|'')` 选择（空=自动：哪个钱包有钱用哪个，否则看订阅渠道）。
 - **公平使用（不计费）**：我方为账号每日拉取/匹配量设上限（Free 5,000 / Starter 25,000 / Pro 50,000 条），正常使用远不会触及；超出仅顺延次日。
 - **不做用量诱导**：订阅多少 sub、多少关键词完全由用户自己的需求决定 —— 我们不会推销用不到的额度，也不靠"解锁"逼升级。
 - **怎么读你的限流余量**：**每个成功响应**都带本次调用所用桶的用量 ——
   `"rate": {"bucket":"write|pipeline|read", "tier", "limit", "used", "remaining", "window_s":60}`
   （`used` **含本次调用**；三桶独立计数，所以 `remaining` 是**该桶**的余量）。
-  `pipeline` 按**调用**计数、不按条数：一次 `vibe_submit_score(scores=[...])` 传满 100 条也只吃 **1** 个 token。
+  `pipeline` 按**调用**计数、不按条数：一次 `vibe_score(scores=[...])` 传满 100 条也只吃 **1** 个 token。
   超限时返回 `{"ok":false,"code":"rate_limited","bucket","limit","used","retry_after_s","hint"}` ——
   按 `retry_after_s` sleep 后**重试一次**（更好的解法是批量化）。
 - **订阅升级（Starter/Pro）**：Creem（海外）或微信扫码支付开通（`mcp.vibedollar.net`，支付后自动置档）；**年付 8 折**（后续启用）；**无试用**。
@@ -32,7 +32,7 @@
 
 ### 步骤 1：确认/注册 api_key
 - 调 `vibe_balance()` 确认当前账号是否有 api_key 与 tier；报 `"Missing API key"` 则说明未配置 Header
-- 若用户还没有 key：调 `vibe_register(email=...)` → 把收到的验证码给用户（用户转发邮箱里的 6 位码）→ 调 `vibe_verify(email, code)` 完成注册拿到 `api_key`
+- 若用户还没有 key：调 `vibe_register(email=...)` → 把收到的验证码给用户（用户转发邮箱里的 6 位码）→ 调 `vibe_register(email, code)` 完成注册拿到 `api_key`
 - **不要要求用户自己注册**——注册是 Agent 的职责，用户只需要提供 email 和验证码
 
 ### 步骤 2：按用户位置选择支付渠道
