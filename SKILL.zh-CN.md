@@ -150,7 +150,9 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
    不承诺代做）并落库; app 的线索卡片会**优先显示**这一版。
    服务端零 LLM 且**不发通用模板**（通用句与线索无关）—— 草稿只能由你写。
 
-**养号功能已于 2026-10-19 下线。** 相关工具（`vibe_warmup_*`、`vibe_doctor`）现在返回 `tool_removed`。
+**养号功能已于 2026-10-19 下线。** `vibe_warmup_*` 工具已从服务端移除，调用只会得到**协议级
+unknown tool**（兼容 stub 也删了，所以不再有自定义的 `tool_removed` 回执）。**`vibe_doctor` 仍然存在**
+（perf / supply / purge），只是不再有养号那条路由 —— karma 怎么办见下文。
 账号怎么养由你自己判断：用 `vibe_catalog(query=)` 选社区，用 `vibe_community(kind="safety", sub=)`
 看社区规则，用 `vibe_sub_posts(order="score")` / `vibe_community(kind="commenters")` 看什么内容被认可。
 
@@ -280,7 +282,7 @@ vibedollar 监控 Reddit，找出那些正在主动寻找用户所建产品的�
   · `vibe_outreach` 找不到评论时只记 `outreach_state=unknown`（**不会**写 outcome —— 没找到评论就没有"已触达"）; 真找到才会自动标 `contacted`。
   · `progress` 只挂在**三个管道工具**上（`vibe_leads` / `vibe_score` / `vibe_outreach`）; 其余只读工具（`vibe_balance`/`vibe_delivered`/`vibe_delivery` 等）各自返回自己的数据面, 不带 progress。
   · `next` 若超出你的职责/授权（例如停词、移 sub、替客户发布）——**换个手**: 按 `next.alternatives` 走（通常是继续领取）或交给负责人; 服务端**从不拦**你领取。`next.advisory: true` = 这条 next 是建议（供给侧回灌门）; `alternatives` 里**不会**在你还没发出任何东西时推 `vibe_leads`（sent=0 时改成推 `vibe_outreach`）。
-  · **id 速查（实测踩过三次, 现在交付类工具两种 id 都认）**: `delivered_id`（交付行 id, 回执里的 `delivered_ids`）是 `vibe_delivered` / `vibe_delivered` / `vibe_outreach` / `vibe_outreach` / `vibe_leads` 的**推荐参数**; 候选 id（`lead_pool.id`, 7 位, 回执里的 `lead_ids`）只给 `vibe_score` / `vibe_recover_lead` 用 —— 但交付类工具现在也接受它（内部自动映射）, 传错不会静默失败。
+  · **id 速查（实测踩过三次, 现在交付类工具两种 id 都认）**: `delivered_id`（交付行 id, 回执里的 `delivered_ids`）是 `vibe_delivered` / `vibe_outreach` / `vibe_leads` 的**推荐参数**; 候选 id（`lead_pool.id`, 7 位, 回执里的 `lead_ids`）只给 `vibe_score` / `vibe_recover_lead` 用 —— 但交付类工具现在也接受它（内部自动映射）, 传错不会静默失败。
   · `vibe_delivered(lead_id|delivered_id)` 两种都认, 并返回 `has_draft`/`draft_len`; `vibe_leads` 解析不到的 id 会在 `unresolved_ids` 里显式列出（不再静默 `updated=0`）。
   · `vibe_score` 回执里的 `unmarked_delivered` 是**账号口径**（带 `unmarked_delivered_scope: account`）; 本次涉及订阅的欠账看 `progress.todo.to_mark`（带 `scope` 与 id 清单）。
 - 触达阶段的 `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
@@ -474,7 +476,7 @@ vibe_leads(peek=true)    → **每轮必扫一眼** progress.todo.supply.stats.p
 `facebook marketplace` 3/10 = 30%）。两条值得照抄的习惯：
 
 - **领取前先免费看库存。** `vibe_leads`（库存标题/正文）与
-  `vibe_doctor(out_of_scope=true, dry_run=true)` 能在**不领取**的前提下看清池子里到底是什么；
+  `vibe_doctor(what="purge", subscription_id=…, out_of_scope=true)` 能在**不领取**的前提下看清池子里到底是什么；
   **领取才计费**。用它先判"这个词该退役 / 这批库存该清"，**别让一条垃圾花掉额度**。
   实测的坑：执行器的 `--dry-run` 也不免费（老版本甚至照样领取）；
   真正免费的是 `vibe_leads(peek=true)`、`vibe_leads`、`vibe_doctor(dry_run=true)`。
@@ -524,7 +526,7 @@ vibe_keyword_edit(subscription_id, action="log_opt", items=[{"outcome":"auto_ret
 | **清单 sub 全静默**（`pipeline_recent` 多轮 matched=0 且语料在长）| 扩清单——需求住在你没列的 sub 里：`vibe_catalog(query=<产品/领域词>)` → 加候选（B/C 可能需一次性取货，~分钟/sub）|
 | 词: 0 delivered + ≥2 rejected，`invalid_sample` 跨主题 | `vibe_keyword_edit` force + `vibe_keyword_edit` |
 | 退役后词面清空、目标仍缺 | **重生成**：sd_gen（sd 缺）→ kw_init/kw_opt → `vibe_keyword_edit` |
-| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → **扩/换搜索面**：`vibe_catalog` / `vibe_catalog` 找候选 sub → `vibe_subscribe` 加入（服务端排队取货）→ 下一轮从 `vibe_keywords` 命中统计判断表达好坏。**已无 agent 侧 probe**（`vibe_search_probe` 2026-09-11 下线：语料只经 sub 清单进来）|
+| 新词多轮 hit=0、清单健康 | 该表达在你清单 sub 语料里不存在 → **扩/换搜索面**：`vibe_catalog` 找候选 sub → `vibe_subscribe` 加入（服务端排队取货）→ 下一轮从 `vibe_keywords` 命中统计判断表达好坏。**已无 agent 侧 probe**（`vibe_search_probe` 2026-09-11 下线：语料只经 sub 清单进来）|
 | NEW30 有命中、目标仍缺 | 扩: `vibe_keyword_edit` |
 | NEW30 扫净、collecting_ok | 语料边界窄 → 扩你的 sub 清单（阶段 B）；期间记录尝试 |
 | `collecting_ok=false` | alert（采集停 —— 扩词无用）|
@@ -554,7 +556,7 @@ vibe_keyword_edit(subscription_id, action="log_opt", items=[{"outcome":"auto_ret
 **纪律**（无时间冷却 / 每日次数 —— v2 §5.3）：
 - 每轮一个方向性动作（收敛纪律，非节流）
 - verify 门控而非时钟门控：act → 看结果 → 决定下一步
-- **扩面而不是探面**：语料只经 sub 清单进来 —— `vibe_catalog` / `vibe_catalog` 挑 sub，
+- **扩面而不是探面**：语料只经 sub 清单进来 —— `vibe_catalog` 挑 sub，
   `vibe_subscribe` 加入（服务端排队取货），下一轮从 `vibe_keywords` 命中统计与
   `pipeline_recent` 读结果。原 `vibe_search_probe`（agent 触发的同步拉取）已于 2026-09-11 下线，
   所以 "0 命中" 只能读作*在你清单 sub 之内*；要验证别处就把那个 sub 加进清单，等一轮管线。

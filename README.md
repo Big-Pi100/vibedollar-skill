@@ -29,7 +29,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
 
 | Tool | What it does | Cost |
 |------|-------------|------|
-| `vibe_register` / `vibe_register` | Two-step signup → API key (email code → key) | Free |
+| `vibe_register` | Two-step signup → API key (email code → key) | Free |
 | `vibe_balance` | Check balance / tier / monthly claim allowance and daily cap | Free |
 | `vibe_subscribe` | Subscribe a product (describe it; background tracking starts) | Free |
 | `vibe_leads` | Claim leads (author / body / system reference score) | **Billed per lead claimed** |
@@ -38,7 +38,7 @@ Give vibedollar your product description and it continuously monitors Reddit for
 | `vibe_subscribe` | Create / cancel a subscription (`action="cancel"`); also updates sd and the sub list | Free |
 | `vibe_delivered` | Delivered leads (follow-up); pass an id for one item's detail | Free |
 | `vibe_leads`（`mark=`） | Mark lead outcome (valid / invalid / contacted) | Free |
-| `vibe_account` / `vibe_account` | Lost your API key? Recover it via email verification | Free |
+| `vibe_account` | Lost your API key? Recover it via email verification | Free |
 
 **Billing**: a lead is billed when you **first claim it** (Free 1,000/mo · Starter 5,000/mo then $5 per 1,000 · Pro 30,000/mo then $3.50 per 1,000). Scoring, re-reading and exporting are free. Daily delivery caps (Free/Starter 1,000, Pro 3,000) carry over to the next day.
 

@@ -167,8 +167,11 @@ loop — do not skip judging and go write drafts.
    The server is zero-LLM and serves **no generic templates** (generic lines are unrelated to the
    lead) — the draft can only come from you.
 
-**Warm-up was removed in 2026-10-19.** The warm-up tools (`vibe_warmup_*`, `vibe_doctor`)
-now return `tool_removed`. Building up an account is left to you: pick communities with
+**Warm-up was removed in 2026-10-19.** The `vibe_warmup_*` tools are gone from the server — calling
+one now gets a **protocol-level unknown-tool error** (there is no custom `tool_removed` payload any
+more, because the compatibility stubs were deleted too). **`vibe_doctor` still exists** (perf /
+supply / purge); only its warm-up routing is gone — the karma answer is below. Building up an
+account is left to you: pick communities with
 `vibe_catalog(query=)`, check per-community rules with `vibe_community(kind="safety", sub=)`,
 and study what gets engagement via `vibe_sub_posts(order="score")` / `vibe_community(kind="commenters")`.
 
@@ -327,7 +330,7 @@ because of it. Try a **narrower word shape** first (`closed testing` → `closed
   · When `vibe_outreach` cannot find your comment it records only `outreach_state=unknown` and does **not** write an outcome (no comment found means nothing was reached); auto-marking `contacted` happens only on a real hit.
   · `progress` rides on **three pipeline tools only** (`vibe_leads` / `vibe_score` / `vibe_outreach`); other read tools (`vibe_balance` / `vibe_delivered` / `vibe_delivery` …) return their own data without `progress`.
   · If `next` needs something outside your scope (retiring a word, dropping a sub, posting on the customer's behalf), **hand it over**: take `next.alternatives` (usually claiming) or pass it to the human — the server **never blocks** claiming. `next.advisory: true` marks a suggestion (the supply-side feedback gate); `alternatives` will **not** suggest `vibe_leads` while nothing has been sent (with `sent=0` it points at `vibe_outreach` instead).
-  · **id cheat sheet (this tripped three clean-agent runs; delivery tools now accept both)**: `delivered_id` (delivery-row id, the `delivered_ids` in receipts) is the **recommended argument** for `vibe_delivered` / `vibe_delivered` / `vibe_outreach` / `vibe_outreach` / `vibe_leads`; candidate ids (`lead_pool.id`, 7 digits, the `lead_ids` in receipts) belong to `vibe_score` / `vibe_recover_lead` — but the delivery tools now accept them too (mapped internally), so a mix-up no longer fails silently.
+  · **id cheat sheet (this tripped three clean-agent runs; delivery tools now accept both)**: `delivered_id` (delivery-row id, the `delivered_ids` in receipts) is the **recommended argument** for `vibe_delivered` / `vibe_outreach` / `vibe_leads`; candidate ids (`lead_pool.id`, 7 digits, the `lead_ids` in receipts) belong to `vibe_score` / `vibe_recover_lead` — but the delivery tools now accept them too (mapped internally), so a mix-up no longer fails silently.
   · `vibe_delivered(lead_id|delivered_id)` accepts either and returns `has_draft` / `draft_len`; `vibe_leads` lists any id it could not resolve in `unresolved_ids` (no more silent `updated=0`).
   · On `vibe_score` the `unmarked_delivered` count is **account-scoped** (carries `unmarked_delivered_scope: account`); for the subscription(s) in play read `progress.todo.to_mark` (with `scope` and the id lists).
 - outreach-stage `todo`: `drafts_missing` / `drafts_open` / `vetoed_n` / `drafts_written` /
@@ -538,7 +541,7 @@ Found by a customer-side agent fixing a `word_face` subscription (362: 1.9% → 
 new word `facebook marketplace` 3/10 = 30%). Two habits worth copying:
 
 - **Free inspection before claiming.** `vibe_leads` (bodies/titles of stock) and
-  `vibe_doctor(out_of_scope=true, dry_run=true)` show you **what is actually in the pool**
+  `vibe_doctor(what="purge", subscription_id=…, out_of_scope=true)` show you **what is actually in the pool**
   without claiming anything — claiming is what gets billed. Use them to decide
   "retire this word / purge this stock" **before** one junk item costs quota. The measured
   trap: `--dry-run` on the executor is not free either — it peeks nothing and, in older
@@ -594,7 +597,7 @@ Decision table (goal-driven, v2.2 sub-anchored — 2026-09-09):
 | **list subs all silent** (`pipeline_recent` matched=0 several rounds, corpus growing) | widen the list — the demand lives in subs you haven't listed: `vibe_catalog(query=<product/niche words>)` → add candidates (B/C may need a one-time fetch, ~min/sub) |
 | word: 0 delivered + ≥2 rejected, `invalid_sample` off-topic | `vibe_keyword_edit` force + `vibe_keyword_edit` |
 | face cleared after retires, goal still short | **regenerate**: sd_gen (if sd missing) → kw_init/kw_opt → `vibe_keyword_edit` |
-| new words hit=0 across rounds, list healthy | the phrase is absent in your listed subs' corpus → **widen or replace the face**: `vibe_catalog`/`vibe_catalog` for candidate subs → `vibe_subscribe` to add them (the server queues the pull) → judge the phrasing from `vibe_keywords` hit stats next round. There is no agent-side probe any more (`vibe_search_probe` retired 2026-09-11: pulls go only through the sub list) |
+| new words hit=0 across rounds, list healthy | the phrase is absent in your listed subs' corpus → **widen or replace the face**: `vibe_catalog` for candidate subs → `vibe_subscribe` to add them (the server queues the pull) → judge the phrasing from `vibe_keywords` hit stats next round. There is no agent-side probe any more (`vibe_search_probe` retired 2026-09-11: pulls go only through the sub list) |
 | NEW30 hitting, goal short | expand: `vibe_keyword_edit` |
 | NEW30 swept, collecting_ok | corpus boundary thin → widen your sub list (stage B), record the attempt meanwhile |
 | `collecting_ok=false` | alert (intake down — expanding useless) |
@@ -630,7 +633,7 @@ Check the expect against the new perceive, then **return to the goal check**:
 - one direction action per round (convergence discipline, not throttling)
 - verify-gated, not clock-gated: act → see the result → decide next
 - **widen the face, don't probe it**: corpus only ever arrives through the sub list —
-  `vibe_catalog` / `vibe_catalog` to pick subs, `vibe_subscribe` to add them
+  `vibe_catalog` to pick subs, `vibe_subscribe` to add them
   (the server queues the fetch), then read `vibe_keywords` hit stats and `pipeline_recent`
   next round. The old `vibe_search_probe` (an agent-triggered synchronous fetch) was
   retired 2026-09-11, so "0 hit" can only be read as *inside your listed subs* — to test

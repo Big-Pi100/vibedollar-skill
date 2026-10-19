@@ -26,7 +26,7 @@
 
 | 工具 | 能干什么 | 成本 |
 |:-----|:---------|:-----|
-| `vibe_register` / `vibe_register` | 两步注册获取 API key | 免费 |
+| `vibe_register` | 两步注册获取 API key | 免费 |
 | `vibe_balance` | 查余额 / tier / 本月领取额度与每日上限 | 免费 |
 | `vibe_subscribe` | 订阅产品（输入描述，后台持续抓取候选） | 免费 |
 | `vibe_leads` | 领取线索（含作者/正文/系统参考分 + `billing` 记账块） | **按领取条数计费** |
@@ -35,7 +35,7 @@
 | `vibe_subscribe` | 创建/取消订阅（`action="cancel"`）；也可更新供需四段与 sub 清单 | 免费 |
 | `vibe_delivered` | 已交付线索（回访）；传 id 看单条详情 | 免费 |
 | `vibe_leads`（`mark=`） | 标记线索结果（valid / contacted） | 免费 |
-| `vibe_account` / `vibe_account` | 找回 API key（邮箱验证后发到邮箱）| 免费 |
+| `vibe_account` | 找回 API key（邮箱验证后发到邮箱）| 免费 |
 
 **计费说明**：线索在**首次领取**时计费（Free 1,000/月 · Starter 5,000/月，超出 $5/千条 · Pro 30,000/月，超出 $3.50/千条）；**评分、重复查看、导出免费**。每日交付上限（Free/Starter 1,000、Pro 3,000）超出部分顺延次日，永不丢失。
 
