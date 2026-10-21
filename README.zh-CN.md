@@ -1,4 +1,4 @@
-# vibedollar — 帮你找到正在等你的客户
+# vibedollar：帮你找到正在等你的客户
 
 > **Reddit 上正在抱怨、求方案的潜在客户，vibedollar 把他们带给你。**
 

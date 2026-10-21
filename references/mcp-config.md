@@ -1,4 +1,4 @@
-# vibedollar MCP Client Config（参考 — 一次性配置, 按需加载）
+# vibedollar MCP Client Config（参考，一次性配置, 按需加载）
 
 > 何时读本文件：首次连接 vibedollar MCP、换 MCP 客户端、配 header 鉴权。
 
@@ -26,7 +26,7 @@ header: `Api-Key: <key>`.
 
 Connect → `vibe_register` → configure the key in the header → call data tools
 (Reddit collection, matching and state are vibedollar's; judging and keyword
-tuning are yours — see SKILL.md **Managing delivery health**).
+tuning are yours; see SKILL.md **Managing delivery health**).
 
 ## 协议（本地脚本用, 如 scripts/mcp.py）
 

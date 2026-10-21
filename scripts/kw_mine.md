@@ -1,4 +1,4 @@
-# kw_mine.md — 从「高精度人群 sub」的全量语料里提炼关键词 (agent 侧)
+# kw_mine.md：从「高精度人群 sub」的全量语料里提炼关键词 (agent 侧)
 
 > **何时跑**: 你已经确认某个 sub 的**人群本身就是本订阅的 demand_side**(人群画像 sub), 想让它的人
 > **自己说出来的话**变成词表 —— 而不是从产品描述里猜词。
@@ -169,9 +169,9 @@ Extract the words and short noun phrases THESE AUTHORS USE THEMSELVES when descr
 
 RULES:
 - Output only 2-4 word noun phrases a real Redditor would type in a post title/body (e.g. "first users", "beta testers", "getting traffic", "cold outreach"). Never sentence-style scene phrases.
-- The word must be about THEIR problem/want, not about any product's features or category name. If a phrase only makes sense as "what I would search for to find leads", it is NOT a keyword — drop it (e.g. "reddit threads where people ask for my product" is a search-target description, not buyer language).
-- BAN umbrella/category terms ("saas marketing", "app growth") and phrases whose most distinctive token is a generic transaction verb (get, find, buy, sell, free) — they match chatter everywhere.
-- Prefer words that appear in MANY of the posts you were given (that is why this sub is the audience) — report `n` = how many posts used it.
+- The word must be about THEIR problem/want, not about any product's features or category name. If a phrase only makes sense as "what I would search for to find leads", it is NOT a keyword; drop it (e.g. "reddit threads where people ask for my product" is a search-target description, not buyer language).
+- BAN umbrella/category terms ("saas marketing", "app growth") and phrases whose most distinctive token is a generic transaction verb (get, find, buy, sell, free); they match chatter everywhere.
+- Prefer words that appear in MANY of the posts you were given (that is why this sub is the audience); report `n` = how many posts used it.
 - Give 8-20 candidates. Quality over quantity; a word that only appears once is usually noise.
 - Language: same as the posts.
 
@@ -184,7 +184,7 @@ SUBREDDIT: [sub name]
 WHY THIS SUB IS THE AUDIENCE: [one line: which demand_side sentence it matches]
 DEMAND (target audience): [demand_side from sd doc]
 PAIN (first person): [demand_pain from sd doc]
-PRODUCT (reference only — do NOT mine words from this): [product text]
+PRODUCT (reference only; do NOT mine words from this): [product text]
 
 POSTS (title | post_id):
 [one line per post]

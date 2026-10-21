@@ -63,14 +63,14 @@ agent_created: true                    # 仅 WorkBuddy 本地自建必须加 →
 3. 编辑 marketplace 已装 skill 后没写 `"userModified": true` 到 `_skillhub_meta.json`
    或 `_knot_meta.json` → 下次市场更新静默覆盖
 
-### 3b. 跨平台分发（GitHub 通用 skill — vibedollar-skill 场景）
+### 3b. 跨平台分发（GitHub 通用 skill，vibedollar-skill 场景）
 
 **平台特有元数据不进仓库源文件；各平台安装时自己加。** vibedollar-skill 会被
 Claude / pi / 任意 MCP agent / WorkBuddy 等多个宿主拉取，SKILL.md 必须平台中立：
 
 | 字段 | 归属 |
 |---|---|
-| `name` + `description` | 源文件保留（通用最小集 — 所有平台认可）|
+| `name` + `description` | 源文件保留（通用最小集，所有平台认可）|
 | `agent_created` / `userModified` | WorkBuddy **安装/编辑时**补，不进源文件 |
 | `license` | 可留（平台无关）|
 
@@ -180,7 +180,7 @@ SKILL.md 回答三个问题：
       vibedollar-skill/scripts/*.md 单源免漂移" 只做了裁决未执行 → skill 无供需生成/扩词
       模板，判真也不注入 sd（前端带 [SUPPLY/DEMAND]，skill score_batch 只拼 product）。
       本次：资产化 `scripts/sd_gen.md` / `kw_init.md` / `kw_opt.md` /
-      `eng_sys_core.md`（只读 — 计费契约）；judge_prompt.md 对齐 ENG_SYS_CORE（炫耀帖/
+      `eng_sys_core.md`（只读，计费契约）；judge_prompt.md 对齐 ENG_SYS_CORE（炫耀帖/
       成熟卖家排除 0-29，契约段不可改）；score_batch.py 从 vibe_subs 读 sd_json 注入
       system；SKILL.md/zh 新增 "Setup & tuning prompts" 资产表（顺序：sd → kw → judge），
       修复旧节名交叉引用；前端单源迁移仍待做（app.js 与 scripts/*.md 并存，阶段 C 收口）。
@@ -201,10 +201,10 @@ SKILL.md 回答三个问题：
       模板零占位符；kw_init/kw_opt sys 补 tail 形态硬约束（2-4 词名词短语，禁
       "at home nails"/"kit hard to use" 场景句 —— 345 噪声实证）；SKILL.md/zh 资产表
       重写为 sd 文档化流程。judge_prompt/score_batch 保持 sd_json 注入（后端权威）。
-- [x] **A2.7. 模板 user 块去注入记号（2026-09-08，占位符复查）**：全仓扫描占位符 —
+- [x] **A2.7. 模板 user 块去注入记号（2026-09-08，占位符复查）**：全仓扫描占位符：
       上一轮把 `{xxx}` 换成 `<xxx>` 但给 LLM 的模板 user 块仍留尖括号记号
       （eng_sys_core/sd_gen/kw_init/kw_opt），agent 可能把字面 `<supply_side>` 发出去。
-      本次：4 个模板 user 块统一为**字段布局说明**（`SUPPLY: [supply_side value]` —
+      本次：4 个模板 user 块统一为**字段布局说明**（`SUPPLY: [supply_side value]`：
       方括号 = 组装提示，非字面量），并注明"nothing here is literal"；README/billing
       的 `<key>`（API 文档参数记号）与 python f-string 属正常保留。复查后 LLM 模板
       user 块零尖括号待填记号。
@@ -263,6 +263,6 @@ SKILL.md 回答三个问题：
       pipeline token；档位上限 20/30/50）、多订阅口径（`to_score_by_sub`）、宿主调度配方
       （`score_batch.py --sub <sid> --limit <档位上限>` + 读 `gap_reason`）、反模式与实测证据。
       守卫：`tests/test_doc_contract_guards.py` 新增 1j 段（两份 SKILL 必须都有该节且字段同名）。
-- [x] **B. frontmatter 无 agent_created**：已决 — 跨平台通用 skill 不加（§3b）
+- [x] **B. frontmatter 无 agent_created**：已决，跨平台通用 skill 不加（§3b）
 - [x] **C. 开场第二人称叙述**：已改祈使/客观（f34b36d）
 - [x] **D. score_batch.py 使用引导**：已加"先 --dry-run 验证连通"（f34b36d）

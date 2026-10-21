@@ -1,12 +1,12 @@
-# vibedollar — Data use cases (reference — downstream, load on need)
+# vibedollar: Data use cases (reference; downstream, load on need)
 
 > When to read this file: the user asks how to turn delivered leads / keywords /
 > candidates into actual customers, interviews, or content. Day-to-day scoring and
-> keyword tuning do not need this file — see SKILL.md for the operation loop.
+> keyword tuning do not need this file; see SKILL.md for the operation loop.
 
 Subscription data = **real people expressing real needs in their own words**
 (who + where + how they say it). Beyond the lead list itself, the data feeds three
-proven downstream uses — no extra service, no interface changes:
+proven downstream uses; no extra service, no interface changes:
 
 ## ① Customer interviews (understand the customer, pre-PMF)
 
@@ -27,7 +27,7 @@ Use it to:
 
 ```
 Source: scored-relevant delivered leads (vibe_delivered, authors reachable).
-Billing happens when a lead is claimed, not when it is scored — judging is free.
+Billing happens when a lead is claimed, not when it is scored; judging is free.
 Use it to:
   - Priority list: sort by score/reason: "directly asking for a solution"
     authors get contacted first
